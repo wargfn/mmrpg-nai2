@@ -142,7 +142,7 @@ def run_cli(model: str) -> None:
             final_content = "".join(chunks)
             if final_content:
                 messages.append({"role": "assistant", "content": final_content})
-        except (ollama.RequestError, ollama.ResponseError) as exc:
+        except (ollama.RequestError, ollama.ResponseError, TypeError) as exc:
             if chunks:
                 print()
             del messages[turn_start_index:]
