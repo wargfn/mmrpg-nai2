@@ -1,4 +1,4 @@
-"""Rule lookup utilities backed by local JSON data."""
+"""Rulebook database search utilities backed by local JSON data."""
 
 from __future__ import annotations
 
@@ -23,16 +23,89 @@ def load_rules_database(path: Path | str | None = None) -> dict[str, Any]:
     return json.loads(content)
 
 
+class RulesDatabase:
+    """In-memory query interface for mechanics and powers."""
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        self._data = load_rules_database(path)
+
+    def query_rules(self, query: str) -> str:
+        """Search mechanics and powers by keyword and return markdown results."""
+        keyword = query.strip().lower()
+        if not keyword:
+            return "Please provide a keyword to search the rulebook."
+
+        mechanics_matches: list[dict[str, Any]] = []
+        for key, payload in self._data.get("mechanics", {}).items():
+            title = str(payload.get("title", key))
+            category = str(payload.get("category", "Mechanics"))
+            description = str(payload.get("description", ""))
+            haystack = " ".join([key, title, category, description]).lower()
+            if keyword in haystack:
+                mechanics_matches.append(
+                    {
+                        "key": key,
+                        "title": title,
+                        "category": category,
+                        "description": description,
+                    }
+                )
+
+        powers_matches: list[dict[str, Any]] = []
+        for payload in self._data.get("powers", []):
+            name = str(payload.get("name", "Unknown Power"))
+            category = str(payload.get("category", "Uncategorized"))
+            rank_required = payload.get("rank_required", "?")
+            description = str(payload.get("description", ""))
+            haystack = " ".join([name, category, str(rank_required), description]).lower()
+            if keyword in haystack:
+                powers_matches.append(
+                    {
+                        "name": name,
+                        "category": category,
+                        "rank_required": rank_required,
+                        "description": description,
+                    }
+                )
+
+        if not mechanics_matches and not powers_matches:
+            return f"No rulebook matches found for '{query}'."
+
+        lines = [f"## Rulebook Search Results for `{query}`"]
+
+        if mechanics_matches:
+            lines.append("\n### Mechanics")
+            for item in mechanics_matches:
+                lines.append(f"- **{item['title']}** (`{item['key']}`)")
+                lines.append(f"  - Category: {item['category']}")
+                lines.append(f"  - {item['description']}")
+
+        if powers_matches:
+            lines.append("\n### Powers")
+            for item in powers_matches:
+                lines.append(f"- **{item['name']}**")
+                lines.append(f"  - Category: {item['category']}")
+                lines.append(f"  - Rank Required: {item['rank_required']}")
+                lines.append(f"  - {item['description']}")
+
+        return "\n".join(lines)
+
+
+def query_rulebook_database(query: str) -> str:
+    """Query the local rulebook database with a keyword search."""
+    return RulesDatabase().query_rules(query)
+
+
 def lookup_rule_reference(rule_key: str, path: Path | str | None = None) -> dict[str, Any]:
-    """Look up a rule key from the local JSON rule database."""
+    """Backward-compatible exact lookup by mechanic key."""
     normalized = rule_key.strip().lower()
     rules = load_rules_database(path)
-    references = rules.get("references", {})
+    mechanics = rules.get("mechanics", {})
 
-    if normalized not in references:
+    if normalized not in mechanics:
         raise RulesLookupError(f"No rule reference found for '{rule_key}'.")
 
-    payload = references[normalized]
+    payload = mechanics[normalized]
     if isinstance(payload, dict):
         return {"rule_key": normalized, **payload}
 

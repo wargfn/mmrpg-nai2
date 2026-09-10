@@ -8,15 +8,15 @@ from marvel_mcp_narrator.interfaces.cli import _tool_injection, main, run_cli
 class CLIToolInjectionTests(unittest.TestCase):
     def test_roll_command_returns_tool_payload(self):
         name, payload = _tool_injection('/roll --tn 10')
-        self.assertEqual(name, 'roll_d616')
+        self.assertEqual(name, 'resolve_d616_roll')
         self.assertIn('total', payload)
         self.assertEqual(payload['target_number'], 10)
 
-    def test_rule_command_returns_reference(self):
+    def test_rule_command_returns_search_results(self):
         name, payload = _tool_injection('/rule edge')
-        self.assertEqual(name, 'lookup_rule_reference')
-        self.assertEqual(payload['rule_key'], 'edge')
-        self.assertEqual(payload['title'], 'Edge')
+        self.assertEqual(name, 'lookup_rule')
+        self.assertIn('Rulebook Search Results', payload)
+        self.assertIn('Edges and Troubles', payload)
 
     def test_roll_invalid_target_number_raises_clear_error(self):
         with self.assertRaisesRegex(ValueError, 'must be a positive integer'):
@@ -72,7 +72,7 @@ class CLIRunLoopTests(unittest.TestCase):
         run_cli(model='fake-model')
 
         call_messages = mock_chat.call_args.kwargs['messages']
-        self.assertTrue(any(msg['role'] == 'user' and 'Tool output (roll_d616):' in msg['content'] for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'user' and 'Tool output (resolve_d616_roll):' in msg['content'] for msg in call_messages))
         self.assertFalse(any(msg['role'] == 'user' and msg['content'] == '/roll' for msg in call_messages))
 
     @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')

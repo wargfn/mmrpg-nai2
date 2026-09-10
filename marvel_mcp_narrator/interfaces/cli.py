@@ -9,7 +9,7 @@ from typing import Any
 import ollama
 
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
-from marvel_mcp_narrator.core.rules_database import RulesLookupError, lookup_rule_reference
+from marvel_mcp_narrator.core.rules_database import query_rulebook_database
 
 SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "
@@ -17,7 +17,7 @@ SYSTEM_PROMPT = (
 )
 
 
-def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | None]:
+def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str | None]:
     """Parse slash commands and return (tool_name, tool_output)."""
     stripped = user_input.strip()
     parts = stripped.split()
@@ -70,13 +70,13 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | None]
                 index += 2
                 continue
             raise ValueError("Usage: /roll [--edge|--trouble] [--tn N]")
-        return "roll_d616", roll_d616(edge=edge, trouble=trouble, target_number=tn)
+        return "resolve_d616_roll", roll_d616(edge=edge, trouble=trouble, target_number=tn)
 
     if command == "/rule":
         key = " ".join(parts[1:]).strip()
         if not key:
-            raise ValueError("Usage: /rule <reference_key>")
-        return "lookup_rule_reference", lookup_rule_reference(key)
+            raise ValueError("Usage: /rule <keyword>")
+        return "lookup_rule", query_rulebook_database(key)
 
     return None, None
 
@@ -84,7 +84,7 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | None]
 def run_cli(model: str) -> None:
     """Start an interactive Ollama-backed narrator loop."""
     print("Marvel MCP Narrator CLI")
-    print("Type '/roll [--edge|--trouble] [--tn N]' or '/rule <key>' for deterministic tools.")
+    print("Type '/roll [--edge|--trouble] [--tn N]' or '/rule <keyword>' for deterministic tools.")
     print("Type 'exit' to quit.\n")
 
     messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -101,7 +101,7 @@ def run_cli(model: str) -> None:
         try:
             tool_name, tool_output = _tool_injection(user_input)
             if tool_name and tool_output is not None:
-                payload = json.dumps(tool_output, ensure_ascii=False)
+                payload = tool_output if isinstance(tool_output, str) else json.dumps(tool_output, ensure_ascii=False)
                 print(f"tool[{tool_name}]> {payload}")
                 messages.append(
                     {
@@ -111,7 +111,7 @@ def run_cli(model: str) -> None:
                 )
             else:
                 messages.append({"role": "user", "content": user_input})
-        except (ValueError, RulesLookupError, D616ConfigurationError) as exc:
+        except (ValueError, D616ConfigurationError) as exc:
             print(f"tool_error> {exc}")
             continue
 
