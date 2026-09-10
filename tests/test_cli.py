@@ -19,7 +19,7 @@ class CLIToolInjectionTests(unittest.TestCase):
         self.assertEqual(payload['title'], 'Edge')
 
     def test_roll_invalid_target_number_raises_clear_error(self):
-        with self.assertRaisesRegex(ValueError, 'must be an integer'):
+        with self.assertRaisesRegex(ValueError, 'must be a positive integer'):
             _tool_injection('/roll --tn nope')
 
     def test_roll_rejects_unexpected_positional_argument(self):
@@ -29,6 +29,14 @@ class CLIToolInjectionTests(unittest.TestCase):
     def test_roll_rejects_extra_argument_after_target_number(self):
         with self.assertRaisesRegex(ValueError, 'Usage: /roll'):
             _tool_injection('/roll --tn 10 extra')
+
+    def test_roll_rejects_flag_as_target_number_value(self):
+        with self.assertRaisesRegex(ValueError, 'Usage: /roll'):
+            _tool_injection('/roll --tn --edge')
+
+    def test_roll_rejects_negative_target_number(self):
+        with self.assertRaisesRegex(ValueError, 'must be a positive integer'):
+            _tool_injection('/roll --tn -1')
 
     def test_roll_rejects_duplicate_flags(self):
         with self.assertRaisesRegex(ValueError, 'Usage: /roll'):
