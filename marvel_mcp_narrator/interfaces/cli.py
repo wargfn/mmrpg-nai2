@@ -27,17 +27,42 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | None]
     command = parts[0]
 
     if command == "/roll":
-        edge = "--edge" in parts
-        trouble = "--trouble" in parts
+        edge = False
+        trouble = False
         tn = None
-        if "--tn" in parts:
-            tn_index = parts.index("--tn")
-            if tn_index + 1 >= len(parts):
-                raise ValueError("Missing value for --tn")
-            try:
-                tn = int(parts[tn_index + 1])
-            except ValueError as exc:
-                raise ValueError("Target number for --tn must be an integer.") from exc
+        seen_edge = False
+        seen_trouble = False
+        seen_tn = False
+        index = 1
+        while index < len(parts):
+            token = parts[index]
+            if token == "--edge":
+                if seen_edge:
+                    raise ValueError("Usage: /roll [--edge|--trouble] [--tn N]")
+                seen_edge = True
+                edge = True
+                index += 1
+                continue
+            if token == "--trouble":
+                if seen_trouble:
+                    raise ValueError("Usage: /roll [--edge|--trouble] [--tn N]")
+                seen_trouble = True
+                trouble = True
+                index += 1
+                continue
+            if token == "--tn":
+                if seen_tn:
+                    raise ValueError("Usage: /roll [--edge|--trouble] [--tn N]")
+                seen_tn = True
+                if index + 1 >= len(parts):
+                    raise ValueError("Usage: /roll [--edge|--trouble] [--tn N]")
+                try:
+                    tn = int(parts[index + 1])
+                except ValueError as exc:
+                    raise ValueError("Target number for --tn must be an integer.") from exc
+                index += 2
+                continue
+            raise ValueError("Usage: /roll [--edge|--trouble] [--tn N]")
         return "roll_d616", roll_d616(edge=edge, trouble=trouble, target_number=tn)
 
     if command == "/rule":
@@ -83,20 +108,23 @@ def run_cli(model: str) -> None:
             print(f"tool_error> {exc}")
             continue
 
-        print("assistant> ", end="", flush=True)
+        chunks: list[str] = []
         try:
-            stream = ollama.chat(model=model, messages=messages, stream=True)
+            stream = ollama.chat(model=model, messages=list(messages), stream=True)
+            print("assistant> ", end="", flush=True)
 
-            chunks: list[str] = []
             for packet in stream:
                 content = packet.get("message", {}).get("content", "")
                 if content:
+                    print(content, end="", flush=True)
                     chunks.append(content)
-            final_content = "".join(chunks)
-            print(final_content)
+            print()
 
+            final_content = "".join(chunks)
             messages.append({"role": "assistant", "content": final_content})
         except (ollama.RequestError, ollama.ResponseError) as exc:
+            if chunks:
+                print()
             del messages[turn_start_index:]
             print(f"chat_error> {exc}")
 

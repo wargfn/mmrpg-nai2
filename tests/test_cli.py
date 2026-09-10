@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError
 from marvel_mcp_narrator.interfaces.cli import _tool_injection, main, run_cli
 
 
@@ -20,6 +21,24 @@ class CLIToolInjectionTests(unittest.TestCase):
     def test_roll_invalid_target_number_raises_clear_error(self):
         with self.assertRaisesRegex(ValueError, 'must be an integer'):
             _tool_injection('/roll --tn nope')
+
+    def test_roll_rejects_unexpected_positional_argument(self):
+        with self.assertRaisesRegex(ValueError, 'Usage: /roll'):
+            _tool_injection('/roll foo')
+
+    def test_roll_rejects_extra_argument_after_target_number(self):
+        with self.assertRaisesRegex(ValueError, 'Usage: /roll'):
+            _tool_injection('/roll --tn 10 extra')
+
+    def test_roll_rejects_duplicate_flags(self):
+        with self.assertRaisesRegex(ValueError, 'Usage: /roll'):
+            _tool_injection('/roll --edge --edge')
+        with self.assertRaisesRegex(ValueError, 'Usage: /roll'):
+            _tool_injection('/roll --tn 10 --tn 20')
+
+    def test_roll_edge_trouble_combo_raises_configuration_error(self):
+        with self.assertRaises(D616ConfigurationError):
+            _tool_injection('/roll --edge --trouble')
 
 
 class CLIRunLoopTests(unittest.TestCase):
@@ -57,14 +76,16 @@ class CLIRunLoopTests(unittest.TestCase):
 
         def stream_once_then_error():
             yield {'message': {'content': 'ok'}}
+            raise RequestError('stream dropped')
 
-        mock_chat.side_effect = [RequestError('offline'), stream_once_then_error()]
+        mock_chat.side_effect = [stream_once_then_error(), stream_once_then_error()]
 
         run_cli(model='fake-model')
 
         second_messages = mock_chat.call_args_list[1].kwargs['messages']
         user_turns = [msg for msg in second_messages if msg['role'] == 'user' and msg['content'] == 'hello narrator']
         self.assertEqual(len(user_turns), 1)
+        self.assertFalse(any(msg['role'] == 'assistant' and msg['content'] == 'ok' for msg in second_messages))
 
 
 class CLIMainTests(unittest.TestCase):
