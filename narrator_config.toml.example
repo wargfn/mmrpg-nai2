@@ -1,6 +1,6 @@
 [ollama]
-# Host for Open WebUI; /ollama is the Ollama proxy path
-host = "http://127.0.0.1:3000/ollama"
+# Host for Open WebUI API
+host = "http://127.0.0.1:3000"
 
 # Default model used by the CLI if --model is not passed
 model = "llama3.3"

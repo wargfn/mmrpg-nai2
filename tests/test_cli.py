@@ -7,9 +7,11 @@ from unittest.mock import patch
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError
 from marvel_mcp_narrator.interfaces.cli import (
     _tool_injection,
+    build_open_webui_chat_endpoint,
     load_cli_config,
     main,
     normalize_open_webui_host,
+    request_open_webui_chat,
     run_cli,
 )
 
@@ -68,122 +70,87 @@ class CLIToolInjectionTests(unittest.TestCase):
 
 
 class CLIRunLoopTests(unittest.TestCase):
-    class _FakeMessage:
-        def __init__(self, content):
-            self.content = content
-
-    class _FakePacket:
-        def __init__(self, content):
-            self.message = CLIRunLoopTests._FakeMessage(content)
-
-    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['hello narrator', 'exit'])
-    def test_non_tool_message_is_sent_to_ollama(self, _mock_input, mock_client_cls):
-        mock_client = mock_client_cls.return_value
-        mock_client.chat.return_value = iter([{'message': {'content': 'hi'}}])
+    def test_non_tool_message_is_sent_to_chat_api(self, _mock_input, mock_request_chat):
+        mock_request_chat.return_value = 'hi'
 
         run_cli(model='fake-model')
 
-        call_messages = mock_client.chat.call_args.kwargs['messages']
+        call_messages = mock_request_chat.call_args.kwargs['messages']
         self.assertTrue(any(msg['role'] == 'user' and msg['content'] == 'hello narrator' for msg in call_messages))
 
-    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['hello narrator', 'exit'])
-    def test_non_stream_object_response_is_handled(self, _mock_input, mock_client_cls):
-        mock_client = mock_client_cls.return_value
-        mock_client.chat.return_value = self._FakePacket('hi')
+    def test_chat_response_is_handled(self, _mock_input, mock_request_chat):
+        mock_request_chat.return_value = 'hi'
         run_cli(model='fake-model')
-        mock_client.chat.assert_called_once()
+        mock_request_chat.assert_called_once()
 
-    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/roll', 'exit'])
-    def test_roll_tool_injects_system_output_only(self, _mock_input, mock_client_cls):
-        mock_client = mock_client_cls.return_value
-        mock_client.chat.return_value = iter([{'message': {'content': 'narration'}}])
+    def test_roll_tool_injects_system_output_only(self, _mock_input, mock_request_chat):
+        mock_request_chat.return_value = 'narration'
 
         run_cli(model='fake-model')
 
-        call_messages = mock_client.chat.call_args.kwargs['messages']
+        call_messages = mock_request_chat.call_args.kwargs['messages']
         self.assertTrue(any(msg['role'] == 'tool' and 'Tool output (resolve_d616_roll):' in msg['content'] for msg in call_messages))
         self.assertFalse(any(msg['role'] == 'user' and msg['content'] == '/roll' for msg in call_messages))
 
-    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/rule teleport', 'exit'])
-    def test_rule_tool_injects_query_results(self, _mock_input, mock_client_cls):
-        mock_client = mock_client_cls.return_value
-        mock_client.chat.return_value = iter([{'message': {'content': 'narration'}}])
+    def test_rule_tool_injects_query_results(self, _mock_input, mock_request_chat):
+        mock_request_chat.return_value = 'narration'
 
         run_cli(model='fake-model')
 
-        call_messages = mock_client.chat.call_args.kwargs['messages']
+        call_messages = mock_request_chat.call_args.kwargs['messages']
         self.assertTrue(any(msg['role'] == 'tool' and 'Tool output (lookup_rule):' in msg['content'] for msg in call_messages))
         self.assertTrue(any(msg['role'] == 'tool' and 'Teleportation' in msg['content'] for msg in call_messages))
 
-    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/roll --tn nope', 'exit'])
-    def test_tool_error_does_not_call_ollama(self, _mock_input, mock_client_cls):
+    def test_tool_error_does_not_call_ollama(self, _mock_input, mock_request_chat):
         run_cli(model='fake-model')
-        mock_client = mock_client_cls.return_value
-        mock_client.chat.assert_not_called()
+        mock_request_chat.assert_not_called()
 
-    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/rule', 'exit'])
-    def test_rule_usage_error_does_not_call_ollama(self, _mock_input, mock_client_cls):
+    def test_rule_usage_error_does_not_call_ollama(self, _mock_input, mock_request_chat):
         run_cli(model='fake-model')
-        mock_client = mock_client_cls.return_value
-        mock_client.chat.assert_not_called()
+        mock_request_chat.assert_not_called()
 
-    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['hello narrator', 'exit'])
-    def test_transport_exception_does_not_crash_loop(self, _mock_input, mock_client_cls):
-        mock_client = mock_client_cls.return_value
-        mock_client.chat.side_effect = RuntimeError('Connection refused')
+    def test_transport_exception_does_not_crash_loop(self, _mock_input, mock_request_chat):
+        mock_request_chat.side_effect = RuntimeError('Connection refused')
         run_cli(model='fake-model')
-        mock_client.chat.assert_called_once()
+        mock_request_chat.assert_called_once()
 
-    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['hello narrator', 'hello narrator', 'exit'])
-    def test_chat_error_rolls_back_pending_turn_messages(self, _mock_input, mock_client_cls):
-        from ollama import RequestError
-
-        def stream_once_then_error():
-            yield {'message': {'content': 'ok'}}
-            raise RequestError('stream dropped')
-
-        mock_client = mock_client_cls.return_value
-        mock_client.chat.side_effect = [stream_once_then_error(), stream_once_then_error()]
+    def test_chat_error_rolls_back_pending_turn_messages(self, _mock_input, mock_request_chat):
+        mock_request_chat.side_effect = [RuntimeError('stream dropped'), RuntimeError('stream dropped')]
 
         run_cli(model='fake-model')
 
-        second_messages = mock_client.chat.call_args_list[1].kwargs['messages']
+        second_messages = mock_request_chat.call_args_list[1].kwargs['messages']
         user_turns = [msg for msg in second_messages if msg['role'] == 'user' and msg['content'] == 'hello narrator']
         self.assertEqual(len(user_turns), 1)
-        self.assertFalse(any(msg['role'] == 'assistant' and msg['content'] == 'ok' for msg in second_messages))
+        self.assertFalse(any(msg['role'] == 'assistant' for msg in second_messages))
 
-    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['hello narrator', 'exit'])
-    def test_client_uses_configured_host_and_api_key(self, _mock_input, mock_client_cls):
-        mock_client = mock_client_cls.return_value
-        mock_client.chat.return_value = iter([{'message': {'content': 'hi'}}])
+    def test_client_uses_configured_host_and_api_key(self, _mock_input, mock_request_chat):
+        mock_request_chat.return_value = 'hi'
 
-        run_cli(model='fake-model', host='http://remote:11434', api_key='secret-token')
+        run_cli(model='fake-model', host='http://remote:3000', api_key='secret-token')
 
-        mock_client_cls.assert_called_once()
-        kwargs = mock_client_cls.call_args.kwargs
-        self.assertEqual(kwargs['host'], 'http://remote:11434/ollama')
-        self.assertIn('Authorization', kwargs['headers'])
-        self.assertTrue(kwargs['headers']['Authorization'].endswith('secret-token'))
-
-    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
-    @patch('builtins.input', side_effect=['hello narrator', 'exit'])
-    def test_client_keeps_existing_ollama_path(self, _mock_input, mock_client_cls):
-        mock_client = mock_client_cls.return_value
-        mock_client.chat.return_value = iter([{'message': {'content': 'hi'}}])
-
-        run_cli(model='fake-model', host='http://remote:3000/ollama')
-
-        kwargs = mock_client_cls.call_args.kwargs
-        self.assertEqual(kwargs['host'], 'http://remote:3000/ollama')
+        mock_request_chat.assert_called_once()
+        kwargs = mock_request_chat.call_args.kwargs
+        self.assertEqual(kwargs['host'], 'http://remote:3000')
+        self.assertEqual(kwargs['api_key'], 'secret-token')
 
 
 class CLIMainTests(unittest.TestCase):
@@ -193,7 +160,7 @@ class CLIMainTests(unittest.TestCase):
         main()
         mock_run_cli.assert_called_once_with(
             model='llama3.3',
-            host='http://127.0.0.1:3000/ollama',
+            host='http://127.0.0.1:3000',
             api_key=None,
         )
 
@@ -203,7 +170,7 @@ class CLIMainTests(unittest.TestCase):
         main()
         mock_run_cli.assert_called_once_with(
             model='qwen2.5-coder',
-            host='http://127.0.0.1:3000/ollama',
+            host='http://127.0.0.1:3000',
             api_key=None,
         )
 
@@ -219,22 +186,28 @@ class CLIMainTests(unittest.TestCase):
 
 
 class CLIHostNormalizationTests(unittest.TestCase):
-    def test_normalize_open_webui_host_adds_proxy_path_when_missing(self):
+    def test_normalize_open_webui_host_keeps_base_host_when_missing_path(self):
         self.assertEqual(
             normalize_open_webui_host('http://localhost:3000'),
-            'http://localhost:3000/ollama',
+            'http://localhost:3000',
         )
 
-    def test_normalize_open_webui_host_keeps_existing_proxy_path(self):
+    def test_normalize_open_webui_host_strips_chat_endpoint_suffix(self):
         self.assertEqual(
-            normalize_open_webui_host('http://localhost:3000/ollama'),
-            'http://localhost:3000/ollama',
+            normalize_open_webui_host('http://localhost:3000/api/chat/completions'),
+            'http://localhost:3000',
         )
 
-    def test_normalize_open_webui_host_keeps_deeper_path(self):
+    def test_normalize_open_webui_host_keeps_other_paths(self):
         self.assertEqual(
-            normalize_open_webui_host('http://localhost:3000/ollama/api'),
-            'http://localhost:3000/ollama/api',
+            normalize_open_webui_host('http://localhost:3000/openwebui'),
+            'http://localhost:3000/openwebui',
+        )
+
+    def test_build_open_webui_chat_endpoint_appends_api_path(self):
+        self.assertEqual(
+            build_open_webui_chat_endpoint('http://localhost:3000'),
+            'http://localhost:3000/api/chat/completions',
         )
 
 
@@ -279,6 +252,28 @@ class CLIConfigTests(unittest.TestCase):
         self.assertEqual(config['model'], 'env-model')
         self.assertEqual(config['host'], 'http://env-host:11434')
         self.assertEqual(config['api_key'], 'env-key')
+
+
+class OpenWebUIRequestTests(unittest.TestCase):
+    @patch('marvel_mcp_narrator.interfaces.cli.httpx.post')
+    def test_request_open_webui_chat_calls_chat_completions_endpoint(self, mock_post):
+        mock_post.return_value.json.return_value = {
+            'choices': [{'message': {'content': 'hello'}}],
+        }
+        response = request_open_webui_chat(
+            host='http://localhost:3000',
+            model='llama3.3',
+            messages=[{'role': 'user', 'content': 'hi'}],
+            api_key='token',
+        )
+        self.assertEqual(response, 'hello')
+        kwargs = mock_post.call_args.kwargs
+        self.assertTrue(kwargs['headers']['Authorization'].endswith('token'))
+        self.assertEqual(kwargs['json']['stream'], False)
+        self.assertEqual(
+            mock_post.call_args.args[0],
+            'http://localhost:3000/api/chat/completions',
+        )
 
 
 class PackagingEntryPointTests(unittest.TestCase):

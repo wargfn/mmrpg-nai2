@@ -16,9 +16,9 @@ The narrator CLI can load Open WebUI/Ollama settings from a TOML file, environme
 1. CLI flags: `--model`, `--host`, `--api-key`
 2. Environment: `NARRATOR_MODEL`, `NARRATOR_OLLAMA_HOST`, `NARRATOR_API_KEY`
 3. Config file: `--config <path>` or `./narrator_config.toml`
-4. Defaults: model `llama3.3`, host `http://127.0.0.1:3000/ollama`
+4. Defaults: model `llama3.3`, host `http://127.0.0.1:3000`
 
 ### Open WebUI host behavior
 
-- If `host` has no path (for example `http://localhost:3000`), the CLI automatically uses `http://localhost:3000/ollama`.
-- If `host` already includes `/ollama`, it is used as-is.
+- The CLI sends chat requests to `<host>/api/chat/completions`.
+- You can set `host` to a base URL like `http://localhost:3000` or to a custom base path.

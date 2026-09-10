@@ -6,12 +6,11 @@ import argparse
 import json
 import os
 import tomllib
-from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-import ollama
+import httpx
 
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
 from marvel_mcp_narrator.core.rules_database import query_rulebook_database
@@ -21,19 +20,56 @@ SYSTEM_PROMPT = (
     "Use deterministic tool outputs provided in context for dice and rules."
 )
 DEFAULT_MODEL = "llama3.3"
-DEFAULT_OLLAMA_HOST = "http://127.0.0.1:3000/ollama"
+DEFAULT_OLLAMA_HOST = "http://127.0.0.1:3000"
 
 
 def normalize_open_webui_host(host: str) -> str:
-    """Normalize a host URL to the Open WebUI Ollama proxy base path."""
+    """Normalize a host URL to an Open WebUI base URL."""
     parsed = urlparse(host)
     path = parsed.path.rstrip("/")
+    if path.endswith("/api/chat/completions"):
+        path = path[: -len("/api/chat/completions")]
     if not path:
-        path = "/ollama"
-    elif path != "/ollama":
-        path = parsed.path
+        path = ""
     normalized = parsed._replace(path=path)
     return urlunparse(normalized)
+
+
+def build_open_webui_chat_endpoint(host: str) -> str:
+    """Build an Open WebUI chat-completions endpoint URL from host/base URL."""
+    normalized_host = normalize_open_webui_host(host).rstrip("/")
+    return f"{normalized_host}/api/chat/completions"
+
+
+def request_open_webui_chat(
+    *,
+    host: str,
+    model: str,
+    messages: list[dict[str, str]],
+    api_key: str | None = None,
+) -> str:
+    """Send a chat request to Open WebUI and return assistant content."""
+    endpoint = build_open_webui_chat_endpoint(host)
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = "Bearer " + api_key
+
+    response = httpx.post(
+        endpoint,
+        headers=headers,
+        json={"model": model, "messages": messages, "stream": False},
+        timeout=120,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    choices = payload.get("choices")
+    if isinstance(choices, list) and choices:
+        message = choices[0].get("message", {})
+        if isinstance(message, dict):
+            content = message.get("content")
+            if isinstance(content, str) and content:
+                return content
+    raise ValueError("No assistant content returned from Open WebUI.")
 
 
 def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
@@ -144,16 +180,10 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
 
 
 def run_cli(model: str, host: str = DEFAULT_OLLAMA_HOST, api_key: str | None = None) -> None:
-    """Start an interactive Ollama-backed narrator loop."""
+    """Start an interactive Open WebUI-backed narrator loop."""
     print("Marvel MCP Narrator CLI")
     print("Type '/roll [--edge|--trouble] [--tn N]' or '/rule <keyword>' for deterministic tools.")
     print("Type 'exit' to quit.\n")
-
-    normalized_host = normalize_open_webui_host(host)
-    client_kwargs: dict[str, Any] = {"host": normalized_host}
-    if api_key:
-        client_kwargs["headers"] = {"Authorization": "Bearer " + api_key}
-    client = ollama.Client(**client_kwargs)
 
     messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
 
@@ -183,41 +213,23 @@ def run_cli(model: str, host: str = DEFAULT_OLLAMA_HOST, api_key: str | None = N
             print(f"tool_error> {exc}")
             continue
 
-        chunks: list[str] = []
         try:
-            stream = client.chat(model=model, messages=list(messages), stream=True)
-            if isinstance(stream, Mapping):
-                packets: Iterable[Any] = [stream]
-            elif hasattr(stream, "message"):
-                packets = [stream]
-            else:
-                packets = stream
-            print("assistant> ", end="", flush=True)
-
-            for packet in packets:
-                if isinstance(packet, Mapping):
-                    content = packet.get("message", {}).get("content", "")
-                else:
-                    message = getattr(packet, "message", None)
-                    if isinstance(message, dict):
-                        content = message.get("content", "")
-                    else:
-                        content = getattr(message, "content", "") if message is not None else ""
-                if content:
-                    print(content, end="", flush=True)
-                    chunks.append(content)
-            print()
-
-            final_content = "".join(chunks)
+            final_content = request_open_webui_chat(
+                host=host,
+                model=model,
+                messages=list(messages),
+                api_key=api_key,
+            )
+            print(f"assistant> {final_content}")
             if final_content:
                 messages.append({"role": "assistant", "content": final_content})
-        except (ollama.RequestError, ollama.ResponseError, TypeError, Exception) as exc:
-            if chunks:
-                print()
+        except (httpx.HTTPError, ValueError, TypeError, Exception) as exc:
             del messages[turn_start_index:]
             message = str(exc)
             if "connection refused" in message.lower():
-                print("chat_error> Connection refused. Is Open WebUI running and connected to Ollama?")
+                print("chat_error> Connection refused. Is Open WebUI running?")
+            elif "405" in message:
+                print("chat_error> Method not allowed. Verify your Open WebUI host endpoint.")
             else:
                 print(f"chat_error> {exc}")
 
@@ -232,7 +244,7 @@ def main() -> None:
     parser.add_argument(
         "--host",
         default=None,
-        help=f"Open WebUI/Ollama host URL (defaults to config/env or {DEFAULT_OLLAMA_HOST})",
+        help=f"Open WebUI host URL (defaults to config/env or {DEFAULT_OLLAMA_HOST})",
     )
     parser.add_argument(
         "--api-key",
