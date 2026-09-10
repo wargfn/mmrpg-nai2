@@ -139,6 +139,8 @@ def roll_d616(
     }
 
     if target_number is not None:
+        if target_number <= 0:
+            raise D616ConfigurationError("Target number must be a positive integer.")
         result["target_number"] = target_number
         result["success"] = total >= target_number
 
