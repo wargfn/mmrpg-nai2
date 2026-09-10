@@ -12,12 +12,19 @@ class FixedRng:
 
 
 class D616EngineTests(unittest.TestCase):
-    def test_trouble_does_not_create_fantastic_from_second_marvel_die(self):
+    def test_trouble_kept_marvel_die_controls_fantastic(self):
         # initial marvel=6, trouble die=1, regular dice=2,3
         result = roll_d616(trouble=True, rng=FixedRng([6, 1, 2, 3]))
         self.assertEqual(result['marvel_die'], 1)
+        self.assertTrue(result['fantastic'])
+        self.assertEqual(result['total'], 12)
+
+    def test_edge_kept_marvel_die_controls_fantastic(self):
+        # initial marvel=1, edge die=6, regular dice=2,3
+        result = roll_d616(edge=True, rng=FixedRng([1, 6, 2, 3]))
+        self.assertEqual(result['marvel_die'], 6)
         self.assertFalse(result['fantastic'])
-        self.assertEqual(result['total'], 6)
+        self.assertEqual(result['total'], 11)
 
 
 if __name__ == '__main__':
