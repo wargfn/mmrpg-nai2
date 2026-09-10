@@ -11,7 +11,7 @@ class D616ConfigurationError(ValueError):
 
 
 def _marvel_die_rank(value: int) -> int:
-    """Return relative strength rank where 1 is strongest (Fantastic)."""
+    """Return relative strength rank where 1 is remapped above 6 for comparisons."""
     return 7 if value == 1 else value
 
 
