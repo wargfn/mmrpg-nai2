@@ -116,9 +116,10 @@ def run_cli(model: str) -> None:
         chunks: list[str] = []
         try:
             stream = ollama.chat(model=model, messages=list(messages), stream=True)
+            packets = [stream] if isinstance(stream, dict) else stream
             print("assistant> ", end="", flush=True)
 
-            for packet in stream:
+            for packet in packets:
                 content = packet.get("message", {}).get("content", "")
                 if content:
                     print(content, end="", flush=True)
