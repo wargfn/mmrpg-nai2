@@ -1,0 +1,2 @@
+"""Marvel MCP narrator package."""
+

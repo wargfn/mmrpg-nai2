@@ -1,0 +1,39 @@
+{
+  "mechanics": {
+    "d616_basics": {
+      "title": "d616 Basics",
+      "category": "Mechanics",
+      "description": "Roll one Marvel die and two standard d6 dice, then total them for checks against a target number."
+    },
+    "fantastic_roll": {
+      "title": "Fantastic Roll",
+      "category": "Mechanics",
+      "description": "If the Marvel die shows 1, treat the result as fantastic and add +6 to the roll total."
+    },
+    "edges_troubles": {
+      "title": "Edges and Troubles",
+      "category": "Mechanics",
+      "description": "Edge rolls an extra Marvel die and keeps the better result, with 1 treated as best (Fantastic). Trouble rolls an extra Marvel die and keeps the worse result under the same ranking."
+    }
+  },
+  "powers": [
+    {
+      "name": "Teleportation",
+      "category": "Movement",
+      "rank_required": 2,
+      "description": "Instantly move between locations within line of sight, bypassing intervening terrain."
+    },
+    {
+      "name": "Blast",
+      "category": "Ranged Attack",
+      "rank_required": 1,
+      "description": "Project focused energy at a target to inflict ranged damage."
+    },
+    {
+      "name": "Regeneration",
+      "category": "Defense",
+      "rank_required": 3,
+      "description": "Recover Health over time and resist lingering physical harm."
+    }
+  ]
+}

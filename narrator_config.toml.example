@@ -1,0 +1,9 @@
+[open_webui]
+# Host for Open WebUI API
+host = "http://127.0.0.1:3000"
+
+# Default model used by the CLI if --model is not passed
+model = "llama3.3"
+
+# Optional API key used as Authorization header when set
+api_key = ""
