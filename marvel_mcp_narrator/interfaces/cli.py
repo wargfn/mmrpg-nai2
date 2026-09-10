@@ -65,6 +65,8 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | None]
                     tn = int(tn_value)
                 except ValueError as exc:
                     raise ValueError("Target number for --tn must be a positive integer.") from exc
+                if tn <= 0:
+                    raise ValueError("Target number for --tn must be a positive integer.")
                 index += 2
                 continue
             raise ValueError("Usage: /roll [--edge|--trouble] [--tn N]")
