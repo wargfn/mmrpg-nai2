@@ -101,11 +101,12 @@ def lookup_rule_reference(rule_key: str, path: Path | str | None = None) -> dict
     normalized = rule_key.strip().lower()
     rules = load_rules_database(path)
     mechanics = rules.get("mechanics", {})
+    normalized_mechanics = {str(key).lower(): value for key, value in mechanics.items()}
 
-    if normalized not in mechanics:
+    if normalized not in normalized_mechanics:
         raise RulesLookupError(f"No rule reference found for '{rule_key}'.")
 
-    payload = mechanics[normalized]
+    payload = normalized_mechanics[normalized]
     if isinstance(payload, dict):
         return {"rule_key": normalized, **payload}
 
