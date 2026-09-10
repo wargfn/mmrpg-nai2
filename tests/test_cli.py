@@ -61,6 +61,14 @@ class CLIToolInjectionTests(unittest.TestCase):
 
 
 class CLIRunLoopTests(unittest.TestCase):
+    class _FakeMessage:
+        def __init__(self, content):
+            self.content = content
+
+    class _FakePacket:
+        def __init__(self, content):
+            self.message = CLIRunLoopTests._FakeMessage(content)
+
     @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')
     @patch('builtins.input', side_effect=['hello narrator', 'exit'])
     def test_non_tool_message_is_sent_to_ollama(self, _mock_input, mock_chat):
@@ -70,6 +78,13 @@ class CLIRunLoopTests(unittest.TestCase):
 
         call_messages = mock_chat.call_args.kwargs['messages']
         self.assertTrue(any(msg['role'] == 'user' and msg['content'] == 'hello narrator' for msg in call_messages))
+
+    @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')
+    @patch('builtins.input', side_effect=['hello narrator', 'exit'])
+    def test_non_stream_object_response_is_handled(self, _mock_input, mock_chat):
+        mock_chat.return_value = self._FakePacket('hi')
+        run_cli(model='fake-model')
+        mock_chat.assert_called_once()
 
     @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')
     @patch('builtins.input', side_effect=['/roll', 'exit'])
