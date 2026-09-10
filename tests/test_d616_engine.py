@@ -12,12 +12,12 @@ class FixedRng:
 
 
 class D616EngineTests(unittest.TestCase):
-    def test_trouble_kept_marvel_die_controls_fantastic(self):
+    def test_trouble_keeps_worse_marvel_die_when_other_is_one(self):
         # initial marvel=6, trouble die=1, regular dice=2,3
         result = roll_d616(trouble=True, rng=FixedRng([6, 1, 2, 3]))
-        self.assertEqual(result['marvel_die'], 1)
-        self.assertTrue(result['fantastic'])
-        self.assertEqual(result['total'], 12)
+        self.assertEqual(result['marvel_die'], 6)
+        self.assertFalse(result['fantastic'])
+        self.assertEqual(result['total'], 11)
 
     def test_edge_does_not_reroll_when_initial_marvel_die_is_one(self):
         # initial marvel=1, regular dice=2,3

@@ -10,6 +10,11 @@ class D616ConfigurationError(ValueError):
     """Raised for invalid d616 roll parameters."""
 
 
+def _marvel_die_rank(value: int) -> int:
+    """Return relative strength rank where 1 is strongest (Fantastic)."""
+    return 7 if value == 1 else value
+
+
 def roll_d616(
     *,
     edge: bool = False,
@@ -35,9 +40,9 @@ def roll_d616(
     elif edge and initial_marvel_die != 1:
         marvel_rolls.append(roller.randint(1, 6))
     if edge:
-        marvel_die = 1 if 1 in marvel_rolls else max(marvel_rolls)
+        marvel_die = max(marvel_rolls, key=_marvel_die_rank)
     elif trouble:
-        marvel_die = min(marvel_rolls)
+        marvel_die = min(marvel_rolls, key=_marvel_die_rank)
     else:
         marvel_die = marvel_rolls[0]
 

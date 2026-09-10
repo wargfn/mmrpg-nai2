@@ -13,7 +13,7 @@
     "edges_troubles": {
       "title": "Edges and Troubles",
       "category": "Mechanics",
-      "description": "Edge rolls an extra Marvel die and keeps the higher Marvel die; Trouble keeps the lower Marvel die."
+      "description": "Edge rolls an extra Marvel die and keeps the better result, with 1 treated as best (Fantastic). Trouble rolls an extra Marvel die and keeps the worse result under the same ranking."
     }
   },
   "powers": [
