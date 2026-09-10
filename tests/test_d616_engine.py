@@ -19,7 +19,24 @@ class D616EngineTests(unittest.TestCase):
         self.assertEqual(result["ability_modifier"], 3)
         self.assertEqual(result["target_number"], 14)
         self.assertEqual(result["net_modifiers"], 1)
+        self.assertEqual(result["raw_dice"]["marvel_die"], 1)
+        self.assertEqual(result["total_score"], 15)
         self.assertTrue(result["success"])
+
+    @patch("marvel_mcp_narrator.core.d616_engine.roll_single_die", side_effect=[2, 3, 6, 1])
+    def test_resolve_d616_roll_edge_rerolls_marvel_die_only(self, _mock_roll):
+        result = resolve_d616_roll(edges=1)
+        self.assertEqual(result["raw_dice"], {"standard_1": 2, "standard_2": 3, "marvel_die": 1})
+        self.assertEqual(result["dice_values"], [2, 3, 6])
+        self.assertEqual(result["total_score"], 12)
+        self.assertTrue(result["is_fantastic"])
+
+    @patch("marvel_mcp_narrator.core.d616_engine.roll_single_die", side_effect=[6, 2, 6, 2])
+    def test_resolve_d616_roll_trouble_rerolls_marvel_die_only(self, _mock_roll):
+        result = resolve_d616_roll(troubles=1)
+        self.assertEqual(result["raw_dice"], {"standard_1": 6, "standard_2": 2, "marvel_die": 2})
+        self.assertEqual(result["dice_values"], [6, 2, 2])
+        self.assertEqual(result["total_score"], 10)
 
     def test_trouble_keeps_worse_marvel_die_when_other_is_one(self):
         # initial marvel=6, trouble die=1, regular dice=2,3

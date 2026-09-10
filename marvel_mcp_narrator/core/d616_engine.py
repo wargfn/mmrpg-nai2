@@ -24,31 +24,21 @@ def resolve_d616_roll(
     """Simulate a d616 check with optional ability modifier, edges, and troubles."""
     s1 = roll_single_die()
     s2 = roll_single_die()
-    m_raw = roll_single_die()  # 1 represents the Marvel "6" logo.
-
-    dice_pool = [s1, s2, m_raw]
+    marvel_rolls = [roll_single_die()]  # 1 represents the Marvel "6" logo.
     net_modifiers = edges - troubles
 
-    # Apply Edges (reroll lowest, keep higher)
     if net_modifiers > 0:
         for _ in range(net_modifiers):
-            min_val = min(dice_pool)
-            min_index = dice_pool.index(min_val)
-            rerolled = roll_single_die()
-            if rerolled > dice_pool[min_index]:
-                dice_pool[min_index] = rerolled
-
-    # Apply Troubles (reroll highest, keep lower - M counts as highest/best)
+            if marvel_rolls[-1] == 1:
+                break
+            marvel_rolls.append(roll_single_die())
+        m_raw = max(marvel_rolls, key=_marvel_die_rank)
     elif net_modifiers < 0:
         for _ in range(abs(net_modifiers)):
-            sort_key = lambda x: 7 if x == 1 else x
-            max_val = max(dice_pool, key=sort_key)
-            max_index = dice_pool.index(max_val)
-            rerolled = roll_single_die()
-            if sort_key(rerolled) < sort_key(dice_pool[max_index]):
-                dice_pool[max_index] = rerolled
-
-    s1, s2, m_raw = dice_pool[0], dice_pool[1], dice_pool[2]
+            marvel_rolls.append(roll_single_die())
+        m_raw = min(marvel_rolls, key=_marvel_die_rank)
+    else:
+        m_raw = marvel_rolls[0]
 
     # A Fantastic Marvel die contributes its face value plus the +6 bonus.
     m_val = 6 if m_raw == 1 else m_raw
@@ -60,16 +50,13 @@ def resolve_d616_roll(
 
     is_botch = s1 == 1 and s2 == 1 and m_raw == 1
     is_ultimate = s1 == 6 and s2 == 6 and m_raw == 1
-    is_fantastic = m_raw == 1 and not is_botch
+    is_fantastic = m_raw == 1
 
     success = True
     if target_number is not None:
-        if is_botch:
-            success = False
-        elif is_ultimate:
-            success = True
-        else:
-            success = total_score >= target_number
+        if target_number <= 0:
+            raise D616ConfigurationError("Target number must be a positive integer.")
+        success = total_score >= target_number
 
     return {
         "raw_dice": {"standard_1": s1, "standard_2": s2, "marvel_die": m_raw},
