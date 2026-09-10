@@ -50,10 +50,12 @@ def resolve_d616_roll(
 
     s1, s2, m_raw = dice_pool[0], dice_pool[1], dice_pool[2]
 
-    # A '1' on the Marvel die counts as a 6 mathematically
+    # A Fantastic Marvel die contributes its face value plus the +6 bonus.
     m_val = 6 if m_raw == 1 else m_raw
 
-    raw_dice_sum = s1 + s2 + m_val
+    raw_dice_sum = s1 + s2 + m_raw
+    if m_raw == 1:
+        raw_dice_sum += 6
     total_score = raw_dice_sum + ability_modifier
 
     is_botch = s1 == 1 and s2 == 1 and m_raw == 1
