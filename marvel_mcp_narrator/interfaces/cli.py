@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import tomllib
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import Any
 
 import ollama
@@ -16,6 +19,53 @@ SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "
     "Use deterministic tool outputs provided in context for dice and rules."
 )
+DEFAULT_MODEL = "llama3.3"
+DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434"
+
+
+def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
+    """Load CLI config from file and environment variables."""
+    config: dict[str, str | None] = {
+        "model": DEFAULT_MODEL,
+        "host": DEFAULT_OLLAMA_HOST,
+        "api_key": None,
+    }
+
+    path: Path | None = None
+    if config_path:
+        path = Path(config_path).expanduser()
+        if not path.exists():
+            raise ValueError(f"Configuration file not found: {path}")
+    else:
+        candidate = Path.cwd() / "narrator_config.toml"
+        if candidate.exists():
+            path = candidate
+
+    if path is not None:
+        with path.open("rb") as fh:
+            data = tomllib.load(fh)
+        ollama_block = data.get("ollama", {})
+        if isinstance(ollama_block, dict):
+            model = ollama_block.get("model")
+            host = ollama_block.get("host")
+            api_key = ollama_block.get("api_key")
+            if model:
+                config["model"] = str(model)
+            if host:
+                config["host"] = str(host)
+            if api_key:
+                config["api_key"] = str(api_key)
+
+    model_override = os.getenv("NARRATOR_MODEL")
+    host_override = os.getenv("NARRATOR_OLLAMA_HOST")
+    api_key_override = os.getenv("NARRATOR_API_KEY")
+    if model_override:
+        config["model"] = model_override
+    if host_override:
+        config["host"] = host_override
+    if api_key_override:
+        config["api_key"] = api_key_override
+    return config
 
 
 def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str | None]:
@@ -80,11 +130,16 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
     return None, None
 
 
-def run_cli(model: str) -> None:
+def run_cli(model: str, host: str = DEFAULT_OLLAMA_HOST, api_key: str | None = None) -> None:
     """Start an interactive Ollama-backed narrator loop."""
     print("Marvel MCP Narrator CLI")
     print("Type '/roll [--edge|--trouble] [--tn N]' or '/rule <keyword>' for deterministic tools.")
     print("Type 'exit' to quit.\n")
+
+    client_kwargs: dict[str, Any] = {"host": host}
+    if api_key:
+        client_kwargs["headers"] = {"Authorization": "Bearer " + api_key}
+    client = ollama.Client(**client_kwargs)
 
     messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
 
@@ -116,7 +171,7 @@ def run_cli(model: str) -> None:
 
         chunks: list[str] = []
         try:
-            stream = ollama.chat(model=model, messages=list(messages), stream=True)
+            stream = client.chat(model=model, messages=list(messages), stream=True)
             if isinstance(stream, Mapping):
                 packets: Iterable[Any] = [stream]
             elif hasattr(stream, "message"):
@@ -157,11 +212,33 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Marvel MCP Narrator CLI")
     parser.add_argument(
         "--model",
-        default="llama3.3",
-        help="Local Ollama model to use (default: llama3.3)",
+        default=None,
+        help=f"Model to use (defaults to config/env or {DEFAULT_MODEL})",
+    )
+    parser.add_argument(
+        "--host",
+        default=None,
+        help=f"Ollama host URL (defaults to config/env or {DEFAULT_OLLAMA_HOST})",
+    )
+    parser.add_argument(
+        "--api-key",
+        default=None,
+        help="Optional API key sent in the Authorization header",
+    )
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Optional path to TOML config file (default: ./narrator_config.toml if present)",
     )
     args = parser.parse_args()
-    run_cli(model=args.model)
+    try:
+        config = load_cli_config(config_path=args.config)
+    except ValueError as exc:
+        parser.error(str(exc))
+    model = args.model or config["model"] or DEFAULT_MODEL
+    host = args.host or config["host"] or DEFAULT_OLLAMA_HOST
+    api_key = args.api_key if args.api_key is not None else config["api_key"]
+    run_cli(model=model, host=host, api_key=api_key)
 
 
 if __name__ == "__main__":

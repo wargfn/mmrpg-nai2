@@ -1,3 +1,4 @@
 include README.md
 include LICENSE
+include narrator_config.toml.example
 recursive-include marvel_mcp_narrator/data *.json
