@@ -104,6 +104,25 @@ class RulesDatabaseTests(unittest.TestCase):
             self.assertEqual(payload['entry_type'], 'mechanic')
             self.assertEqual(payload['title'], 'Custom Rule')
 
+    def test_lookup_preserves_original_mechanic_key_case(self):
+        content = {
+            'mechanics': {
+                'Custom_Rule': {
+                    'title': 'Custom Rule',
+                    'category': 'Mechanics',
+                    'description': 'Case-sensitive key'
+                }
+            },
+            'powers': []
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / 'rules.json'
+            path.write_text(json.dumps(content), encoding='utf-8')
+
+            payload = lookup_rule_reference('custom_rule', path=path)
+            self.assertEqual(payload['rule_key'], 'Custom_Rule')
+
 
 if __name__ == '__main__':
     unittest.main()

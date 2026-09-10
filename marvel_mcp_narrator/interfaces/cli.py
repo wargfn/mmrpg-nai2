@@ -103,7 +103,7 @@ def run_cli(model: str) -> None:
                 print(f"tool[{tool_name}]> {payload}")
                 messages.append(
                     {
-                        "role": "system",
+                        "role": "tool",
                         "content": f"Tool output ({tool_name}): {payload}",
                     }
                 )

@@ -111,13 +111,13 @@ def lookup_rule_reference(rule_key: str, path: Path | str | None = None) -> dict
     normalized = rule_key.strip().lower()
     rules = load_rules_database(path)
     mechanics = rules.get("mechanics", {})
-    normalized_mechanics = {str(key).lower(): value for key, value in mechanics.items()}
+    normalized_mechanics = {str(key).lower(): (str(key), value) for key, value in mechanics.items()}
 
     if normalized in normalized_mechanics:
-        payload = normalized_mechanics[normalized]
+        original_key, payload = normalized_mechanics[normalized]
         if isinstance(payload, dict):
-            return {"rule_key": normalized, "entry_type": "mechanic", **payload}
-        return {"rule_key": normalized, "entry_type": "mechanic", "text": str(payload)}
+            return {"rule_key": original_key, "entry_type": "mechanic", **payload}
+        return {"rule_key": original_key, "entry_type": "mechanic", "text": str(payload)}
 
     for power in rules.get("powers", []):
         power_name = str(power.get("name", "")).strip()
