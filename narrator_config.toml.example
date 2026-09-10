@@ -1,4 +1,4 @@
-[ollama]
+[open_webui]
 # Host for Open WebUI API
 host = "http://127.0.0.1:3000"
 

@@ -1,4 +1,4 @@
-"""Interactive Ollama CLI loop for local narrator/copilot experiments."""
+"""Interactive Open WebUI-backed CLI loop for local narrator/copilot experiments."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ SYSTEM_PROMPT = (
     "Use deterministic tool outputs provided in context for dice and rules."
 )
 DEFAULT_MODEL = "llama3.3"
-DEFAULT_OLLAMA_HOST = "http://127.0.0.1:3000"
+DEFAULT_OPEN_WEBUI_HOST = "http://127.0.0.1:3000"
 
 
 def normalize_open_webui_host(host: str) -> str:
@@ -76,7 +76,7 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
     """Load CLI config from file and environment variables."""
     config: dict[str, str | None] = {
         "model": DEFAULT_MODEL,
-        "host": DEFAULT_OLLAMA_HOST,
+        "host": DEFAULT_OPEN_WEBUI_HOST,
         "api_key": None,
     }
 
@@ -93,11 +93,13 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
     if path is not None:
         with path.open("rb") as fh:
             data = tomllib.load(fh)
-        ollama_block = data.get("ollama", {})
-        if isinstance(ollama_block, dict):
-            model = ollama_block.get("model")
-            host = ollama_block.get("host")
-            api_key = ollama_block.get("api_key")
+        open_webui_block = data.get("open_webui")
+        if not isinstance(open_webui_block, dict):
+            open_webui_block = data.get("ollama", {})
+        if isinstance(open_webui_block, dict):
+            model = open_webui_block.get("model")
+            host = open_webui_block.get("host")
+            api_key = open_webui_block.get("api_key")
             if model:
                 config["model"] = str(model)
             if host:
@@ -106,7 +108,7 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
                 config["api_key"] = str(api_key)
 
     model_override = os.getenv("NARRATOR_MODEL")
-    host_override = os.getenv("NARRATOR_OLLAMA_HOST")
+    host_override = os.getenv("NARRATOR_OPEN_WEBUI_HOST") or os.getenv("NARRATOR_OLLAMA_HOST")
     api_key_override = os.getenv("NARRATOR_API_KEY")
     if model_override:
         config["model"] = model_override
@@ -179,7 +181,7 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
     return None, None
 
 
-def run_cli(model: str, host: str = DEFAULT_OLLAMA_HOST, api_key: str | None = None) -> None:
+def run_cli(model: str, host: str = DEFAULT_OPEN_WEBUI_HOST, api_key: str | None = None) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
     print("Marvel MCP Narrator CLI")
     print("Type '/roll [--edge|--trouble] [--tn N]' or '/rule <keyword>' for deterministic tools.")
@@ -244,7 +246,7 @@ def main() -> None:
     parser.add_argument(
         "--host",
         default=None,
-        help=f"Open WebUI host URL (defaults to config/env or {DEFAULT_OLLAMA_HOST})",
+        help=f"Open WebUI host URL (defaults to config/env or {DEFAULT_OPEN_WEBUI_HOST})",
     )
     parser.add_argument(
         "--api-key",

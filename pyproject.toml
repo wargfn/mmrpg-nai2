@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "marvel-mcp-narrator"
 version = "0.1.1"
-description = "Hybrid local-LLM and deterministic copilot tools for Marvel Multiverse RPG"
+description = "Open WebUI-backed and deterministic copilot tools for Marvel Multiverse RPG"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -14,8 +14,7 @@ authors = [
 ]
 dependencies = [
   "fastmcp==4.0.3",
-  "httpx==0.28.1",
-  "ollama==0.6.2"
+  "httpx==0.28.1"
 ]
 
 [project.scripts]

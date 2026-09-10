@@ -111,13 +111,13 @@ class CLIRunLoopTests(unittest.TestCase):
 
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/roll --tn nope', 'exit'])
-    def test_tool_error_does_not_call_ollama(self, _mock_input, mock_request_chat):
+    def test_tool_error_does_not_call_chat_backend(self, _mock_input, mock_request_chat):
         run_cli(model='fake-model')
         mock_request_chat.assert_not_called()
 
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/rule', 'exit'])
-    def test_rule_usage_error_does_not_call_ollama(self, _mock_input, mock_request_chat):
+    def test_rule_usage_error_does_not_call_chat_backend(self, _mock_input, mock_request_chat):
         run_cli(model='fake-model')
         mock_request_chat.assert_not_called()
 
@@ -216,7 +216,7 @@ class CLIConfigTests(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / 'narrator_config.toml'
             config_path.write_text(
-                '[ollama]\n'
+                '[open_webui]\n'
                 'model = "qwen2.5-coder"\n'
                 'host = "http://remote:11434"\n'
                 'api_key = "key-from-file"\n',
@@ -228,11 +228,27 @@ class CLIConfigTests(unittest.TestCase):
         self.assertEqual(config['host'], 'http://remote:11434')
         self.assertEqual(config['api_key'], 'key-from-file')
 
+    def test_load_cli_config_accepts_legacy_ollama_file_block(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[ollama]\n'
+                'model = "legacy-model"\n'
+                'host = "http://legacy-host:11434"\n'
+                'api_key = "legacy-key"\n',
+                encoding='utf-8',
+            )
+            config = load_cli_config(str(config_path))
+
+        self.assertEqual(config['model'], 'legacy-model')
+        self.assertEqual(config['host'], 'http://legacy-host:11434')
+        self.assertEqual(config['api_key'], 'legacy-key')
+
     @patch.dict(
         'os.environ',
         {
             'NARRATOR_MODEL': 'env-model',
-            'NARRATOR_OLLAMA_HOST': 'http://env-host:11434',
+            'NARRATOR_OPEN_WEBUI_HOST': 'http://env-host:11434',
             'NARRATOR_API_KEY': 'env-key',
         },
         clear=True,
@@ -241,7 +257,7 @@ class CLIConfigTests(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / 'narrator_config.toml'
             config_path.write_text(
-                '[ollama]\n'
+                '[open_webui]\n'
                 'model = "file-model"\n'
                 'host = "http://file-host:11434"\n'
                 'api_key = "file-key"\n',
@@ -252,6 +268,18 @@ class CLIConfigTests(unittest.TestCase):
         self.assertEqual(config['model'], 'env-model')
         self.assertEqual(config['host'], 'http://env-host:11434')
         self.assertEqual(config['api_key'], 'env-key')
+
+    @patch.dict(
+        'os.environ',
+        {
+            'NARRATOR_OLLAMA_HOST': 'http://legacy-env-host:11434',
+        },
+        clear=True,
+    )
+    def test_load_cli_config_accepts_legacy_ollama_env_var(self):
+        config = load_cli_config()
+
+        self.assertEqual(config['host'], 'http://legacy-env-host:11434')
 
 
 class OpenWebUIRequestTests(unittest.TestCase):
