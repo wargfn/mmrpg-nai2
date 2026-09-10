@@ -19,10 +19,19 @@ class D616EngineTests(unittest.TestCase):
         self.assertTrue(result['fantastic'])
         self.assertEqual(result['total'], 12)
 
-    def test_edge_kept_marvel_die_controls_fantastic(self):
-        # initial marvel=1, edge die=6, regular dice=2,3
-        result = roll_d616(edge=True, rng=FixedRng([1, 6, 2, 3]))
+    def test_edge_does_not_reroll_when_initial_marvel_die_is_one(self):
+        # initial marvel=1, regular dice=2,3
+        result = roll_d616(edge=True, rng=FixedRng([1, 2, 3]))
+        self.assertEqual(result['marvel_die'], 1)
+        self.assertEqual(result['marvel_rolls'], [1])
+        self.assertTrue(result['fantastic'])
+        self.assertEqual(result['total'], 12)
+
+    def test_edge_rerolls_when_initial_marvel_die_is_not_one(self):
+        # initial marvel=3, edge die=6, regular dice=2,3
+        result = roll_d616(edge=True, rng=FixedRng([3, 6, 2, 3]))
         self.assertEqual(result['marvel_die'], 6)
+        self.assertEqual(result['marvel_rolls'], [3, 6])
         self.assertFalse(result['fantastic'])
         self.assertEqual(result['total'], 11)
 

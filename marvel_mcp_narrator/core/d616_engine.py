@@ -21,6 +21,7 @@ def roll_d616(
 
     Pass a seeded ``rng`` instance for reproducible rolls.
     A Fantastic roll is determined from the kept Marvel die roll of ``1`` and grants +6.
+    With Edge, an initial Marvel die roll of ``1`` is already best and is not rerolled.
     """
     if edge and trouble:
         raise D616ConfigurationError("Edge and trouble cannot both be active.")
@@ -29,7 +30,9 @@ def roll_d616(
 
     initial_marvel_die = roller.randint(1, 6)
     marvel_rolls = [initial_marvel_die]
-    if edge or trouble:
+    if trouble:
+        marvel_rolls.append(roller.randint(1, 6))
+    elif edge and initial_marvel_die != 1:
         marvel_rolls.append(roller.randint(1, 6))
     marvel_die = max(marvel_rolls) if edge else min(marvel_rolls) if trouble else marvel_rolls[0]
 
