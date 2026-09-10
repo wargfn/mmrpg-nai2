@@ -35,6 +35,14 @@ class D616EngineTests(unittest.TestCase):
         self.assertFalse(result['fantastic'])
         self.assertEqual(result['total'], 11)
 
+    def test_edge_prefers_rerolled_one_as_best_result(self):
+        # initial marvel=6, edge die=1, regular dice=2,3
+        result = roll_d616(edge=True, rng=FixedRng([6, 1, 2, 3]))
+        self.assertEqual(result['marvel_die'], 1)
+        self.assertEqual(result['marvel_rolls'], [6, 1])
+        self.assertTrue(result['fantastic'])
+        self.assertEqual(result['total'], 12)
+
 
 if __name__ == '__main__':
     unittest.main()

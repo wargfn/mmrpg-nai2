@@ -34,7 +34,12 @@ def roll_d616(
         marvel_rolls.append(roller.randint(1, 6))
     elif edge and initial_marvel_die != 1:
         marvel_rolls.append(roller.randint(1, 6))
-    marvel_die = max(marvel_rolls) if edge else min(marvel_rolls) if trouble else marvel_rolls[0]
+    if edge:
+        marvel_die = 1 if 1 in marvel_rolls else max(marvel_rolls)
+    elif trouble:
+        marvel_die = min(marvel_rolls)
+    else:
+        marvel_die = marvel_rolls[0]
 
     regular_die_1 = roller.randint(1, 6)
     regular_die_2 = roller.randint(1, 6)

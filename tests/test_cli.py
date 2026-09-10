@@ -1,4 +1,6 @@
 import unittest
+import tomllib
+from pathlib import Path
 from unittest.mock import patch
 
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError
@@ -134,6 +136,16 @@ class CLIMainTests(unittest.TestCase):
     def test_main_passes_custom_model(self, mock_run_cli):
         main()
         mock_run_cli.assert_called_once_with(model='qwen2.5-coder')
+
+
+class PackagingEntryPointTests(unittest.TestCase):
+    def test_pyproject_defines_cli_entrypoint(self):
+        pyproject = Path(__file__).resolve().parent.parent / 'pyproject.toml'
+        data = tomllib.loads(pyproject.read_text(encoding='utf-8'))
+        self.assertEqual(
+            data['project']['scripts']['marvel-narrator-cli'],
+            'marvel_mcp_narrator.interfaces.cli:main',
+        )
 
 
 if __name__ == '__main__':
