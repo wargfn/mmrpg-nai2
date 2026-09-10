@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import json
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
-
-
-DEFAULT_RULES_PATH = Path(__file__).resolve().parent.parent / "data" / "rules.json"
 
 
 class RulesLookupError(LookupError):
@@ -16,9 +14,13 @@ class RulesLookupError(LookupError):
 
 def load_rules_database(path: Path | str | None = None) -> dict[str, Any]:
     """Load and return the rule database JSON payload."""
-    source = Path(path) if path is not None else DEFAULT_RULES_PATH
-    with source.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+    if path is not None:
+        source = Path(path)
+        with source.open("r", encoding="utf-8") as handle:
+            return json.load(handle)
+
+    content = files("marvel_mcp_narrator.data").joinpath("rules.json").read_text(encoding="utf-8")
+    return json.loads(content)
 
 
 def lookup_rule_reference(rule_key: str, path: Path | str | None = None) -> dict[str, Any]:
@@ -32,6 +34,6 @@ def lookup_rule_reference(rule_key: str, path: Path | str | None = None) -> dict
 
     payload = references[normalized]
     if isinstance(payload, dict):
-        return payload
+        return {"key": normalized, **payload}
 
-    return {"text": str(payload)}
+    return {"key": normalized, "text": str(payload)}

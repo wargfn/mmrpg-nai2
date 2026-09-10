@@ -1,4 +1,4 @@
-"""Deterministic d616 engine utilities for Marvel Multiverse RPG checks."""
+"""d616 engine utilities for Marvel Multiverse RPG checks."""
 
 from __future__ import annotations
 
@@ -17,20 +17,22 @@ def roll_d616(
     target_number: int | None = None,
     rng: random.Random | None = None,
 ) -> dict[str, Any]:
-    """Roll Marvel's d616 check with optional edge/trouble and TN resolution."""
+    """Roll Marvel's d616 check with optional edge/trouble and TN resolution.
+
+    Pass a seeded ``rng`` instance for reproducible rolls.
+    """
     if edge and trouble:
         raise D616ConfigurationError("Edge and trouble cannot both be active.")
 
     roller = rng if rng is not None else random
 
-    marvel_die = roller.randint(1, 6)
-    regular_die_1 = roller.randint(1, 6)
-    regular_die_2 = roller.randint(1, 6)
-
-    marvel_rolls = [marvel_die]
+    marvel_rolls = [roller.randint(1, 6)]
     if edge or trouble:
         marvel_rolls.append(roller.randint(1, 6))
-        marvel_die = max(marvel_rolls) if edge else min(marvel_rolls)
+    marvel_die = max(marvel_rolls) if edge else min(marvel_rolls) if trouble else marvel_rolls[0]
+
+    regular_die_1 = roller.randint(1, 6)
+    regular_die_2 = roller.randint(1, 6)
 
     fantastic = marvel_die == 1
     total = marvel_die + regular_die_1 + regular_die_2

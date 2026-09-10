@@ -8,7 +8,7 @@ from typing import Any
 
 import ollama
 
-from marvel_mcp_narrator.core.d616_engine import roll_d616
+from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, lookup_rule_reference
 
 SYSTEM_PROMPT = (
@@ -20,8 +20,13 @@ SYSTEM_PROMPT = (
 def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | None]:
     """Parse slash commands and return (tool_name, tool_output)."""
     stripped = user_input.strip()
-    if stripped.startswith("/roll"):
-        parts = stripped.split()
+    parts = stripped.split()
+    if not parts:
+        return None, None
+
+    command = parts[0]
+
+    if command == "/roll":
         edge = "--edge" in parts
         trouble = "--trouble" in parts
         tn = None
@@ -29,11 +34,14 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | None]
             tn_index = parts.index("--tn")
             if tn_index + 1 >= len(parts):
                 raise ValueError("Missing value for --tn")
-            tn = int(parts[tn_index + 1])
+            try:
+                tn = int(parts[tn_index + 1])
+            except ValueError as exc:
+                raise ValueError("Target number for --tn must be an integer.") from exc
         return "roll_d616", roll_d616(edge=edge, trouble=trouble, target_number=tn)
 
-    if stripped.startswith("/rule"):
-        key = stripped.replace("/rule", "", 1).strip()
+    if command == "/rule":
+        key = " ".join(parts[1:]).strip()
         if not key:
             raise ValueError("Usage: /rule <reference_key>")
         return "lookup_rule_reference", lookup_rule_reference(key)
@@ -57,8 +65,7 @@ def run_cli(model: str) -> None:
             print("Goodbye.")
             return
 
-        messages.append({"role": "user", "content": user_input})
-
+        turn_start_index = len(messages)
         try:
             tool_name, tool_output = _tool_injection(user_input)
             if tool_name and tool_output is not None:
@@ -70,22 +77,28 @@ def run_cli(model: str) -> None:
                         "content": f"Tool output ({tool_name}): {payload}",
                     }
                 )
-        except (ValueError, RulesLookupError) as exc:
+            else:
+                messages.append({"role": "user", "content": user_input})
+        except (ValueError, RulesLookupError, D616ConfigurationError) as exc:
             print(f"tool_error> {exc}")
             continue
 
         print("assistant> ", end="", flush=True)
-        stream = ollama.chat(model=model, messages=messages, stream=True)
+        try:
+            stream = ollama.chat(model=model, messages=messages, stream=True)
 
-        chunks: list[str] = []
-        for packet in stream:
-            content = packet.get("message", {}).get("content", "")
-            if content:
-                print(content, end="", flush=True)
-                chunks.append(content)
-        print()
+            chunks: list[str] = []
+            for packet in stream:
+                content = packet.get("message", {}).get("content", "")
+                if content:
+                    print(content, end="", flush=True)
+                    chunks.append(content)
+            print()
 
-        messages.append({"role": "assistant", "content": "".join(chunks)})
+            messages.append({"role": "assistant", "content": "".join(chunks)})
+        except (ollama.RequestError, ollama.ResponseError) as exc:
+            del messages[turn_start_index:]
+            print(f"chat_error> {exc}")
 
 
 def main() -> None:
