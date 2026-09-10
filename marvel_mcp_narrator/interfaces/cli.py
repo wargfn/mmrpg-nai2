@@ -59,8 +59,6 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
                 tn_value = parts[index + 1]
                 if tn_value.startswith("--"):
                     raise ValueError("Usage: /roll [--edge|--trouble] [--tn N]")
-                if not tn_value.isdigit():
-                    raise ValueError("Target number for --tn must be a positive integer.")
                 try:
                     tn = int(tn_value)
                 except ValueError as exc:

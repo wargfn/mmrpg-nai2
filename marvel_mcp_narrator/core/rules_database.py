@@ -91,9 +91,15 @@ class RulesDatabase:
         return "\n".join(lines)
 
 
+_DEFAULT_RULES_DATABASE: RulesDatabase | None = None
+
+
 def query_rulebook_database(query: str) -> str:
     """Query the local rulebook database with a keyword search."""
-    return RulesDatabase().query_rules(query)
+    global _DEFAULT_RULES_DATABASE
+    if _DEFAULT_RULES_DATABASE is None:
+        _DEFAULT_RULES_DATABASE = RulesDatabase()
+    return _DEFAULT_RULES_DATABASE.query_rules(query)
 
 
 def lookup_rule_reference(rule_key: str, path: Path | str | None = None) -> dict[str, Any]:

@@ -42,6 +42,11 @@ class CLIToolInjectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must be a positive integer'):
             _tool_injection('/roll --tn 0')
 
+    def test_roll_accepts_plus_prefixed_target_number(self):
+        name, payload = _tool_injection('/roll --tn +10')
+        self.assertEqual(name, 'resolve_d616_roll')
+        self.assertEqual(payload['target_number'], 10)
+
     def test_roll_rejects_duplicate_flags(self):
         with self.assertRaisesRegex(ValueError, 'Usage: /roll'):
             _tool_injection('/roll --edge --edge')
