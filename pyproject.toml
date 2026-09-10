@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marvel-mcp-narrator"
+version = "0.1.0"
+description = "Hybrid local-LLM and deterministic copilot tools for Marvel Multiverse RPG"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "wargfn" }
+]
+dependencies = [
+  "fastmcp==4.0.3",
+  "ollama==0.6.2"
+]
+
+[project.scripts]
+marvel-narrator-cli = "marvel_mcp_narrator.interfaces.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["marvel_mcp_narrator*"]
+
+[tool.setuptools.package-data]
+"marvel_mcp_narrator.data" = ["rules.json"]
