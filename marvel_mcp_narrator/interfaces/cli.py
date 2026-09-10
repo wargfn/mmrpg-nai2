@@ -126,7 +126,8 @@ def run_cli(model: str) -> None:
             print()
 
             final_content = "".join(chunks)
-            messages.append({"role": "assistant", "content": final_content})
+            if final_content:
+                messages.append({"role": "assistant", "content": final_content})
         except (ollama.RequestError, ollama.ResponseError) as exc:
             if chunks:
                 print()
