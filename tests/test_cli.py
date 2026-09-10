@@ -76,6 +76,17 @@ class CLIRunLoopTests(unittest.TestCase):
         self.assertFalse(any(msg['role'] == 'user' and msg['content'] == '/roll' for msg in call_messages))
 
     @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')
+    @patch('builtins.input', side_effect=['/rule teleport', 'exit'])
+    def test_rule_tool_injects_query_results(self, _mock_input, mock_chat):
+        mock_chat.return_value = iter([{'message': {'content': 'narration'}}])
+
+        run_cli(model='fake-model')
+
+        call_messages = mock_chat.call_args.kwargs['messages']
+        self.assertTrue(any(msg['role'] == 'user' and 'Tool output (lookup_rule):' in msg['content'] for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'user' and 'Teleportation' in msg['content'] for msg in call_messages))
+
+    @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')
     @patch('builtins.input', side_effect=['/roll --tn nope', 'exit'])
     def test_tool_error_does_not_call_ollama(self, _mock_input, mock_chat):
         run_cli(model='fake-model')
