@@ -97,17 +97,27 @@ def query_rulebook_database(query: str) -> str:
 
 
 def lookup_rule_reference(rule_key: str, path: Path | str | None = None) -> dict[str, Any]:
-    """Backward-compatible exact lookup by mechanic key."""
+    """Backward-compatible exact lookup by mechanic key or power name."""
     normalized = rule_key.strip().lower()
     rules = load_rules_database(path)
     mechanics = rules.get("mechanics", {})
     normalized_mechanics = {str(key).lower(): value for key, value in mechanics.items()}
 
-    if normalized not in normalized_mechanics:
-        raise RulesLookupError(f"No rule reference found for '{rule_key}'.")
+    if normalized in normalized_mechanics:
+        payload = normalized_mechanics[normalized]
+        if isinstance(payload, dict):
+            return {"rule_key": normalized, "entry_type": "mechanic", **payload}
+        return {"rule_key": normalized, "entry_type": "mechanic", "text": str(payload)}
 
-    payload = normalized_mechanics[normalized]
-    if isinstance(payload, dict):
-        return {"rule_key": normalized, **payload}
+    for power in rules.get("powers", []):
+        power_name = str(power.get("name", "")).strip()
+        if not power_name:
+            continue
+        power_normalized = power_name.lower()
+        power_slug = power_normalized.replace(" ", "_")
+        if normalized in {power_normalized, power_slug}:
+            if isinstance(power, dict):
+                return {"rule_key": power_slug, "entry_type": "power", **power}
+            return {"rule_key": power_slug, "entry_type": "power", "text": str(power)}
 
-    return {"rule_key": normalized, "text": str(payload)}
+    raise RulesLookupError(f"No rule reference found for '{rule_key}'.")

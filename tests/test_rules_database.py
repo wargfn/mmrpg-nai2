@@ -42,7 +42,13 @@ class RulesDatabaseTests(unittest.TestCase):
     def test_lookup_rule_reference_returns_mechanic(self):
         payload = lookup_rule_reference('d616_basics')
         self.assertEqual(payload['rule_key'], 'd616_basics')
+        self.assertEqual(payload['entry_type'], 'mechanic')
         self.assertIn('title', payload)
+
+    def test_lookup_rule_reference_returns_power(self):
+        payload = lookup_rule_reference('Teleportation')
+        self.assertEqual(payload['entry_type'], 'power')
+        self.assertEqual(payload['name'], 'Teleportation')
 
     def test_lookup_rule_reference_raises_for_unknown_key(self):
         with self.assertRaises(RulesLookupError):
@@ -80,6 +86,7 @@ class RulesDatabaseTests(unittest.TestCase):
 
             payload = lookup_rule_reference('custom_rule', path=path)
             self.assertEqual(payload['rule_key'], 'custom_rule')
+            self.assertEqual(payload['entry_type'], 'mechanic')
             self.assertEqual(payload['title'], 'Custom Rule')
 
 

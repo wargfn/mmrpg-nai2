@@ -72,7 +72,7 @@ class CLIRunLoopTests(unittest.TestCase):
         run_cli(model='fake-model')
 
         call_messages = mock_chat.call_args.kwargs['messages']
-        self.assertTrue(any(msg['role'] == 'assistant' and 'Tool output (resolve_d616_roll):' in msg['content'] for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'system' and 'Tool output (resolve_d616_roll):' in msg['content'] for msg in call_messages))
         self.assertFalse(any(msg['role'] == 'user' and msg['content'] == '/roll' for msg in call_messages))
 
     @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')
@@ -83,8 +83,8 @@ class CLIRunLoopTests(unittest.TestCase):
         run_cli(model='fake-model')
 
         call_messages = mock_chat.call_args.kwargs['messages']
-        self.assertTrue(any(msg['role'] == 'assistant' and 'Tool output (lookup_rule):' in msg['content'] for msg in call_messages))
-        self.assertTrue(any(msg['role'] == 'assistant' and 'Teleportation' in msg['content'] for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'system' and 'Tool output (lookup_rule):' in msg['content'] for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'system' and 'Teleportation' in msg['content'] for msg in call_messages))
 
     @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')
     @patch('builtins.input', side_effect=['/roll --tn nope', 'exit'])
