@@ -9,6 +9,7 @@ import tomllib
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 import ollama
 
@@ -20,7 +21,19 @@ SYSTEM_PROMPT = (
     "Use deterministic tool outputs provided in context for dice and rules."
 )
 DEFAULT_MODEL = "llama3.3"
-DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434"
+DEFAULT_OLLAMA_HOST = "http://127.0.0.1:3000/ollama"
+
+
+def normalize_open_webui_host(host: str) -> str:
+    """Normalize a host URL to the Open WebUI Ollama proxy base path."""
+    parsed = urlparse(host)
+    path = parsed.path.rstrip("/")
+    if not path:
+        path = "/ollama"
+    elif path != "/ollama":
+        path = parsed.path
+    normalized = parsed._replace(path=path)
+    return urlunparse(normalized)
 
 
 def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
@@ -136,7 +149,8 @@ def run_cli(model: str, host: str = DEFAULT_OLLAMA_HOST, api_key: str | None = N
     print("Type '/roll [--edge|--trouble] [--tn N]' or '/rule <keyword>' for deterministic tools.")
     print("Type 'exit' to quit.\n")
 
-    client_kwargs: dict[str, Any] = {"host": host}
+    normalized_host = normalize_open_webui_host(host)
+    client_kwargs: dict[str, Any] = {"host": normalized_host}
     if api_key:
         client_kwargs["headers"] = {"Authorization": "Bearer " + api_key}
     client = ollama.Client(**client_kwargs)
@@ -203,7 +217,7 @@ def run_cli(model: str, host: str = DEFAULT_OLLAMA_HOST, api_key: str | None = N
             del messages[turn_start_index:]
             message = str(exc)
             if "connection refused" in message.lower():
-                print("chat_error> Connection refused. Is Ollama running? Try: ollama serve")
+                print("chat_error> Connection refused. Is Open WebUI running and connected to Ollama?")
             else:
                 print(f"chat_error> {exc}")
 
@@ -218,7 +232,7 @@ def main() -> None:
     parser.add_argument(
         "--host",
         default=None,
-        help=f"Ollama host URL (defaults to config/env or {DEFAULT_OLLAMA_HOST})",
+        help=f"Open WebUI/Ollama host URL (defaults to config/env or {DEFAULT_OLLAMA_HOST})",
     )
     parser.add_argument(
         "--api-key",

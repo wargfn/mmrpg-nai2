@@ -5,7 +5,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError
-from marvel_mcp_narrator.interfaces.cli import _tool_injection, load_cli_config, main, run_cli
+from marvel_mcp_narrator.interfaces.cli import (
+    _tool_injection,
+    load_cli_config,
+    main,
+    normalize_open_webui_host,
+    run_cli,
+)
 
 
 class CLIToolInjectionTests(unittest.TestCase):
@@ -164,9 +170,20 @@ class CLIRunLoopTests(unittest.TestCase):
 
         mock_client_cls.assert_called_once()
         kwargs = mock_client_cls.call_args.kwargs
-        self.assertEqual(kwargs['host'], 'http://remote:11434')
+        self.assertEqual(kwargs['host'], 'http://remote:11434/ollama')
         self.assertIn('Authorization', kwargs['headers'])
         self.assertTrue(kwargs['headers']['Authorization'].endswith('secret-token'))
+
+    @patch('marvel_mcp_narrator.interfaces.cli.ollama.Client')
+    @patch('builtins.input', side_effect=['hello narrator', 'exit'])
+    def test_client_keeps_existing_ollama_path(self, _mock_input, mock_client_cls):
+        mock_client = mock_client_cls.return_value
+        mock_client.chat.return_value = iter([{'message': {'content': 'hi'}}])
+
+        run_cli(model='fake-model', host='http://remote:3000/ollama')
+
+        kwargs = mock_client_cls.call_args.kwargs
+        self.assertEqual(kwargs['host'], 'http://remote:3000/ollama')
 
 
 class CLIMainTests(unittest.TestCase):
@@ -176,7 +193,7 @@ class CLIMainTests(unittest.TestCase):
         main()
         mock_run_cli.assert_called_once_with(
             model='llama3.3',
-            host='http://127.0.0.1:11434',
+            host='http://127.0.0.1:3000/ollama',
             api_key=None,
         )
 
@@ -186,7 +203,7 @@ class CLIMainTests(unittest.TestCase):
         main()
         mock_run_cli.assert_called_once_with(
             model='qwen2.5-coder',
-            host='http://127.0.0.1:11434',
+            host='http://127.0.0.1:3000/ollama',
             api_key=None,
         )
 
@@ -198,6 +215,26 @@ class CLIMainTests(unittest.TestCase):
             model='llama3.3',
             host='http://remote:11434',
             api_key='abc123',
+        )
+
+
+class CLIHostNormalizationTests(unittest.TestCase):
+    def test_normalize_open_webui_host_adds_proxy_path_when_missing(self):
+        self.assertEqual(
+            normalize_open_webui_host('http://localhost:3000'),
+            'http://localhost:3000/ollama',
+        )
+
+    def test_normalize_open_webui_host_keeps_existing_proxy_path(self):
+        self.assertEqual(
+            normalize_open_webui_host('http://localhost:3000/ollama'),
+            'http://localhost:3000/ollama',
+        )
+
+    def test_normalize_open_webui_host_keeps_deeper_path(self):
+        self.assertEqual(
+            normalize_open_webui_host('http://localhost:3000/ollama/api'),
+            'http://localhost:3000/ollama/api',
         )
 
 
