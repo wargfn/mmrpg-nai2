@@ -116,6 +116,8 @@ def roll_d616(
     total = marvel_die + regular_die_1 + regular_die_2
     if fantastic:
         total += 6
+    is_botch = regular_die_1 == 1 and regular_die_2 == 1 and marvel_die == 1
+    is_ultimate = regular_die_1 == 6 and regular_die_2 == 6 and marvel_die == 1
 
     result: dict[str, Any] = {
         "marvel_die": marvel_die,
@@ -131,6 +133,11 @@ def roll_d616(
         if target_number <= 0:
             raise D616ConfigurationError("Target number must be a positive integer.")
         result["target_number"] = target_number
-        result["success"] = total >= target_number
+        if is_botch:
+            result["success"] = False
+        elif is_ultimate:
+            result["success"] = True
+        else:
+            result["success"] = total >= target_number
 
     return result

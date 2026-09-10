@@ -69,6 +69,14 @@ class D616EngineTests(unittest.TestCase):
         self.assertTrue(result['fantastic'])
         self.assertEqual(result['total'], 12)
 
+    def test_target_number_botch_always_fails(self):
+        result = roll_d616(target_number=1, rng=FixedRng([1, 1, 1]))
+        self.assertFalse(result['success'])
+
+    def test_target_number_ultimate_always_succeeds(self):
+        result = roll_d616(target_number=20, rng=FixedRng([1, 6, 6]))
+        self.assertTrue(result['success'])
+
 
 if __name__ == '__main__':
     unittest.main()
