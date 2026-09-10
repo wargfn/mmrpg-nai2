@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 import ollama
@@ -117,7 +117,7 @@ def run_cli(model: str) -> None:
         chunks: list[str] = []
         try:
             stream = ollama.chat(model=model, messages=list(messages), stream=True)
-            if isinstance(stream, dict):
+            if isinstance(stream, Mapping):
                 packets: Iterable[Any] = [stream]
             elif hasattr(stream, "message"):
                 packets = [stream]
@@ -126,7 +126,7 @@ def run_cli(model: str) -> None:
             print("assistant> ", end="", flush=True)
 
             for packet in packets:
-                if isinstance(packet, dict):
+                if isinstance(packet, Mapping):
                     content = packet.get("message", {}).get("content", "")
                 else:
                     message = getattr(packet, "message", None)
