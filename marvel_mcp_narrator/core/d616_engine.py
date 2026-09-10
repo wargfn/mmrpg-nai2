@@ -20,14 +20,15 @@ def roll_d616(
     """Roll Marvel's d616 check with optional edge/trouble and TN resolution.
 
     Pass a seeded ``rng`` instance for reproducible rolls.
-    A Marvel die result of ``1`` is treated as a Fantastic roll and grants +6.
+    A Fantastic roll is determined from the initial Marvel die roll of ``1`` and grants +6.
     """
     if edge and trouble:
         raise D616ConfigurationError("Edge and trouble cannot both be active.")
 
     roller = rng if rng is not None else random
 
-    marvel_rolls = [roller.randint(1, 6)]
+    initial_marvel_die = roller.randint(1, 6)
+    marvel_rolls = [initial_marvel_die]
     if edge or trouble:
         marvel_rolls.append(roller.randint(1, 6))
     marvel_die = max(marvel_rolls) if edge else min(marvel_rolls) if trouble else marvel_rolls[0]
@@ -35,7 +36,7 @@ def roll_d616(
     regular_die_1 = roller.randint(1, 6)
     regular_die_2 = roller.randint(1, 6)
 
-    fantastic = marvel_die == 1
+    fantastic = initial_marvel_die == 1
     total = marvel_die + regular_die_1 + regular_die_2
     if fantastic:
         total += 6

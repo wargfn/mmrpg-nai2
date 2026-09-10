@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from threading import Lock
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -92,13 +93,16 @@ class RulesDatabase:
 
 
 _DEFAULT_RULES_DATABASE: RulesDatabase | None = None
+_DEFAULT_RULES_DATABASE_LOCK = Lock()
 
 
 def query_rulebook_database(query: str) -> str:
     """Query the local rulebook database with a keyword search."""
     global _DEFAULT_RULES_DATABASE
     if _DEFAULT_RULES_DATABASE is None:
-        _DEFAULT_RULES_DATABASE = RulesDatabase()
+        with _DEFAULT_RULES_DATABASE_LOCK:
+            if _DEFAULT_RULES_DATABASE is None:
+                _DEFAULT_RULES_DATABASE = RulesDatabase()
     return _DEFAULT_RULES_DATABASE.query_rules(query)
 
 

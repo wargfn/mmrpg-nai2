@@ -2,7 +2,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import marvel_mcp_narrator.core.rules_database as rules_database_mod
 from marvel_mcp_narrator.core.rules_database import (
     RulesDatabase,
     RulesLookupError,
@@ -33,6 +35,19 @@ class RulesDatabaseTests(unittest.TestCase):
     def test_query_rulebook_database_handles_no_match(self):
         results = query_rulebook_database('not-a-real-rule')
         self.assertIn('No rulebook matches found', results)
+
+    def test_query_rulebook_database_reuses_default_cache(self):
+        original_cache = rules_database_mod._DEFAULT_RULES_DATABASE
+        rules_database_mod._DEFAULT_RULES_DATABASE = None
+        try:
+            with patch.object(rules_database_mod, 'RulesDatabase') as mock_db:
+                instance = mock_db.return_value
+                instance.query_rules.side_effect = ['first', 'second']
+                self.assertEqual(query_rulebook_database('edge'), 'first')
+                self.assertEqual(query_rulebook_database('blast'), 'second')
+                mock_db.assert_called_once_with()
+        finally:
+            rules_database_mod._DEFAULT_RULES_DATABASE = original_cache
 
     def test_rules_database_class_query_rules(self):
         db = RulesDatabase()
