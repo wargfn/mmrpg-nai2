@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from marvel_mcp_narrator.interfaces.cli import _tool_injection, run_cli
+from marvel_mcp_narrator.interfaces.cli import _tool_injection, main, run_cli
 
 
 class CLIToolInjectionTests(unittest.TestCase):
@@ -14,6 +14,7 @@ class CLIToolInjectionTests(unittest.TestCase):
     def test_rule_command_returns_reference(self):
         name, payload = _tool_injection('/rule edge')
         self.assertEqual(name, 'lookup_rule_reference')
+        self.assertEqual(payload['rule_key'], 'edge')
         self.assertEqual(payload['title'], 'Edge')
 
     def test_roll_invalid_target_number_raises_clear_error(self):
@@ -40,7 +41,7 @@ class CLIRunLoopTests(unittest.TestCase):
         run_cli(model='fake-model')
 
         call_messages = mock_chat.call_args.kwargs['messages']
-        self.assertTrue(any(msg['role'] == 'system' and 'Tool output (roll_d616):' in msg['content'] for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'user' and 'Tool output (roll_d616):' in msg['content'] for msg in call_messages))
         self.assertFalse(any(msg['role'] == 'user' and msg['content'] == '/roll' for msg in call_messages))
 
     @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')
@@ -64,6 +65,20 @@ class CLIRunLoopTests(unittest.TestCase):
         second_messages = mock_chat.call_args_list[1].kwargs['messages']
         user_turns = [msg for msg in second_messages if msg['role'] == 'user' and msg['content'] == 'hello narrator']
         self.assertEqual(len(user_turns), 1)
+
+
+class CLIMainTests(unittest.TestCase):
+    @patch('marvel_mcp_narrator.interfaces.cli.run_cli')
+    @patch('sys.argv', ['cli'])
+    def test_main_uses_default_model(self, mock_run_cli):
+        main()
+        mock_run_cli.assert_called_once_with(model='llama3.3')
+
+    @patch('marvel_mcp_narrator.interfaces.cli.run_cli')
+    @patch('sys.argv', ['cli', '--model', 'qwen2.5-coder'])
+    def test_main_passes_custom_model(self, mock_run_cli):
+        main()
+        mock_run_cli.assert_called_once_with(model='qwen2.5-coder')
 
 
 if __name__ == '__main__':

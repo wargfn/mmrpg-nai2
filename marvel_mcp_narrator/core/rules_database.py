@@ -34,6 +34,6 @@ def lookup_rule_reference(rule_key: str, path: Path | str | None = None) -> dict
 
     payload = references[normalized]
     if isinstance(payload, dict):
-        return {"key": normalized, **payload}
+        return {"rule_key": normalized, **payload}
 
-    return {"key": normalized, "text": str(payload)}
+    return {"rule_key": normalized, "text": str(payload)}

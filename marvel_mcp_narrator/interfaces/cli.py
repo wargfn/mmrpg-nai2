@@ -73,7 +73,7 @@ def run_cli(model: str) -> None:
                 print(f"tool[{tool_name}]> {payload}")
                 messages.append(
                     {
-                        "role": "system",
+                        "role": "user",
                         "content": f"Tool output ({tool_name}): {payload}",
                     }
                 )
@@ -91,11 +91,11 @@ def run_cli(model: str) -> None:
             for packet in stream:
                 content = packet.get("message", {}).get("content", "")
                 if content:
-                    print(content, end="", flush=True)
                     chunks.append(content)
-            print()
+            final_content = "".join(chunks)
+            print(final_content)
 
-            messages.append({"role": "assistant", "content": "".join(chunks)})
+            messages.append({"role": "assistant", "content": final_content})
         except (ollama.RequestError, ollama.ResponseError) as exc:
             del messages[turn_start_index:]
             print(f"chat_error> {exc}")
