@@ -142,11 +142,15 @@ def run_cli(model: str) -> None:
             final_content = "".join(chunks)
             if final_content:
                 messages.append({"role": "assistant", "content": final_content})
-        except (ollama.RequestError, ollama.ResponseError, TypeError) as exc:
+        except (ollama.RequestError, ollama.ResponseError, TypeError, Exception) as exc:
             if chunks:
                 print()
             del messages[turn_start_index:]
-            print(f"chat_error> {exc}")
+            message = str(exc)
+            if "connection refused" in message.lower():
+                print("chat_error> Connection refused. Is Ollama running? Try: ollama serve")
+            else:
+                print(f"chat_error> {exc}")
 
 
 def main() -> None:
