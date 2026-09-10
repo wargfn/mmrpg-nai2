@@ -170,7 +170,7 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
                 index += 2
                 continue
             raise ValueError("Usage: /roll [--edge|--trouble] [--tn N]")
-        return "resolve_d616_roll", roll_d616(edge=edge, trouble=trouble, target_number=tn)
+        return "roll_d616", roll_d616(edge=edge, trouble=trouble, target_number=tn)
 
     if command == "/rule":
         key = " ".join(parts[1:]).strip()
