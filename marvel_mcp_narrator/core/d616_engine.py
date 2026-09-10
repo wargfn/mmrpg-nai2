@@ -20,6 +20,7 @@ def roll_d616(
     """Roll Marvel's d616 check with optional edge/trouble and TN resolution.
 
     Pass a seeded ``rng`` instance for reproducible rolls.
+    A Marvel die result of ``1`` is treated as a Fantastic roll and grants +6.
     """
     if edge and trouble:
         raise D616ConfigurationError("Edge and trouble cannot both be active.")

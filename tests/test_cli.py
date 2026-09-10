@@ -93,6 +93,12 @@ class CLIRunLoopTests(unittest.TestCase):
         mock_chat.assert_not_called()
 
     @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')
+    @patch('builtins.input', side_effect=['/rule', 'exit'])
+    def test_rule_usage_error_does_not_call_ollama(self, _mock_input, mock_chat):
+        run_cli(model='fake-model')
+        mock_chat.assert_not_called()
+
+    @patch('marvel_mcp_narrator.interfaces.cli.ollama.chat')
     @patch('builtins.input', side_effect=['hello narrator', 'hello narrator', 'exit'])
     def test_chat_error_rolls_back_pending_turn_messages(self, _mock_input, mock_chat):
         from ollama import RequestError
