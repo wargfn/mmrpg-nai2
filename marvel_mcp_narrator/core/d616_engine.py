@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import Any
+from typing import Any, Callable
 
 
 class D616ConfigurationError(ValueError):
@@ -21,10 +21,14 @@ def _validate_target_number(target_number: int | None) -> None:
         raise D616ConfigurationError("Target number must be a positive integer.")
 
 
-def _select_marvel_die(marvel_rolls: list[int], *, trouble: bool) -> int:
-    """Select the kept Marvel die using the shared edge/trouble ranking."""
-    selector = min if trouble else max
-    return selector(marvel_rolls, key=_marvel_die_rank)
+def _marvel_die_rank(value: int) -> int:
+    """Return relative strength rank where the Marvel 1 outranks a natural 6."""
+    return 7 if value == 1 else value
+
+
+def _marvel_die_total(value: int) -> int:
+    """Return the numeric value contributed by the kept Marvel die."""
+    return 6 if value == 1 else value
 
 
 def _resolve_target_success(*, total: int, target_number: int | None, is_botch: bool, is_ultimate: bool) -> bool:
@@ -38,6 +42,126 @@ def _resolve_target_success(*, total: int, target_number: int | None, is_botch: 
     return total >= target_number
 
 
+def _select_low_standard_index(standards: list[int]) -> int:
+    """Select the current lowest standard die, preferring the first die on ties."""
+    return 0 if standards[0] <= standards[1] else 1
+
+
+def _select_high_standard_index(standards: list[int]) -> int:
+    """Select the current highest standard die, preferring the first die on ties."""
+    return 0 if standards[0] >= standards[1] else 1
+
+
+def _apply_edge_to_marvel(current_value: int, roller: Callable[[], int], marvel_rolls: list[int]) -> int:
+    """Reroll the Marvel die and keep the stronger result."""
+    reroll = roller()
+    marvel_rolls.append(reroll)
+    return reroll if _marvel_die_rank(reroll) > _marvel_die_rank(current_value) else current_value
+
+
+def _apply_trouble_to_marvel(current_value: int, roller: Callable[[], int], marvel_rolls: list[int]) -> int:
+    """Reroll the Marvel die and keep the weaker result."""
+    reroll = roller()
+    marvel_rolls.append(reroll)
+    return reroll if _marvel_die_rank(reroll) < _marvel_die_rank(current_value) else current_value
+
+
+def _apply_edge_to_standard(standards: list[int], roller: Callable[[], int], standard_rolls: dict[str, list[int]]) -> None:
+    """Reroll the current lowest standard die and keep the higher result."""
+    index = _select_low_standard_index(standards)
+    key = f"standard_{index + 1}"
+    reroll = roller()
+    standard_rolls[key].append(reroll)
+    if reroll > standards[index]:
+        standards[index] = reroll
+
+
+def _apply_trouble_to_standard(
+    standards: list[int], roller: Callable[[], int], standard_rolls: dict[str, list[int]]
+) -> None:
+    """Reroll the current highest standard die and keep the lower result."""
+    index = _select_high_standard_index(standards)
+    key = f"standard_{index + 1}"
+    reroll = roller()
+    standard_rolls[key].append(reroll)
+    if reroll < standards[index]:
+        standards[index] = reroll
+
+
+def _resolve_dice_pool(
+    *,
+    roller: Callable[[], int],
+    net_modifiers: int,
+) -> tuple[dict[str, int], dict[str, list[int]], list[int]]:
+    """Roll and adjust a d616 pool in Standard-Marvel-Standard order."""
+    standard_1 = roller()
+    marvel_die = roller()
+    standard_2 = roller()
+    standards = [standard_1, standard_2]
+    marvel_rolls = [marvel_die]
+    standard_rolls = {
+        "standard_1": [standards[0]],
+        "standard_2": [standards[1]],
+    }
+
+    if net_modifiers > 0:
+        remaining_edges = net_modifiers
+        while remaining_edges > 0 and marvel_die != 1:
+            marvel_die = _apply_edge_to_marvel(marvel_die, roller, marvel_rolls)
+            remaining_edges -= 1
+        while remaining_edges > 0:
+            _apply_edge_to_standard(standards, roller, standard_rolls)
+            remaining_edges -= 1
+    elif net_modifiers < 0:
+        remaining_troubles = abs(net_modifiers)
+        while remaining_troubles > 0 and marvel_die == 1:
+            marvel_die = _apply_trouble_to_marvel(marvel_die, roller, marvel_rolls)
+            remaining_troubles -= 1
+        while remaining_troubles > 0:
+            _apply_trouble_to_standard(standards, roller, standard_rolls)
+            remaining_troubles -= 1
+
+    raw_dice = {
+        "standard_1": standards[0],
+        "marvel_die": marvel_die,
+        "standard_2": standards[1],
+    }
+    return raw_dice, standard_rolls, marvel_rolls
+
+
+def _build_roll_summary(
+    *,
+    raw_dice: dict[str, int],
+    target_number: int | None,
+    ability_modifier: int = 0,
+) -> dict[str, Any]:
+    """Build the shared roll summary fields."""
+    standard_1 = raw_dice["standard_1"]
+    marvel_die = raw_dice["marvel_die"]
+    standard_2 = raw_dice["standard_2"]
+    is_botch = standard_1 == 1 and marvel_die == 1 and standard_2 == 1
+    is_ultimate = standard_1 == 6 and marvel_die == 1 and standard_2 == 6
+    is_fantastic = marvel_die == 1 and not is_botch
+    total = standard_1 + _marvel_die_total(marvel_die) + standard_2 + ability_modifier
+
+    return {
+        "raw_dice": raw_dice,
+        "dice_values": [standard_1, marvel_die, standard_2],
+        "ability_modifier": ability_modifier,
+        "total_score": total,
+        "is_fantastic": is_fantastic,
+        "is_ultimate": is_ultimate,
+        "is_botch": is_botch,
+        "target_number": target_number,
+        "success": _resolve_target_success(
+            total=total,
+            target_number=target_number,
+            is_botch=is_botch,
+            is_ultimate=is_ultimate,
+        ),
+    }
+
+
 def resolve_d616_roll(
     ability_modifier: int = 0,
     target_number: int | None = None,
@@ -47,55 +171,22 @@ def resolve_d616_roll(
     """Simulate a d616 check with optional ability modifier, edges, and troubles."""
     _validate_target_number(target_number)
 
-    s1 = roll_single_die()
-    s2 = roll_single_die()
-    marvel_rolls = [roll_single_die()]
-    net_modifiers = edges - troubles
-
-    if net_modifiers > 0:
-        for _ in range(net_modifiers):
-            if marvel_rolls[-1] == 1:
-                break
-            marvel_rolls.append(roll_single_die())
-        m_raw = _select_marvel_die(marvel_rolls, trouble=False)
-    elif net_modifiers < 0:
-        for _ in range(abs(net_modifiers)):
-            marvel_rolls.append(roll_single_die())
-        m_raw = _select_marvel_die(marvel_rolls, trouble=True)
-    else:
-        m_raw = marvel_rolls[0]
-
-    is_botch = s1 == 1 and s2 == 1 and m_raw == 1
-    is_ultimate = s1 == 6 and s2 == 6 and m_raw == 1
-    is_fantastic = m_raw == 1 and not is_botch
-    total_score = s1 + s2 + m_raw + ability_modifier
-    if is_fantastic:
-        total_score += 6
-
-    success = _resolve_target_success(
-        total=total_score,
-        target_number=target_number,
-        is_botch=is_botch,
-        is_ultimate=is_ultimate,
+    raw_dice, standard_rolls, marvel_rolls = _resolve_dice_pool(
+        roller=roll_single_die,
+        net_modifiers=edges - troubles,
     )
-
-    return {
-        "raw_dice": {"standard_1": s1, "standard_2": s2, "marvel_die": m_raw},
-        "dice_values": [s1, s2, m_raw],
-        "ability_modifier": ability_modifier,
-        "net_modifiers": net_modifiers,
-        "total_score": total_score,
-        "is_fantastic": is_fantastic,
-        "is_ultimate": is_ultimate,
-        "is_botch": is_botch,
-        "target_number": target_number,
-        "success": success,
+    result = _build_roll_summary(
+        raw_dice=raw_dice,
+        target_number=target_number,
+        ability_modifier=ability_modifier,
+    )
+    result["net_modifiers"] = edges - troubles
+    result["roll_history"] = {
+        "standard_1": standard_rolls["standard_1"],
+        "marvel_die": marvel_rolls,
+        "standard_2": standard_rolls["standard_2"],
     }
-
-
-def _marvel_die_rank(value: int) -> int:
-    """Return relative strength rank where 1 is remapped above 6 for comparisons."""
-    return 7 if value == 1 else value
+    return result
 
 
 def roll_d616(
@@ -105,61 +196,39 @@ def roll_d616(
     target_number: int | None = None,
     rng: random.Random | None = None,
 ) -> dict[str, Any]:
-    """Roll Marvel's d616 check with optional edge/trouble and TN resolution.
-
-    Pass a seeded ``rng`` instance for reproducible rolls.
-    A Fantastic roll is determined from the kept Marvel die roll of ``1`` and grants +6.
-    With Edge, an initial Marvel die roll of ``1`` is already best and is not rerolled.
-    Trouble keeps the worse Marvel die under the same ranking where ``1`` is best.
-    """
+    """Roll Marvel's d616 check with optional edge/trouble and TN resolution."""
     if edge and trouble:
         raise D616ConfigurationError("Edge and trouble cannot both be active.")
     _validate_target_number(target_number)
 
-    roller = rng if rng is not None else random
+    roller = (rng if rng is not None else random).randint
 
-    initial_marvel_die = roller.randint(1, 6)
-    marvel_rolls = [initial_marvel_die]
-    if trouble:
-        marvel_rolls.append(roller.randint(1, 6))
-    elif edge and initial_marvel_die != 1:
-        marvel_rolls.append(roller.randint(1, 6))
-    if edge:
-        marvel_die = _select_marvel_die(marvel_rolls, trouble=False)
-    elif trouble:
-        marvel_die = _select_marvel_die(marvel_rolls, trouble=True)
-    else:
-        marvel_die = marvel_rolls[0]
-
-    regular_die_1 = roller.randint(1, 6)
-    regular_die_2 = roller.randint(1, 6)
-
-    botch = regular_die_1 == 1 and regular_die_2 == 1 and marvel_die == 1
-    ultimate = regular_die_1 == 6 and regular_die_2 == 6 and marvel_die == 1
-    fantastic = marvel_die == 1
-    total = marvel_die + regular_die_1 + regular_die_2
-    if fantastic:
-        total += 6
+    raw_dice, standard_rolls, marvel_rolls = _resolve_dice_pool(
+        roller=lambda: roller(1, 6),
+        net_modifiers=int(edge) - int(trouble),
+    )
+    summary = _build_roll_summary(
+        raw_dice=raw_dice,
+        target_number=target_number,
+    )
 
     result: dict[str, Any] = {
-        "marvel_die": marvel_die,
-        "regular_dice": [regular_die_1, regular_die_2],
+        "raw_dice": raw_dice,
+        "dice_values": summary["dice_values"],
+        "marvel_die": raw_dice["marvel_die"],
+        "regular_dice": [raw_dice["standard_1"], raw_dice["standard_2"]],
+        "standard_rolls": standard_rolls,
         "marvel_rolls": marvel_rolls,
         "edge": edge,
         "trouble": trouble,
-        "fantastic": fantastic,
-        "botch": botch,
-        "ultimate": ultimate,
-        "total": total,
+        "fantastic": summary["is_fantastic"],
+        "botch": summary["is_botch"],
+        "ultimate": summary["is_ultimate"],
+        "total": summary["total_score"],
     }
 
     if target_number is not None:
         result["target_number"] = target_number
-        result["success"] = _resolve_target_success(
-            total=total,
-            target_number=target_number,
-            is_botch=botch,
-            is_ultimate=ultimate,
-        )
+        result["success"] = summary["success"]
 
     return result

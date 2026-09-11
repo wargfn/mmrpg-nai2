@@ -13,7 +13,7 @@ from urllib.parse import urlparse, urlunparse
 import httpx
 
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
-from marvel_mcp_narrator.core.rules_database import query_rulebook_database
+from marvel_mcp_narrator.core.rules_database import RulesLookupError, query_rulebook_database
 
 SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "
@@ -211,7 +211,7 @@ def run_cli(model: str, host: str = DEFAULT_OPEN_WEBUI_HOST, api_key: str | None
                 )
             else:
                 messages.append({"role": "user", "content": user_input})
-        except (ValueError, D616ConfigurationError) as exc:
+        except (ValueError, D616ConfigurationError, RulesLookupError, OSError) as exc:
             print(f"tool_error> {exc}")
             continue
 
@@ -264,7 +264,7 @@ def main() -> None:
     except ValueError as exc:
         parser.error(str(exc))
     model = args.model or config["model"] or DEFAULT_MODEL
-    host = args.host or config["host"] or DEFAULT_OLLAMA_HOST
+    host = args.host or config["host"] or DEFAULT_OPEN_WEBUI_HOST
     api_key = args.api_key if args.api_key is not None else config["api_key"]
     run_cli(model=model, host=host, api_key=api_key)
 

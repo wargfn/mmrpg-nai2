@@ -20,21 +20,47 @@ class RulesDatabaseTests(unittest.TestCase):
         self.assertIn('mechanics', rules)
         self.assertIn('powers', rules)
         self.assertIn('d616_basics', rules['mechanics'])
+        self.assertIn('d616_roll_breakdown', rules['mechanics'])
+        self.assertIn('botch_ultimate_616', rules['mechanics'])
+        self.assertIn('Standard Die, Marvel Die, Standard Die', rules['mechanics']['d616_basics']['description'])
+        self.assertIn('[1, 1, 1]', rules['mechanics']['botch_ultimate_616']['description'])
+        self.assertIn('[6, 1, 6]', rules['mechanics']['botch_ultimate_616']['description'])
 
     def test_query_rulebook_database_finds_mechanics(self):
         results = query_rulebook_database('fantastic')
         self.assertIn('Rulebook Search Results', results)
         self.assertIn('Fantastic Roll', results)
-        self.assertIn('### Mechanics', results)
+        self.assertIn('fantastic_roll', results)
+
+    def test_query_rulebook_database_finds_updated_special_roll_rules(self):
+        results = query_rulebook_database('ultimate 616')
+        self.assertIn('Rulebook Search Results', results)
+        self.assertIn('Botch and Ultimate 616', results)
+
+    @patch('marvel_mcp_narrator.core.rules_database.files', side_effect=ModuleNotFoundError)
+    def test_load_rules_database_falls_back_to_source_path(self, _mock_files):
+        rules = load_rules_database()
+        self.assertIn('d616_basics', rules['mechanics'])
 
     def test_query_rulebook_database_finds_powers(self):
+        results = query_rulebook_database('Teleportation')
+        self.assertIn('Rule Reference: Teleportation', results)
+        self.assertIn('teleportation', results)
+
+    def test_query_rulebook_database_uses_exact_index_before_keyword_search(self):
+        results = query_rulebook_database('d616_basics')
+        self.assertIn('Rule Reference: d616 Basics', results)
+        self.assertIn('`d616_basics`', results)
+        self.assertNotIn('Rulebook Search Results', results)
+
+    def test_query_rulebook_database_falls_back_to_keyword_search(self):
         results = query_rulebook_database('teleport')
-        self.assertIn('### Powers', results)
+        self.assertIn('Rulebook Search Results', results)
         self.assertIn('Teleportation', results)
 
     def test_query_rulebook_database_handles_no_match(self):
         results = query_rulebook_database('not-a-real-rule')
-        self.assertIn('No rulebook matches found', results)
+        self.assertEqual(results, "Rule not found: 'not-a-real-rule'.")
 
     def test_query_rulebook_database_reuses_default_cache(self):
         original_cache = rules_database_mod._DEFAULT_RULES_DATABASE
@@ -64,6 +90,11 @@ class RulesDatabaseTests(unittest.TestCase):
         payload = lookup_rule_reference('Teleportation')
         self.assertEqual(payload['entry_type'], 'power')
         self.assertEqual(payload['name'], 'Teleportation')
+
+    def test_lookup_rule_reference_returns_mechanic_by_title_alias(self):
+        payload = lookup_rule_reference('Fantastic Roll')
+        self.assertEqual(payload['entry_type'], 'mechanic')
+        self.assertEqual(payload['rule_key'], 'fantastic_roll')
 
     def test_lookup_rule_reference_raises_for_unknown_key(self):
         with self.assertRaises(RulesLookupError):
