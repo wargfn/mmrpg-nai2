@@ -3,17 +3,27 @@
     "d616_basics": {
       "title": "d616 Basics",
       "category": "Mechanics",
-      "description": "Roll one Marvel die and two standard d6 dice, then total them for checks against a target number."
+      "description": "Roll the d616 pool in Standard Die, Marvel Die, Standard Die order. Add both standard dice and the Marvel die to determine the total, treating a Marvel die result of 1 as the 6-logo and counting it as a numeric 6."
+    },
+    "d616_roll_breakdown": {
+      "title": "d616 Roll Breakdown",
+      "category": "Mechanics",
+      "description": "Record and read the dice pool as [standard_1, marvel_die, standard_2]. The Marvel die is the middle die in the pool and its 1 result is both a Fantastic trigger and a numeric 6 for the final total."
     },
     "fantastic_roll": {
       "title": "Fantastic Roll",
       "category": "Mechanics",
-      "description": "If the Marvel die shows 1, treat the result as fantastic and add +6 to the roll total."
+      "description": "If the Marvel die shows 1, the roll is Fantastic unless the full pool is a botch. The Marvel die still counts as 6 in the total rather than adding an extra +6 on top of its face value."
+    },
+    "botch_ultimate_616": {
+      "title": "Botch and Ultimate 616",
+      "category": "Mechanics",
+      "description": "A roll of [1, 1, 1] is a botch that becomes a critical failure and overrides any other success. A roll of [6, 1, 6] is an Ultimate 616 success."
     },
     "edges_troubles": {
       "title": "Edges and Troubles",
       "category": "Mechanics",
-      "description": "Edge rolls an extra Marvel die and keeps the better result, with 1 treated as best (Fantastic). Trouble rolls an extra Marvel die and keeps the worse result under the same ranking."
+      "description": "Apply net Edges and Troubles to the Marvel die first. Net Edges reroll the Marvel die until it becomes 1 if possible, then reroll the lower standard die for higher results; net Troubles reroll the Marvel die first only when it is 1 to try to knock it off Fantastic, and otherwise reroll the higher standard die for lower results."
     }
   },
   "powers": [

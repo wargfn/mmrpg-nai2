@@ -20,12 +20,21 @@ class RulesDatabaseTests(unittest.TestCase):
         self.assertIn('mechanics', rules)
         self.assertIn('powers', rules)
         self.assertIn('d616_basics', rules['mechanics'])
+        self.assertIn('d616_roll_breakdown', rules['mechanics'])
+        self.assertIn('botch_ultimate_616', rules['mechanics'])
+        self.assertIn('Standard Die, Marvel Die, Standard Die', rules['mechanics']['d616_basics']['description'])
+        self.assertIn('[1, 1, 1]', rules['mechanics']['botch_ultimate_616']['description'])
+        self.assertIn('[6, 1, 6]', rules['mechanics']['botch_ultimate_616']['description'])
 
     def test_query_rulebook_database_finds_mechanics(self):
         results = query_rulebook_database('fantastic')
         self.assertIn('Rulebook Search Results', results)
         self.assertIn('Fantastic Roll', results)
         self.assertIn('### Mechanics', results)
+
+    def test_query_rulebook_database_finds_updated_special_roll_rules(self):
+        results = query_rulebook_database('ultimate 616')
+        self.assertIn('Botch and Ultimate 616', results)
 
     def test_query_rulebook_database_finds_powers(self):
         results = query_rulebook_database('teleport')
