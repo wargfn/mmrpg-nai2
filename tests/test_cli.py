@@ -35,6 +35,17 @@ class CLIToolInjectionTests(unittest.TestCase):
         self.assertIn('d616 Basics', payload)
         self.assertIn('d616 Roll Breakdown', payload)
 
+    def test_rule_command_uses_exact_rule_index_when_key_matches(self):
+        name, payload = _tool_injection('/rule d616_basics')
+        self.assertEqual(name, 'lookup_rule')
+        self.assertIn('Rule Reference: d616 Basics', payload)
+        self.assertIn('`d616_basics`', payload)
+
+    def test_rule_command_returns_not_found_for_unknown_rule(self):
+        name, payload = _tool_injection('/rule not-a-real-rule')
+        self.assertEqual(name, 'lookup_rule')
+        self.assertEqual(payload, "Rule not found: 'not-a-real-rule'.")
+
     def test_roll_invalid_target_number_raises_clear_error(self):
         with self.assertRaisesRegex(ValueError, 'must be a positive integer'):
             _tool_injection('/roll --tn nope')

@@ -38,12 +38,73 @@ class RulesDatabase:
 
     def __init__(self, path: Path | str | None = None) -> None:
         self._data = load_rules_database(path)
+        self._lookup_index = self._build_lookup_index()
+
+    def _build_lookup_index(self) -> dict[str, dict[str, Any]]:
+        """Build exact-match lookup aliases from the loaded rule data."""
+        index: dict[str, dict[str, Any]] = {}
+
+        for key, payload in self._data.get("mechanics", {}).items():
+            title = str(payload.get("title", key))
+            aliases = {str(key).strip().lower(), title.strip().lower(), title.strip().lower().replace(" ", "_")}
+            for alias in aliases:
+                if alias:
+                    index[alias] = {"entry_type": "mechanic", "rule_key": str(key), **payload}
+
+        for payload in self._data.get("powers", []):
+            name = str(payload.get("name", "")).strip()
+            if not name:
+                continue
+            rule_key = name.lower().replace(" ", "_")
+            aliases = {name.lower(), rule_key}
+            for alias in aliases:
+                index[alias] = {"entry_type": "power", "rule_key": rule_key, **payload}
+
+        return index
+
+    def lookup_rule(self, query: str) -> dict[str, Any]:
+        """Return an exact indexed rule lookup by key, title, or power name."""
+        normalized = query.strip().lower()
+        if not normalized:
+            raise RulesLookupError("Please provide a keyword to search the rulebook.")
+        try:
+            return self._lookup_index[normalized]
+        except KeyError as exc:
+            raise RulesLookupError(f"No rule reference found for '{query}'.") from exc
+
+    def _format_exact_match(self, payload: dict[str, Any]) -> str:
+        """Format an exact indexed match for CLI and tool display."""
+        entry_type = payload["entry_type"]
+        if entry_type == "mechanic":
+            return "\n".join(
+                [
+                    f"## Rule Reference: {payload.get('title', payload['rule_key'])}",
+                    f"- Key: `{payload['rule_key']}`",
+                    f"- Category: {payload.get('category', 'Mechanics')}",
+                    f"- {payload.get('description', '')}",
+                ]
+            )
+
+        return "\n".join(
+            [
+                f"## Rule Reference: {payload.get('name', payload['rule_key'])}",
+                f"- Key: `{payload['rule_key']}`",
+                f"- Category: {payload.get('category', 'Uncategorized')}",
+                f"- Rank Required: {payload.get('rank_required', '?')}",
+                f"- {payload.get('description', '')}",
+            ]
+        )
 
     def query_rules(self, query: str) -> str:
         """Search mechanics and powers by keyword and return markdown results."""
         keyword = query.strip().lower()
         if not keyword:
             return "Please provide a keyword to search the rulebook."
+
+        try:
+            return self._format_exact_match(self.lookup_rule(query))
+        except RulesLookupError:
+            pass
 
         mechanics_matches: list[dict[str, Any]] = []
         for key, payload in self._data.get("mechanics", {}).items():
@@ -79,7 +140,7 @@ class RulesDatabase:
                 )
 
         if not mechanics_matches and not powers_matches:
-            return f"No rulebook matches found for '{query}'."
+            return f"Rule not found: '{query}'."
 
         lines = [f"## Rulebook Search Results for `{query}`"]
 
@@ -117,26 +178,4 @@ def query_rulebook_database(query: str) -> str:
 
 def lookup_rule_reference(rule_key: str, path: Path | str | None = None) -> dict[str, Any]:
     """Backward-compatible exact lookup by mechanic key or power name."""
-    normalized = rule_key.strip().lower()
-    rules = load_rules_database(path)
-    mechanics = rules.get("mechanics", {})
-    normalized_mechanics = {str(key).lower(): (str(key), value) for key, value in mechanics.items()}
-
-    if normalized in normalized_mechanics:
-        original_key, payload = normalized_mechanics[normalized]
-        if isinstance(payload, dict):
-            return {"rule_key": original_key, "entry_type": "mechanic", **payload}
-        return {"rule_key": original_key, "entry_type": "mechanic", "text": str(payload)}
-
-    for power in rules.get("powers", []):
-        power_name = str(power.get("name", "")).strip()
-        if not power_name:
-            continue
-        power_normalized = power_name.lower()
-        power_slug = power_normalized.replace(" ", "_")
-        if normalized in {power_normalized, power_slug}:
-            if isinstance(power, dict):
-                return {"rule_key": power_slug, "entry_type": "power", **power}
-            return {"rule_key": power_slug, "entry_type": "power", "text": str(power)}
-
-    raise RulesLookupError(f"No rule reference found for '{rule_key}'.")
+    return RulesDatabase(path=path).lookup_rule(rule_key)
