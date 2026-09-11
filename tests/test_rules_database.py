@@ -36,6 +36,11 @@ class RulesDatabaseTests(unittest.TestCase):
         results = query_rulebook_database('ultimate 616')
         self.assertIn('Botch and Ultimate 616', results)
 
+    @patch('marvel_mcp_narrator.core.rules_database.files', side_effect=ModuleNotFoundError)
+    def test_load_rules_database_falls_back_to_source_path(self, _mock_files):
+        rules = load_rules_database()
+        self.assertIn('d616_basics', rules['mechanics'])
+
     def test_query_rulebook_database_finds_powers(self):
         results = query_rulebook_database('teleport')
         self.assertIn('### Powers', results)

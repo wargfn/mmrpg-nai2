@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import json
-from threading import Lock
 from importlib.resources import files
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 
 class RulesLookupError(LookupError):
     """Raised when a requested rule cannot be found."""
+
+
+def _default_rules_path() -> Path:
+    """Return the source-tree fallback path for the packaged rules JSON."""
+    return Path(__file__).resolve().parent.parent / "data" / "rules.json"
 
 
 def load_rules_database(path: Path | str | None = None) -> dict[str, Any]:
@@ -20,7 +25,11 @@ def load_rules_database(path: Path | str | None = None) -> dict[str, Any]:
         with source.open("r", encoding="utf-8") as handle:
             return json.load(handle)
 
-    content = files("marvel_mcp_narrator.data").joinpath("rules.json").read_text(encoding="utf-8")
+    try:
+        content = files("marvel_mcp_narrator.data").joinpath("rules.json").read_text(encoding="utf-8")
+    except (FileNotFoundError, ModuleNotFoundError):
+        with _default_rules_path().open("r", encoding="utf-8") as handle:
+            return json.load(handle)
     return json.loads(content)
 
 
