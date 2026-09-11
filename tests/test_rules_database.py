@@ -28,12 +28,14 @@ class RulesDatabaseTests(unittest.TestCase):
 
     def test_query_rulebook_database_finds_mechanics(self):
         results = query_rulebook_database('fantastic')
-        self.assertIn('Rule Reference: Fantastic Roll', results)
+        self.assertIn('Rulebook Search Results', results)
+        self.assertIn('Fantastic Roll', results)
         self.assertIn('fantastic_roll', results)
 
     def test_query_rulebook_database_finds_updated_special_roll_rules(self):
         results = query_rulebook_database('ultimate 616')
-        self.assertIn('Rule Reference: Botch and Ultimate 616', results)
+        self.assertIn('Rulebook Search Results', results)
+        self.assertIn('Botch and Ultimate 616', results)
 
     @patch('marvel_mcp_narrator.core.rules_database.files', side_effect=ModuleNotFoundError)
     def test_load_rules_database_falls_back_to_source_path(self, _mock_files):
