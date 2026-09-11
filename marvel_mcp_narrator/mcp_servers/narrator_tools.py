@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from marvel_mcp_narrator.core.d616_engine import roll_d616 as roll_d616_core
-from marvel_mcp_narrator.core.rules_database import lookup_rule_reference
+from marvel_mcp_narrator.core.rules_database import lookup_rule_reference as lookup_rule_reference_core
 
 
 mcp = FastMCP("mmrpg-narrator")
@@ -18,9 +18,9 @@ def roll_d616(edge: bool = False, trouble: bool = False, target_number: int | No
 
 
 @mcp.tool()
-def lookup_rule(rule_key: str) -> dict:
+def lookup_rule_reference(rule_key: str) -> dict:
     """Look up an exact rule reference by mechanic key or power name."""
-    return lookup_rule_reference(rule_key)
+    return lookup_rule_reference_core(rule_key)
 
 
 if __name__ == "__main__":

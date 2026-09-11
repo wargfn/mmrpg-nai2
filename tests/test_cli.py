@@ -23,11 +23,11 @@ class CLIToolInjectionTests(unittest.TestCase):
         self.assertIn('total', payload)
         self.assertEqual(payload['target_number'], 10)
 
-    def test_rule_command_returns_search_results(self):
-        name, payload = _tool_injection('/rule edge')
-        self.assertEqual(name, 'lookup_rule')
-        self.assertIn('Rulebook Search Results', payload)
-        self.assertIn('Edges and Troubles', payload)
+    def test_rule_command_returns_exact_lookup_payload(self):
+        name, payload = _tool_injection('/rule d616_basics')
+        self.assertEqual(name, 'lookup_rule_reference')
+        self.assertEqual(payload['rule_key'], 'd616_basics')
+        self.assertEqual(payload['entry_type'], 'mechanic')
 
     def test_roll_invalid_target_number_raises_clear_error(self):
         with self.assertRaisesRegex(ValueError, 'must be a positive integer'):
@@ -99,15 +99,15 @@ class CLIRunLoopTests(unittest.TestCase):
         self.assertFalse(any(msg['role'] == 'user' and msg['content'] == '/roll' for msg in call_messages))
 
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
-    @patch('builtins.input', side_effect=['/rule teleport', 'exit'])
-    def test_rule_tool_injects_query_results(self, _mock_input, mock_request_chat):
+    @patch('builtins.input', side_effect=['/rule teleportation', 'exit'])
+    def test_rule_tool_injects_exact_lookup_results(self, _mock_input, mock_request_chat):
         mock_request_chat.return_value = 'narration'
 
         run_cli(model='fake-model')
 
         call_messages = mock_request_chat.call_args.kwargs['messages']
-        self.assertTrue(any(msg['role'] == 'tool' and 'Tool output (lookup_rule):' in msg['content'] for msg in call_messages))
-        self.assertTrue(any(msg['role'] == 'tool' and 'Teleportation' in msg['content'] for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'tool' and 'Tool output (lookup_rule_reference):' in msg['content'] for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'tool' and '"name": "Teleportation"' in msg['content'] for msg in call_messages))
 
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/roll --tn nope', 'exit'])

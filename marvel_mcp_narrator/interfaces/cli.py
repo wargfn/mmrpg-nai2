@@ -13,7 +13,7 @@ from urllib.parse import urlparse, urlunparse
 import httpx
 
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
-from marvel_mcp_narrator.core.rules_database import query_rulebook_database
+from marvel_mcp_narrator.core.rules_database import lookup_rule_reference
 
 SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "
@@ -175,8 +175,8 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
     if command == "/rule":
         key = " ".join(parts[1:]).strip()
         if not key:
-            raise ValueError("Usage: /rule <keyword>")
-        return "lookup_rule", query_rulebook_database(key)
+            raise ValueError("Usage: /rule <reference_key>")
+        return "lookup_rule_reference", lookup_rule_reference(key)
 
     return None, None
 
@@ -184,7 +184,7 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
 def run_cli(model: str, host: str = DEFAULT_OPEN_WEBUI_HOST, api_key: str | None = None) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
     print("Marvel MCP Narrator CLI")
-    print("Type '/roll [--edge|--trouble] [--tn N]' or '/rule <keyword>' for deterministic tools.")
+    print("Type '/roll [--edge|--trouble] [--tn N]' or '/rule <reference_key>' for deterministic tools.")
     print("Type 'exit' to quit.\n")
 
     messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
