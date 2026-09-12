@@ -189,9 +189,30 @@ class CharacterRoster:
     def _copy_character(character: Character) -> Character:
         return Character(**asdict(character))
 
-    def create_or_load(self, **character_kwargs: int | str) -> tuple[Character, bool]:
-        name = str(character_kwargs["name"])
+    def create_or_load(
+        self,
+        *,
+        name: str,
+        archetype: str,
+        rank: int,
+        melee: int,
+        agility: int,
+        resilience: int,
+        vigilance: int,
+        ego: int,
+        logic: int,
+    ) -> tuple[Character, bool]:
         key = self._normalize(name)
+        requested_values = {
+            "archetype": archetype,
+            "rank": rank,
+            "melee": melee,
+            "agility": agility,
+            "resilience": resilience,
+            "vigilance": vigilance,
+            "ego": ego,
+            "logic": logic,
+        }
         with self._lock:
             existing = self._characters.get(key)
             if existing is not None:
@@ -208,13 +229,13 @@ class CharacterRoster:
                 mismatches = [
                     field_name
                     for field_name in definition_fields
-                    if field_name in character_kwargs and getattr(existing, field_name) != character_kwargs[field_name]
+                    if getattr(existing, field_name) != requested_values[field_name]
                 ]
                 if mismatches:
                     mismatched_values = {
                         field_name: {
                             "existing": getattr(existing, field_name),
-                            "requested": character_kwargs[field_name],
+                            "requested": requested_values[field_name],
                         }
                         for field_name in mismatches
                     }
@@ -222,7 +243,17 @@ class CharacterRoster:
                         f"Character '{name}' already exists with conflicting attributes: {mismatched_values}."
                     )
                 return self._copy_character(existing), False
-            created = Character(**character_kwargs)
+            created = Character(
+                name=name,
+                archetype=archetype,
+                rank=rank,
+                melee=melee,
+                agility=agility,
+                resilience=resilience,
+                vigilance=vigilance,
+                ego=ego,
+                logic=logic,
+            )
             self._characters[key] = created
             return self._copy_character(created), True
 
