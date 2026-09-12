@@ -165,7 +165,6 @@ class Character:
             "ego_defense": self.ego_defense,
             "logic_defense": self.logic_defense,
         }
-        payload["damage_multiplier"] = self.rank
         return payload
 
 
