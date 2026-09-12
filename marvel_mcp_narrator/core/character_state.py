@@ -7,6 +7,7 @@ from threading import RLock
 
 
 _ABILITY_FIELDS = ("melee", "agility", "resilience", "vigilance", "ego", "logic")
+_CHARACTER_DEFINITION_FIELDS = ("archetype", "rank", *_ABILITY_FIELDS)
 
 
 @dataclass(slots=True)
@@ -216,31 +217,18 @@ class CharacterRoster:
         with self._lock:
             existing = self._characters.get(key)
             if existing is not None:
-                definition_fields = (
-                    "archetype",
-                    "rank",
-                    "melee",
-                    "agility",
-                    "resilience",
-                    "vigilance",
-                    "ego",
-                    "logic",
-                )
                 mismatches = [
                     field_name
-                    for field_name in definition_fields
+                    for field_name in _CHARACTER_DEFINITION_FIELDS
                     if getattr(existing, field_name) != requested_values[field_name]
                 ]
                 if mismatches:
-                    mismatched_values = {
-                        field_name: {
-                            "existing": getattr(existing, field_name),
-                            "requested": requested_values[field_name],
-                        }
-                        for field_name in mismatches
-                    }
+                    mismatch_parts = [
+                        f"{field_name} (existing={getattr(existing, field_name)!r}, requested={requested_values[field_name]!r})"
+                        for field_name in sorted(mismatches)
+                    ]
                     raise ValueError(
-                        f"Character '{name}' already exists with conflicting attributes: {mismatched_values}."
+                        f"Character '{name}' already exists with conflicting attributes: {', '.join(mismatch_parts)}."
                     )
                 return self._copy_character(existing), False
             created = Character(
