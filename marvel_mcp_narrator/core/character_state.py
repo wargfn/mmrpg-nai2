@@ -221,10 +221,10 @@ class CharacterRoster:
                     raise ValueError(
                         f"Character '{name}' already exists with conflicting attributes: {mismatched_values}."
                     )
-                return existing, False
+                return self._copy_character(existing), False
             created = Character(**character_kwargs)
             self._characters[key] = created
-            return created, True
+            return self._copy_character(created), True
 
     def get_copy(self, name: str) -> Character:
         key = self._normalize(name)
