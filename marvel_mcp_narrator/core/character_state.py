@@ -80,6 +80,8 @@ class Character:
         return 10 + self.logic
 
     def damage_multiplier(self, bonus_multiplier: int = 0) -> int:
+        if bonus_multiplier < 0:
+            raise ValueError("Bonus multiplier must be non-negative.")
         return self.rank + bonus_multiplier
 
     def calculate_attack_damage(
@@ -227,31 +229,36 @@ class CharacterRoster:
                 raise KeyError(f"Character '{name}' was not found.") from error
 
     def apply_damage(self, name: str, health_damage: int = 0, focus_damage: int = 0) -> dict:
-        character = self.get(name)
         if health_damage < 0 or focus_damage < 0:
             raise ValueError("Damage values must be non-negative.")
+        key = self._normalize(name)
+        with self._lock:
+            try:
+                character = self._characters[key]
+            except KeyError as error:
+                raise KeyError(f"Character '{name}' was not found.") from error
 
-        health_result = character.take_health_damage(health_damage) if health_damage else None
-        focus_result = character.take_focus_damage(focus_damage) if focus_damage else None
+            health_result = character.take_health_damage(health_damage) if health_damage else None
+            focus_result = character.take_focus_damage(focus_damage) if focus_damage else None
 
-        return {
-            "name": character.name,
-            "health": health_result
-            or {
-                "resource": "health",
-                "current": character.current_health,
-                "max": character.max_health,
-                "is_unconscious": character.current_health <= 0,
-            },
-            "focus": focus_result
-            or {
-                "resource": "focus",
-                "current": character.current_focus,
-                "max": character.max_focus,
-                "is_shattered": character.current_focus <= 0,
-            },
-            "conditions": list(character.conditions),
-        }
+            return {
+                "name": character.name,
+                "health": health_result
+                or {
+                    "resource": "health",
+                    "current": character.current_health,
+                    "max": character.max_health,
+                    "is_unconscious": character.current_health <= 0,
+                },
+                "focus": focus_result
+                or {
+                    "resource": "focus",
+                    "current": character.current_focus,
+                    "max": character.max_focus,
+                    "is_shattered": character.current_focus <= 0,
+                },
+                "conditions": list(character.conditions),
+            }
 
     def clear(self) -> None:
         with self._lock:
