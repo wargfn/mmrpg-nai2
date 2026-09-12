@@ -26,6 +26,7 @@ def lookup_rule(rule_key: str) -> dict:
 
 @mcp.tool()
 def create_or_load_character(
+    *,
     name: str,
     rank: int,
     archetype: str,
