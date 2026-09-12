@@ -129,7 +129,11 @@ def test_tools_character_management_and_damage_response():
     assert sheet["max_focus"] == 150
 
     damage_result = narrator_tools.apply_damage("Storm", health_damage=10, focus_damage=25)
+    assert damage_result["health"]["previous"] == 90
+    assert damage_result["health"]["damage"] == 10
     assert damage_result["health"]["current"] == 80
+    assert damage_result["focus"]["previous"] == 150
+    assert damage_result["focus"]["damage"] == 25
     assert damage_result["focus"]["current"] == 125
 
     attack_result = narrator_tools.calculate_attack_damage(
@@ -170,6 +174,32 @@ def test_create_or_load_character_rejects_conflicting_definition():
         )
 
 
+def test_create_or_load_character_accepts_case_only_name_variation():
+    narrator_tools.create_or_load_character(
+        name="Storm",
+        rank=4,
+        archetype="Polymath",
+        melee=2,
+        agility=4,
+        resilience=3,
+        vigilance=5,
+        ego=5,
+        logic=3,
+    )
+    payload = narrator_tools.create_or_load_character(
+        name="storm",
+        rank=4,
+        archetype="Polymath",
+        melee=2,
+        agility=4,
+        resilience=3,
+        vigilance=5,
+        ego=5,
+        logic=3,
+    )
+    assert payload["created"] is False
+
+
 def test_roster_get_returns_copy_not_live_state():
     narrator_tools.create_or_load_character(
         name="Storm",
@@ -188,6 +218,29 @@ def test_roster_get_returns_copy_not_live_state():
 
     sheet = narrator_tools.get_character_sheet("Storm")
     assert sheet["current_health"] == 90
+
+
+def test_tool_error_paths():
+    with pytest.raises(KeyError, match="was not found"):
+        narrator_tools.get_character_sheet("Unknown")
+
+    narrator_tools.create_or_load_character(
+        name="Storm",
+        rank=4,
+        archetype="Polymath",
+        melee=2,
+        agility=4,
+        resilience=3,
+        vigilance=5,
+        ego=5,
+        logic=3,
+    )
+
+    with pytest.raises(ValueError, match="Unknown ability"):
+        narrator_tools.calculate_attack_damage(attacker_name="Storm", ability="strength", marvel_die=5)
+
+    with pytest.raises(ValueError, match="Damage values must be non-negative"):
+        narrator_tools.apply_damage("Storm", health_damage=-1)
 
 
 def test_tool_signatures():

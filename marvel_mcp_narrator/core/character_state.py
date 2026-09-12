@@ -193,7 +193,6 @@ class CharacterRoster:
             existing = self._characters.get(key)
             if existing is not None:
                 definition_fields = (
-                    "name",
                     "archetype",
                     "rank",
                     "melee",
@@ -203,16 +202,19 @@ class CharacterRoster:
                     "ego",
                     "logic",
                 )
+                incoming_name = str(character_kwargs.get("name", ""))
                 mismatches = [
                     field_name
                     for field_name in definition_fields
                     if field_name in character_kwargs and getattr(existing, field_name) != character_kwargs[field_name]
                 ]
+                if incoming_name and self._normalize(existing.name) != self._normalize(incoming_name):
+                    mismatches.append("name")
                 if mismatches:
                     mismatched_values = {
                         field_name: {
-                            "existing": getattr(existing, field_name),
-                            "requested": character_kwargs[field_name],
+                            "existing": existing.name if field_name == "name" else getattr(existing, field_name),
+                            "requested": incoming_name if field_name == "name" else character_kwargs[field_name],
                         }
                         for field_name in mismatches
                     }
@@ -250,25 +252,13 @@ class CharacterRoster:
             except KeyError as error:
                 raise KeyError(f"Character '{name}' was not found.") from error
 
-            health_result = character.take_health_damage(health_damage) if health_damage else None
-            focus_result = character.take_focus_damage(focus_damage) if focus_damage else None
+            health_result = character.take_health_damage(health_damage)
+            focus_result = character.take_focus_damage(focus_damage)
 
             return {
                 "name": character.name,
-                "health": health_result
-                or {
-                    "resource": "health",
-                    "current": character.current_health,
-                    "max": character.max_health,
-                    "is_unconscious": character.current_health <= 0,
-                },
-                "focus": focus_result
-                or {
-                    "resource": "focus",
-                    "current": character.current_focus,
-                    "max": character.max_focus,
-                    "is_shattered": character.current_focus <= 0,
-                },
+                "health": health_result,
+                "focus": focus_result,
                 "conditions": list(character.conditions),
             }
 
