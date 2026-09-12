@@ -202,19 +202,16 @@ class CharacterRoster:
                     "ego",
                     "logic",
                 )
-                incoming_name = str(character_kwargs.get("name", ""))
                 mismatches = [
                     field_name
                     for field_name in definition_fields
                     if field_name in character_kwargs and getattr(existing, field_name) != character_kwargs[field_name]
                 ]
-                if incoming_name and self._normalize(existing.name) != self._normalize(incoming_name):
-                    mismatches.append("name")
                 if mismatches:
                     mismatched_values = {
                         field_name: {
-                            "existing": existing.name if field_name == "name" else getattr(existing, field_name),
-                            "requested": incoming_name if field_name == "name" else character_kwargs[field_name],
+                            "existing": getattr(existing, field_name),
+                            "requested": character_kwargs[field_name],
                         }
                         for field_name in mismatches
                     }
