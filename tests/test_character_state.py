@@ -170,6 +170,26 @@ def test_create_or_load_character_rejects_conflicting_definition():
         )
 
 
+def test_roster_get_returns_copy_not_live_state():
+    narrator_tools.create_or_load_character(
+        name="Storm",
+        rank=4,
+        archetype="Polymath",
+        melee=2,
+        agility=4,
+        resilience=3,
+        vigilance=5,
+        ego=5,
+        logic=3,
+    )
+
+    detached = character_roster.get("Storm")
+    detached.current_health = 1
+
+    sheet = narrator_tools.get_character_sheet("Storm")
+    assert sheet["current_health"] == 90
+
+
 def test_tool_signatures():
     create_signature = inspect.signature(narrator_tools.create_or_load_character)
     apply_signature = inspect.signature(narrator_tools.apply_damage)

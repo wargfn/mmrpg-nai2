@@ -57,8 +57,7 @@ def create_or_load_character(
 @mcp.tool()
 def get_character_sheet(name: str) -> dict:
     """Return a full character sheet and mutable state."""
-    character = character_roster.get(name)
-    return character.to_dict()
+    return character_roster.get_sheet(name)
 
 
 @mcp.tool()
@@ -76,8 +75,8 @@ def calculate_attack_damage(
     bonus_multiplier: int = 0,
 ) -> dict:
     """Calculate attack damage using rank-based multipliers."""
-    character = character_roster.get(attacker_name)
-    return character.calculate_attack_damage(
+    return character_roster.calculate_attack_damage(
+        attacker_name=attacker_name,
         ability=ability,
         marvel_die=marvel_die,
         is_fantastic=is_fantastic,

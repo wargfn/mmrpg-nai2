@@ -180,7 +180,11 @@ class CharacterRoster:
 
     @staticmethod
     def _normalize(identifier: str) -> str:
-        return identifier.strip().casefold()
+        return identifier.casefold()
+
+    @staticmethod
+    def _copy_character(character: Character) -> Character:
+        return Character(**asdict(character))
 
     def create_or_load(self, **character_kwargs: int | str) -> tuple[Character, bool]:
         name = str(character_kwargs["name"])
@@ -224,7 +228,15 @@ class CharacterRoster:
         key = self._normalize(name)
         with self._lock:
             try:
-                return self._characters[key]
+                return self._copy_character(self._characters[key])
+            except KeyError as error:
+                raise KeyError(f"Character '{name}' was not found.") from error
+
+    def get_sheet(self, name: str) -> dict:
+        key = self._normalize(name)
+        with self._lock:
+            try:
+                return self._characters[key].to_dict()
             except KeyError as error:
                 raise KeyError(f"Character '{name}' was not found.") from error
 
@@ -259,6 +271,28 @@ class CharacterRoster:
                 },
                 "conditions": list(character.conditions),
             }
+
+    def calculate_attack_damage(
+        self,
+        attacker_name: str,
+        ability: str,
+        marvel_die: int,
+        *,
+        is_fantastic: bool = False,
+        bonus_multiplier: int = 0,
+    ) -> dict:
+        key = self._normalize(attacker_name)
+        with self._lock:
+            try:
+                character = self._characters[key]
+            except KeyError as error:
+                raise KeyError(f"Character '{attacker_name}' was not found.") from error
+            return character.calculate_attack_damage(
+                ability=ability,
+                marvel_die=marvel_die,
+                is_fantastic=is_fantastic,
+                bonus_multiplier=bonus_multiplier,
+            )
 
     def clear(self) -> None:
         with self._lock:
