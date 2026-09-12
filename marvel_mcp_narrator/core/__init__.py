@@ -1,6 +1,7 @@
 """Core deterministic game logic for the Marvel MCP Narrator."""
 
 from .d616_engine import D616ConfigurationError, resolve_d616_roll, roll_d616
+from .character_state import Character, CharacterRoster, character_roster
 from .rules_database import (
     RulesDatabase,
     RulesLookupError,
@@ -12,6 +13,9 @@ from .rules_database import (
 __all__ = [
     "roll_d616",
     "resolve_d616_roll",
+    "Character",
+    "CharacterRoster",
+    "character_roster",
     "lookup_rule_reference",
     "load_rules_database",
     "query_rulebook_database",
