@@ -127,6 +127,33 @@ def test_tools_character_management_and_damage_response():
     assert attack_result["total_damage"] == 50
 
 
+def test_create_or_load_character_rejects_conflicting_definition():
+    narrator_tools.create_or_load_character(
+        name="Storm",
+        rank=4,
+        archetype="Polymath",
+        melee=2,
+        agility=4,
+        resilience=3,
+        vigilance=5,
+        ego=5,
+        logic=3,
+    )
+
+    with pytest.raises(ValueError, match="conflicting attributes"):
+        narrator_tools.create_or_load_character(
+            name="Storm",
+            rank=5,
+            archetype="Polymath",
+            melee=2,
+            agility=4,
+            resilience=3,
+            vigilance=5,
+            ego=5,
+            logic=3,
+        )
+
+
 def test_tool_signatures():
     create_signature = inspect.signature(narrator_tools.create_or_load_character)
     apply_signature = inspect.signature(narrator_tools.apply_damage)

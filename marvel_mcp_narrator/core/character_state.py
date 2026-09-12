@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from threading import RLock
 
 
 _ABILITY_FIELDS = ("melee", "agility", "resilience", "vigilance", "ego", "logic")
@@ -173,6 +174,7 @@ class CharacterRoster:
 
     def __init__(self) -> None:
         self._characters: dict[str, Character] = {}
+        self._lock = RLock()
 
     @staticmethod
     def _normalize(identifier: str) -> str:
@@ -181,19 +183,48 @@ class CharacterRoster:
     def create_or_load(self, **character_kwargs: int | str) -> tuple[Character, bool]:
         name = str(character_kwargs["name"])
         key = self._normalize(name)
-        existing = self._characters.get(key)
-        if existing is not None:
-            return existing, False
-        created = Character(**character_kwargs)
-        self._characters[key] = created
-        return created, True
+        with self._lock:
+            existing = self._characters.get(key)
+            if existing is not None:
+                definition_fields = (
+                    "name",
+                    "archetype",
+                    "rank",
+                    "melee",
+                    "agility",
+                    "resilience",
+                    "vigilance",
+                    "ego",
+                    "logic",
+                )
+                mismatches = [
+                    field_name
+                    for field_name in definition_fields
+                    if field_name in character_kwargs and getattr(existing, field_name) != character_kwargs[field_name]
+                ]
+                if mismatches:
+                    mismatched_values = {
+                        field_name: {
+                            "existing": getattr(existing, field_name),
+                            "requested": character_kwargs[field_name],
+                        }
+                        for field_name in mismatches
+                    }
+                    raise ValueError(
+                        f"Character '{name}' already exists with conflicting attributes: {mismatched_values}."
+                    )
+                return existing, False
+            created = Character(**character_kwargs)
+            self._characters[key] = created
+            return created, True
 
     def get(self, name: str) -> Character:
         key = self._normalize(name)
-        try:
-            return self._characters[key]
-        except KeyError as error:
-            raise KeyError(f"Character '{name}' was not found.") from error
+        with self._lock:
+            try:
+                return self._characters[key]
+            except KeyError as error:
+                raise KeyError(f"Character '{name}' was not found.") from error
 
     def apply_damage(self, name: str, health_damage: int = 0, focus_damage: int = 0) -> dict:
         character = self.get(name)
@@ -223,7 +254,8 @@ class CharacterRoster:
         }
 
     def clear(self) -> None:
-        self._characters.clear()
+        with self._lock:
+            self._characters.clear()
 
 
 character_roster = CharacterRoster()
