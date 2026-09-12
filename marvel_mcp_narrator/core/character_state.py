@@ -238,7 +238,7 @@ class CharacterRoster:
         key = self._normalize(name)
         with self._lock:
             try:
-                return self._characters[key].to_dict()
+                return self._copy_character(self._characters[key]).to_dict()
             except KeyError as error:
                 raise KeyError(f"Character '{name}' was not found.") from error
 
