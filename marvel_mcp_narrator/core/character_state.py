@@ -224,7 +224,7 @@ class CharacterRoster:
             self._characters[key] = created
             return created, True
 
-    def get(self, name: str) -> Character:
+    def get_copy(self, name: str) -> Character:
         key = self._normalize(name)
         with self._lock:
             try:

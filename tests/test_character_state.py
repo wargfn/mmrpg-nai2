@@ -183,7 +183,7 @@ def test_roster_get_returns_copy_not_live_state():
         logic=3,
     )
 
-    detached = character_roster.get("Storm")
+    detached = character_roster.get_copy("Storm")
     detached.current_health = 1
 
     sheet = narrator_tools.get_character_sheet("Storm")
