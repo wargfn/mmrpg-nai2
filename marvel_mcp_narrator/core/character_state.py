@@ -158,9 +158,8 @@ class Character:
         if condition in self.conditions:
             self.conditions.remove(condition)
 
-    def to_dict(self) -> dict:
-        payload = asdict(self)
-        payload["defenses"] = {
+    def get_defenses(self) -> dict[str, int]:
+        return {
             "melee_defense": self.melee_defense,
             "agility_defense": self.agility_defense,
             "resilience_defense": self.resilience_defense,
@@ -168,6 +167,10 @@ class Character:
             "ego_defense": self.ego_defense,
             "logic_defense": self.logic_defense,
         }
+
+    def to_dict(self) -> dict:
+        payload = asdict(self)
+        payload["defenses"] = self.get_defenses()
         return payload
 
 

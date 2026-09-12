@@ -31,6 +31,14 @@ def test_defenses_auto_calculate_from_abilities():
     assert character.vigilance_defense == 15
     assert character.ego_defense == 12
     assert character.logic_defense == 13
+    assert character.get_defenses() == {
+        "melee_defense": 14,
+        "agility_defense": 16,
+        "resilience_defense": 13,
+        "vigilance_defense": 15,
+        "ego_defense": 12,
+        "logic_defense": 13,
+    }
 
 
 def test_health_and_focus_pools_initialize_from_resilience_and_vigilance():
