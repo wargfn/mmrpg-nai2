@@ -40,9 +40,10 @@ def build_open_webui_chat_endpoint(host: str) -> str:
     normalized_host = normalize_open_webui_host(host)
     parsed = urlparse(normalized_host)
     path = parsed.path.rstrip("/")
+    last_segment = path.rsplit("/", maxsplit=1)[-1] if path else ""
     if path.endswith("/chat/completions"):
         endpoint_path = path
-    elif path.endswith("/v1") or path.endswith("/api/v1") or path.endswith("/api") or path.endswith("/openai"):
+    elif last_segment == "v1" or path.endswith("/api") or path.endswith("/openai"):
         endpoint_path = f"{path}/chat/completions"
     else:
         endpoint_path = f"{path}/api/chat/completions"

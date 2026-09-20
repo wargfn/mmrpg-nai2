@@ -44,6 +44,13 @@ ARCHETYPE_TEMPLATES: dict[str, dict[str, Any]] = {
 }
 
 
+def _coerce_rank_required(value: Any, default: int = 1) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def list_archetypes() -> list[dict[str, str]]:
     return [
         {"name": name, "playstyle": payload["playstyle"]}
@@ -100,7 +107,7 @@ def validate_character_build(
 
     powers_data = load_rules_database().get("powers", [])
     power_index = {
-        str(power.get("name", "")).strip().casefold(): int(power.get("rank_required", 1))
+        str(power.get("name", "")).strip().casefold(): _coerce_rank_required(power.get("rank_required", 1))
         for power in powers_data
         if str(power.get("name", "")).strip()
     }
@@ -109,11 +116,7 @@ def validate_character_build(
     for power in powers or []:
         if isinstance(power, dict):
             power_name = str(power.get("name", "")).strip()
-            raw_rank_required = power.get("rank_required", 1)
-            try:
-                provided_rank_required = int(raw_rank_required)
-            except (TypeError, ValueError):
-                provided_rank_required = 1
+            provided_rank_required = _coerce_rank_required(power.get("rank_required", 1))
         else:
             power_name = str(power).strip()
             provided_rank_required = 1
