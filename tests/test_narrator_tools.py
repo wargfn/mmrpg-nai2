@@ -127,6 +127,20 @@ class NarratorToolsTests(unittest.TestCase):
                 logic=3,
             )
 
+    def test_create_character_rejects_blank_name(self):
+        with self.assertRaisesRegex(ValueError, "name is required"):
+            narrator_tools.create_character(
+                name="   ",
+                archetype="Blaster",
+                rank=4,
+                melee=2,
+                agility=4,
+                resilience=3,
+                vigilance=5,
+                ego=5,
+                logic=3,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

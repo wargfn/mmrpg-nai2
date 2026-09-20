@@ -46,6 +46,7 @@ ARCHETYPE_TEMPLATES: dict[str, dict[str, Any]] = {
     }
     for archetype, payload in _BASE_ARCHETYPE_TEMPLATES.items()
 }
+_ARCHETYPE_LOOKUP = {name.casefold(): name for name in ARCHETYPE_TEMPLATES}
 
 
 def _parse_rank_required(value: Any) -> int | None:
@@ -53,6 +54,10 @@ def _parse_rank_required(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _canonicalize_archetype(archetype: str) -> str | None:
+    return _ARCHETYPE_LOOKUP.get(str(archetype).strip().casefold())
 
 
 def _normalize_power_dict_keys(entry: dict[str, Any]) -> dict[str, Any]:
@@ -313,6 +318,7 @@ def validate_character_build(
     errors: list[str] = []
     warnings: list[str] = []
     normalized_name = "" if name is None else str(name).strip()
+    canonical_archetype = _canonicalize_archetype(archetype)
     normalized_origin = str(origin).strip() or "Unknown"
     normalized_occupation = str(occupation).strip() or "None"
     normalized_traits = list(dict.fromkeys([str(item).strip() for item in (traits or []) if str(item).strip()]))
@@ -322,7 +328,7 @@ def validate_character_build(
     if not normalized_name:
         errors.append("Character name is required.")
 
-    template_info = ARCHETYPE_TEMPLATES.get(archetype)
+    template_info = ARCHETYPE_TEMPLATES.get(canonical_archetype) if canonical_archetype else None
     if template_info is None:
         errors.append(f"Unsupported archetype '{archetype}'.")
 
@@ -429,7 +435,7 @@ def validate_character_build(
         "power_issues": power_validation["power_issues"],
         "rank": rank,
         "name": normalized_name,
-        "archetype": archetype,
+        "archetype": canonical_archetype or archetype,
         "origin": normalized_origin,
         "occupation": normalized_occupation,
         "traits": normalized_traits,
@@ -449,17 +455,18 @@ def generate_character_from_template(
     power_sets: list[str | dict] | None = None,
 ) -> Character:
     normalized_name = "" if name is None else str(name).strip()
+    canonical_archetype = _canonicalize_archetype(archetype)
     if not normalized_name:
         raise ValueError("Character name is required.")
-    if archetype not in ARCHETYPE_TEMPLATES:
+    if canonical_archetype is None:
         raise ValueError(f"Unsupported archetype '{archetype}'.")
     if not 1 <= rank <= 6:
         raise ValueError("Rank must be between 1 and 6.")
 
-    template = ARCHETYPE_TEMPLATES[archetype]["ranks"][rank]
+    template = ARCHETYPE_TEMPLATES[canonical_archetype]["ranks"][rank]
     validation = validate_character_build(
         name=normalized_name,
-        archetype=archetype,
+        archetype=canonical_archetype,
         rank=rank,
         abilities=template,
         powers=list(power_sets or []),
@@ -473,7 +480,7 @@ def generate_character_from_template(
         raise ValueError("; ".join(validation["errors"]))
     return Character(
         name=validation["name"],
-        archetype=archetype,
+        archetype=canonical_archetype,
         rank=rank,
         melee=template["melee"],
         agility=template["agility"],

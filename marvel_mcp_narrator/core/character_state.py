@@ -299,6 +299,8 @@ class CharacterRoster:
         power_sets: list[str | dict] | None = None,
     ) -> tuple[dict, bool]:
         canonical_name = self._canonical_name(name)
+        if not canonical_name:
+            raise ValueError("Character name is required.")
         key = self._normalize(canonical_name)
         requested_values = {
             "archetype": archetype,

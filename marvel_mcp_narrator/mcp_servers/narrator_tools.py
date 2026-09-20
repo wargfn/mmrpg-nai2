@@ -227,7 +227,7 @@ def create_character_assisted(
 
     character_sheet, created = character_roster.create_or_load(
         name=validation["name"],
-        archetype=archetype,
+        archetype=validation["archetype"],
         rank=rank,
         melee=abilities["melee"],
         agility=abilities["agility"],

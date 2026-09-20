@@ -31,6 +31,11 @@ def test_generate_character_from_template_returns_character():
     assert character.logic == expected["logic"]
 
 
+def test_generate_character_from_template_accepts_case_insensitive_archetype():
+    character = generate_character_from_template(name="Spidey", archetype="polymath", rank=3)
+    assert character.archetype == "Polymath"
+
+
 def test_generate_character_from_template_rejects_blank_name():
     with pytest.raises(ValueError, match="Character name is required"):
         generate_character_from_template(name="   ", archetype="Polymath", rank=3)
