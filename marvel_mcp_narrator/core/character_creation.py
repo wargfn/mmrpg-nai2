@@ -171,6 +171,8 @@ def validate_character_build(
 
 
 def generate_character_from_template(name: str, archetype: str, rank: int) -> Character:
+    if not name.strip():
+        raise ValueError("Character name is required.")
     if archetype not in ARCHETYPE_TEMPLATES:
         raise ValueError(f"Unsupported archetype '{archetype}'.")
     if not 1 <= rank <= 6:

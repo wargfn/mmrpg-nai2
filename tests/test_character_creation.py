@@ -25,6 +25,11 @@ def test_generate_character_from_template_returns_character():
     assert character.logic == expected["logic"]
 
 
+def test_generate_character_from_template_rejects_blank_name():
+    with pytest.raises(ValueError, match="Character name is required"):
+        generate_character_from_template(name="   ", archetype="Polymath", rank=3)
+
+
 def test_validate_character_build_rejects_power_below_required_rank():
     result = validate_character_build(
         name="Nightcrawler",
