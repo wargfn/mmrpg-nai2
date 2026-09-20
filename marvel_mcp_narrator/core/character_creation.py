@@ -384,7 +384,6 @@ def validate_character_build(
                 continue
             seen_power_entries.add(key)
             combined_powers.append(entry)
-    normalized_power_sets = list(combined_powers)
     power_validation = validate_character_powers(rank=rank, powers_list=combined_powers)
     errors.extend(power_validation["errors"])
     warnings.extend(power_validation["warnings"])
@@ -401,7 +400,7 @@ def validate_character_build(
         "occupation": normalized_occupation,
         "traits": normalized_traits,
         "tags": normalized_tags,
-        "power_sets": normalized_power_sets,
+        "power_sets": combined_powers,
     }
 
 
