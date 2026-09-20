@@ -104,6 +104,19 @@ def test_validate_character_build_accepts_balanced_template_and_valid_powers():
     assert result["tags"] == ["X-Men"]
 
 
+def test_validate_character_build_normalizes_trait_casing():
+    result = validate_character_build(
+        name="Cyclops",
+        archetype="Blaster",
+        rank=2,
+        abilities=ARCHETYPE_TEMPLATES["Blaster"]["ranks"][2],
+        powers=["Blast"],
+        traits=["iron will"],
+    )
+    assert result["valid"] is True
+    assert result["traits"] == ["Iron Will"]
+
+
 def test_validate_character_build_rejects_none_name():
     result = validate_character_build(
         name=None,  # type: ignore[arg-type]
@@ -127,6 +140,18 @@ def test_validate_character_build_rejects_unknown_trait():
     )
     assert result["valid"] is False
     assert any("Unsupported trait" in message for message in result["errors"])
+
+
+def test_validate_character_build_uses_input_rank_for_unknown_power():
+    result = validate_character_build(
+        name="Mystery Hero",
+        archetype="Polymath",
+        rank=1,
+        abilities=ARCHETYPE_TEMPLATES["Polymath"]["ranks"][1],
+        powers=[{"name": "UnknownPower", "rank_required": 2}],
+    )
+    assert result["valid"] is False
+    assert any("UnknownPower" in message for message in result["errors"])
 
 
 def test_create_character_assisted_adds_character_to_roster():

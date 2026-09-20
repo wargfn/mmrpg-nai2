@@ -172,9 +172,14 @@ def validate_character_build(
     elif normalized_occupation.casefold() in occupations_lookup:
         normalized_occupation = occupations_lookup[normalized_occupation.casefold()]
 
+    canonical_traits: list[str] = []
     for trait in normalized_traits:
-        if trait.casefold() not in traits_lookup:
+        key = trait.casefold()
+        if key not in traits_lookup:
             errors.append(f"Unsupported trait '{trait}'.")
+            continue
+        canonical_traits.append(traits_lookup[key])
+    normalized_traits = list(dict.fromkeys(canonical_traits))
 
     normalized_abilities: dict[str, int] = {}
     for ability in ABILITY_FIELDS:
@@ -221,24 +226,28 @@ def validate_character_build(
             continue
         power_key = power_name.casefold()
         if power_key not in power_index:
-            warnings.append(f"Power '{power_name}' was not found in local rules data.")
-            continue
-        database_rank_required = power_index[power_key]
-        if rank_required_from_input is not None:
-            required_rank = rank_required_from_input
-        elif invalid_input_rank_required:
-            if database_rank_required is not None:
-                warnings.append(
-                    f"Power '{power_name}' provided invalid rank_required; using rules data value {database_rank_required}."
-                )
-                required_rank = database_rank_required
+            if rank_required_from_input is not None:
+                required_rank = rank_required_from_input
             else:
-                errors.append(
-                    f"Power '{power_name}' has invalid rank_required in input and invalid rank requirement in rules data."
-                )
+                warnings.append(f"Power '{power_name}' was not found in local rules data.")
                 continue
         else:
-            required_rank = database_rank_required
+            database_rank_required = power_index[power_key]
+            if rank_required_from_input is not None:
+                required_rank = rank_required_from_input
+            elif invalid_input_rank_required:
+                if database_rank_required is not None:
+                    warnings.append(
+                        f"Power '{power_name}' provided invalid rank_required; using rules data value {database_rank_required}."
+                    )
+                    required_rank = database_rank_required
+                else:
+                    errors.append(
+                        f"Power '{power_name}' has invalid rank_required in input and invalid rank requirement in rules data."
+                    )
+                    continue
+            else:
+                required_rank = database_rank_required
         if required_rank is None:
             errors.append(f"Power '{power_name}' has an invalid rank requirement in rules data.")
             continue
