@@ -95,6 +95,31 @@ class NarratorToolsTests(unittest.TestCase):
         self.assertTrue(callable(narrator_tools.apply_damage_to_character))
         self.assertTrue(callable(narrator_tools.calculate_attack))
 
+    def test_create_character_rejects_conflicting_definition(self):
+        narrator_tools.create_character(
+            name="Storm",
+            archetype="Blaster",
+            rank=4,
+            melee=2,
+            agility=4,
+            resilience=3,
+            vigilance=5,
+            ego=5,
+            logic=3,
+        )
+        with self.assertRaisesRegex(ValueError, "conflicting attributes"):
+            narrator_tools.create_character(
+                name="Storm",
+                archetype="Blaster",
+                rank=5,
+                melee=2,
+                agility=4,
+                resilience=3,
+                vigilance=5,
+                ego=5,
+                logic=3,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -73,6 +73,7 @@ def calculate_attack(
     ability: str,
     marvel_die: int,
     is_fantastic: bool = False,
+    bonus_multiplier: int = 0,
 ) -> dict:
     """Calculate attack damage using rank-based multipliers."""
     return character_roster.calculate_attack_damage(
@@ -80,6 +81,7 @@ def calculate_attack(
         ability=ability,
         marvel_die=marvel_die,
         is_fantastic=is_fantastic,
+        bonus_multiplier=bonus_multiplier,
     )
 
 
