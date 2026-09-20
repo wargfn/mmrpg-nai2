@@ -153,7 +153,7 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
         power_key = power_name.casefold()
         if power_key not in power_index:
             if rank_required_from_input is None:
-                warnings.append(f"Power '{power_name}' was not found in local rules data.")
+                errors.append(f"Unsupported power '{power_name}'.")
                 continue
             required_rank = rank_required_from_input
         else:

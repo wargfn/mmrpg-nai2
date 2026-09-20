@@ -130,6 +130,22 @@ def test_condition_management_ignores_whitespace_only_entries():
     assert character.conditions == []
 
 
+def test_power_set_dedupes_dict_entries_case_insensitively():
+    character = Character(
+        name="Phoenix",
+        archetype="Blaster",
+        rank=5,
+        melee=2,
+        agility=3,
+        resilience=3,
+        vigilance=5,
+        ego=6,
+        logic=5,
+        power_sets=[{"name": "Telepathy", "rank_required": 3}, {"name": "telepathy", "rank_required": 3}],
+    )
+    assert len(character.power_sets) == 1
+
+
 def test_attack_damage_rejects_negative_bonus_multiplier():
     character = Character(
         name="Captain Marvel",

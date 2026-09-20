@@ -77,20 +77,39 @@ class Character:
         normalized_power_sets: list[str | dict] = []
         seen_power_sets: set[str] = set()
         for entry in self.power_sets:
-            if isinstance(entry, dict):
-                serialized = json.dumps(entry, ensure_ascii=False, sort_keys=True)
-                if serialized not in seen_power_sets:
-                    seen_power_sets.add(serialized)
-                    normalized_power_sets.append(entry)
+            normalized_entry, key = self._normalize_power_set_entry(entry)
+            if normalized_entry is None:
                 continue
-            normalized = str(entry).strip()
-            if not normalized:
-                continue
-            key = normalized.casefold()
             if key not in seen_power_sets:
                 seen_power_sets.add(key)
-                normalized_power_sets.append(normalized)
+                normalized_power_sets.append(normalized_entry)
         self.power_sets = normalized_power_sets
+
+    @staticmethod
+    def _normalize_power_set_entry(entry: object) -> tuple[str | dict | None, str]:
+        if isinstance(entry, dict):
+            normalized_dict: dict[str, object] = {}
+            comparable_dict: dict[str, object] = {}
+            for key, value in entry.items():
+                key_text = str(key).strip()
+                if not key_text:
+                    continue
+                if isinstance(value, str):
+                    normalized_value = value.strip()
+                    comparable_value: object = normalized_value.casefold()
+                else:
+                    normalized_value = value
+                    comparable_value = value
+                normalized_dict[key_text] = normalized_value
+                comparable_dict[key_text.casefold()] = comparable_value
+            if not normalized_dict:
+                return None, ""
+            return normalized_dict, json.dumps(comparable_dict, ensure_ascii=False, sort_keys=True)
+
+        normalized = str(entry).strip()
+        if not normalized:
+            return None, ""
+        return normalized, normalized.casefold()
 
     @property
     def melee_defense(self) -> int:
@@ -251,12 +270,9 @@ class CharacterRoster:
         if field_name == "power_sets":
             comparable: list[str] = []
             for item in value:  # type: ignore[arg-type]
-                if isinstance(item, dict):
-                    comparable.append(json.dumps(item, ensure_ascii=False, sort_keys=True))
-                else:
-                    normalized = str(item).strip()
-                    if normalized:
-                        comparable.append(normalized.casefold())
+                normalized_item, key = Character._normalize_power_set_entry(item)
+                if normalized_item is not None:
+                    comparable.append(key)
             return comparable
         return value
 

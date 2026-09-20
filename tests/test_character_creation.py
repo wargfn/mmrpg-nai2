@@ -191,6 +191,12 @@ def test_validate_character_powers_rejects_above_rank():
     assert any("requires rank" in message for message in result["errors"])
 
 
+def test_validate_character_powers_rejects_unsupported_power_name():
+    result = validate_character_powers(rank=3, powers_list=["MadeUpPower"])
+    assert result["valid"] is False
+    assert any("Unsupported power" in message for message in result["errors"])
+
+
 def test_validate_character_build_validates_power_sets_when_powers_empty():
     result = validate_character_build(
         name="Nova",
@@ -282,7 +288,7 @@ def test_character_json_export_and_import_roundtrip(tmp_path: Path):
         occupation="Scientist",
         traits=["Iron Will"],
         tags=["X-Men"],
-        power_sets=["Telepathy", {"name": "Telekinesis", "rank_required": 3}],
+        power_sets=["Blast", {"name": "Regeneration", "rank_required": 3}],
     )
     output = tmp_path / "jean.json"
     export_character_json(character, str(output))
@@ -292,7 +298,7 @@ def test_character_json_export_and_import_roundtrip(tmp_path: Path):
     assert loaded.occupation == "Scientist"
     assert loaded.traits == ["Iron Will"]
     assert loaded.tags == ["X-Men"]
-    assert loaded.power_sets == ["Telepathy", {"name": "Telekinesis", "rank_required": 3}]
+    assert loaded.power_sets == ["Blast", {"name": "Regeneration", "rank_required": 3}]
 
 
 def test_export_character_json_creates_parent_directories(tmp_path: Path):
