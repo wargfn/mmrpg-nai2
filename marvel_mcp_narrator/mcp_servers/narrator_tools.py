@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastmcp import FastMCP
 
 from marvel_mcp_narrator.core.character_creation import (
     ABILITY_FIELDS,
+    export_character_json,
     generate_character_from_template,
+    load_character_json,
     list_archetypes,
     list_occupations,
     list_origins,
+    validate_character_powers as validate_character_powers_core,
     validate_character_build,
 )
 from marvel_mcp_narrator.core.character_state import character_roster
@@ -48,6 +53,7 @@ def create_character(
     occupation: str = "None",
     traits: list[str] | None = None,
     tags: list[str] | None = None,
+    power_sets: list[str | dict] | None = None,
 ) -> dict:
     """Create a new character or load an existing one by name."""
     character_sheet, created = character_roster.create_or_load(
@@ -64,6 +70,7 @@ def create_character(
         occupation=occupation,
         traits=traits,
         tags=tags,
+        power_sets=power_sets,
     )
     return {
         "created": created,
@@ -117,6 +124,7 @@ def create_or_load_character(
     occupation: str = "None",
     traits: list[str] | None = None,
     tags: list[str] | None = None,
+    power_sets: list[str | dict] | None = None,
 ) -> dict:
     """Backward-compatible alias for create_character."""
     return create_character(
@@ -133,6 +141,7 @@ def create_or_load_character(
         occupation=occupation,
         traits=traits,
         tags=tags,
+        power_sets=power_sets,
     )
 
 
@@ -176,6 +185,7 @@ def create_character_assisted(
     occupation: str = "None",
     traits: list[str] | None = None,
     tags: list[str] | None = None,
+    power_sets: list[str | dict] | None = None,
 ) -> dict:
     """Create a character from templates with optional custom ability overrides."""
     character = generate_character_from_template(
@@ -186,6 +196,7 @@ def create_character_assisted(
         occupation=occupation,
         traits=traits,
         tags=tags,
+        power_sets=power_sets,
     )
     abilities = {ability: getattr(character, ability) for ability in ABILITY_FIELDS}
     if custom_abilities:
@@ -205,6 +216,7 @@ def create_character_assisted(
         occupation=occupation,
         traits=traits,
         tags=tags,
+        power_sets=power_sets,
     )
     if not validation["valid"]:
         raise ValueError("; ".join(validation["errors"]))
@@ -225,6 +237,7 @@ def create_character_assisted(
         occupation=validation["occupation"],
         traits=validation["traits"],
         tags=validation["tags"],
+        power_sets=validation["power_sets"],
     )
     return {
         "created": created,
@@ -249,6 +262,29 @@ def list_available_origins() -> list[str]:
 def list_available_occupations() -> list[str]:
     """List supported occupations for character creation."""
     return list_occupations()
+
+
+@mcp.tool()
+def export_character(name: str) -> dict:
+    """Export a tracked character sheet to JSON on disk."""
+    character = character_roster.get_copy(name)
+    export_dir = Path("/tmp/mmrpg-character-exports")
+    export_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{character.name.strip().replace(' ', '_')}.json"
+    filepath = export_dir / filename
+    export_character_json(character, str(filepath))
+    return {
+        "name": character.name,
+        "filepath": str(filepath),
+        "character": load_character_json(str(filepath)).to_dict(),
+    }
+
+
+@mcp.tool()
+def validate_character_powers(name: str, powers_list: list) -> dict:
+    """Validate selected powers against the tracked character's rank."""
+    character = character_roster.get_copy(name)
+    return validate_character_powers_core(rank=character.rank, powers_list=powers_list)
 
 
 if __name__ == "__main__":

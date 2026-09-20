@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
 from threading import RLock
 
 
 _ABILITY_FIELDS = ("melee", "agility", "resilience", "vigilance", "ego", "logic")
-_CHARACTER_DEFINITION_FIELDS = ("archetype", "rank", *_ABILITY_FIELDS, "origin", "occupation", "traits", "tags")
+_CHARACTER_DEFINITION_FIELDS = (
+    "archetype",
+    "rank",
+    *_ABILITY_FIELDS,
+    "origin",
+    "occupation",
+    "traits",
+    "tags",
+    "power_sets",
+)
 
 
 @dataclass(slots=True)
@@ -27,6 +37,7 @@ class Character:
     occupation: str = "None"
     traits: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
+    power_sets: list[str | dict] = field(default_factory=list)
     max_health: int | None = None
     current_health: int | None = None
     max_focus: int | None = None
@@ -63,6 +74,23 @@ class Character:
         self.traits = list(dict.fromkeys(self.traits))
         self.tags = [str(item).strip() for item in self.tags if str(item).strip()]
         self.tags = list(dict.fromkeys(self.tags))
+        normalized_power_sets: list[str | dict] = []
+        seen_power_sets: set[str] = set()
+        for entry in self.power_sets:
+            if isinstance(entry, dict):
+                serialized = json.dumps(entry, ensure_ascii=False, sort_keys=True)
+                if serialized not in seen_power_sets:
+                    seen_power_sets.add(serialized)
+                    normalized_power_sets.append(entry)
+                continue
+            normalized = str(entry).strip()
+            if not normalized:
+                continue
+            key = normalized.casefold()
+            if key not in seen_power_sets:
+                seen_power_sets.add(key)
+                normalized_power_sets.append(normalized)
+        self.power_sets = normalized_power_sets
 
     @property
     def melee_defense(self) -> int:
@@ -179,9 +207,21 @@ class Character:
             "logic_defense": self.logic_defense,
         }
 
+    def get_attack_profiles(self) -> dict[str, dict[str, str | int]]:
+        return {
+            ability: {
+                "ability_score": getattr(self, ability),
+                "damage_multiplier": self.rank,
+                "formula": "(marvel_die * damage_multiplier) + ability_score",
+                "fantastic_rule": "Double total damage on Fantastic hits",
+            }
+            for ability in _ABILITY_FIELDS
+        }
+
     def to_dict(self) -> dict:
         payload = asdict(self)
         payload["defenses"] = self.get_defenses()
+        payload["attack_profiles"] = self.get_attack_profiles()
         return payload
 
 
@@ -206,6 +246,16 @@ class CharacterRoster:
             return str(value).strip().casefold()
         if field_name in {"traits", "tags"}:
             return [str(item).strip().casefold() for item in value if str(item).strip()]  # type: ignore[arg-type]
+        if field_name == "power_sets":
+            comparable: list[str] = []
+            for item in value:  # type: ignore[arg-type]
+                if isinstance(item, dict):
+                    comparable.append(json.dumps(item, ensure_ascii=False, sort_keys=True))
+                else:
+                    normalized = str(item).strip()
+                    if normalized:
+                        comparable.append(normalized.casefold())
+            return comparable
         return value
 
     def create_or_load(
@@ -224,6 +274,7 @@ class CharacterRoster:
         occupation: str = "None",
         traits: list[str] | None = None,
         tags: list[str] | None = None,
+        power_sets: list[str | dict] | None = None,
     ) -> tuple[dict, bool]:
         key = self._normalize(name)
         requested_values = {
@@ -239,6 +290,7 @@ class CharacterRoster:
             "occupation": str(occupation).strip() or "None",
             "traits": list(dict.fromkeys([str(item).strip() for item in (traits or []) if str(item).strip()])),
             "tags": list(dict.fromkeys([str(item).strip() for item in (tags or []) if str(item).strip()])),
+            "power_sets": list(power_sets or []),
         }
         with self._lock:
             existing = self._characters.get(key)
@@ -272,6 +324,7 @@ class CharacterRoster:
                 occupation=requested_values["occupation"],
                 traits=requested_values["traits"],
                 tags=requested_values["tags"],
+                power_sets=requested_values["power_sets"],
             )
             self._characters[key] = created
             return self._copy_character(created).to_dict(), True

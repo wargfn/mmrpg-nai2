@@ -98,6 +98,8 @@ class NarratorToolsTests(unittest.TestCase):
         self.assertTrue(callable(narrator_tools.list_available_archetypes))
         self.assertTrue(callable(narrator_tools.list_available_origins))
         self.assertTrue(callable(narrator_tools.list_available_occupations))
+        self.assertTrue(callable(narrator_tools.export_character))
+        self.assertTrue(callable(narrator_tools.validate_character_powers))
 
     def test_create_character_rejects_conflicting_definition(self):
         narrator_tools.create_character(

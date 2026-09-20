@@ -333,6 +333,7 @@ def test_tool_signatures():
         "occupation",
         "traits",
         "tags",
+        "power_sets",
     ]
     assert apply_signature.parameters["health_damage"].default == 0
     assert apply_signature.parameters["focus_damage"].default == 0

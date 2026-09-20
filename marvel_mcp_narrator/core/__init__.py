@@ -4,12 +4,15 @@ from .d616_engine import D616ConfigurationError, resolve_d616_roll, roll_d616
 from .character_state import Character, CharacterRoster, character_roster
 from .character_creation import (
     ARCHETYPE_TEMPLATES,
+    export_character_json,
     generate_character_from_template,
+    load_character_json,
     list_archetypes,
     list_occupations,
     list_origins,
     list_traits,
     validate_character_build,
+    validate_character_powers,
 )
 from .rules_database import (
     RulesDatabase,
@@ -27,7 +30,10 @@ __all__ = [
     "character_roster",
     "ARCHETYPE_TEMPLATES",
     "validate_character_build",
+    "validate_character_powers",
     "generate_character_from_template",
+    "export_character_json",
+    "load_character_json",
     "list_archetypes",
     "list_origins",
     "list_occupations",

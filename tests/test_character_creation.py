@@ -1,9 +1,13 @@
 import pytest
+from pathlib import Path
 
 from marvel_mcp_narrator.core import character_creation
 from marvel_mcp_narrator.core.character_creation import (
     ARCHETYPE_TEMPLATES,
+    export_character_json,
     generate_character_from_template,
+    load_character_json,
+    validate_character_powers,
     validate_character_build,
 )
 from marvel_mcp_narrator.core.character_state import Character, character_roster
@@ -181,6 +185,12 @@ def test_validate_character_build_uses_input_rank_for_unknown_power():
     assert any("UnknownPower" in message for message in result["errors"])
 
 
+def test_validate_character_powers_rejects_above_rank():
+    result = validate_character_powers(rank=1, powers_list=["Regeneration"])
+    assert result["valid"] is False
+    assert any("requires rank" in message for message in result["errors"])
+
+
 def test_create_character_assisted_adds_character_to_roster():
     payload = narrator_tools.create_character_assisted(
         name="Logan",
@@ -190,6 +200,7 @@ def test_create_character_assisted_adds_character_to_roster():
         occupation="Military",
         traits=["Brawler", "Iron Will"],
         tags=["X-Men", "Canadian"],
+        power_sets=["Healing Factor", "Adamantium Claws"],
     )
     assert payload["created"] is True
     assert payload["character"]["name"] == "Logan"
@@ -198,12 +209,14 @@ def test_create_character_assisted_adds_character_to_roster():
     assert payload["character"]["occupation"] == "Military"
     assert payload["character"]["traits"] == ["Brawler", "Iron Will"]
     assert payload["character"]["tags"] == ["X-Men", "Canadian"]
+    assert payload["character"]["power_sets"] == ["Healing Factor", "Adamantium Claws"]
     sheet = narrator_tools.get_character("Logan")
     assert sheet["rank"] == 3
     assert sheet["origin"] == "Mutation"
     assert sheet["occupation"] == "Military"
     assert sheet["traits"] == ["Brawler", "Iron Will"]
     assert sheet["tags"] == ["X-Men", "Canadian"]
+    assert sheet["power_sets"] == ["Healing Factor", "Adamantium Claws"]
 
 
 def test_create_character_assisted_rejects_invalid_custom_abilities():
@@ -245,3 +258,55 @@ def test_list_available_origins_and_occupations():
     occupations = narrator_tools.list_available_occupations()
     assert "Mutant" in origins
     assert "Scientist" in occupations
+
+
+def test_character_json_export_and_import_roundtrip(tmp_path: Path):
+    character = generate_character_from_template(
+        name="Jean",
+        archetype="Blaster",
+        rank=3,
+        origin="Mutation",
+        occupation="Scientist",
+        traits=["Iron Will"],
+        tags=["X-Men"],
+        power_sets=["Telepathy", {"name": "Telekinesis", "rank_required": 3}],
+    )
+    output = tmp_path / "jean.json"
+    export_character_json(character, str(output))
+    loaded = load_character_json(str(output))
+    assert loaded.name == "Jean"
+    assert loaded.origin == "Mutation"
+    assert loaded.occupation == "Scientist"
+    assert loaded.traits == ["Iron Will"]
+    assert loaded.tags == ["X-Men"]
+    assert loaded.power_sets == ["Telepathy", {"name": "Telekinesis", "rank_required": 3}]
+
+
+def test_validate_character_powers_tool_uses_character_rank():
+    narrator_tools.create_character_assisted(
+        name="Logan",
+        archetype="Brawler",
+        rank=2,
+        origin="Mutation",
+        occupation="Military",
+        traits=["Brawler"],
+    )
+    result = narrator_tools.validate_character_powers("Logan", ["Regeneration"])
+    assert result["valid"] is False
+    assert any("requires rank" in message for message in result["errors"])
+
+
+def test_export_character_tool_writes_json_file():
+    narrator_tools.create_character_assisted(
+        name="Peter Parker",
+        archetype="Polymath",
+        rank=3,
+        origin="Mutation",
+        occupation="Scientist",
+        traits=["Connections"],
+        tags=["Spider-Man"],
+        power_sets=["Wall-Crawling"],
+    )
+    payload = narrator_tools.export_character("Peter Parker")
+    assert Path(payload["filepath"]).is_file()
+    assert payload["character"]["name"] == "Peter Parker"

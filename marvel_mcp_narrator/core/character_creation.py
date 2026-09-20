@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import fields
 from threading import Lock
 from typing import Any
 
@@ -129,6 +131,45 @@ def list_traits() -> list[str]:
     return sorted(_get_traits_lookup().values())
 
 
+def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    power_issues: list[dict[str, Any]] = []
+    power_index = _get_power_requirements()
+
+    for power in powers_list or []:
+        rank_required_from_input: int | None = None
+        if isinstance(power, dict):
+            power_name = str(power.get("name", "")).strip()
+            if "rank_required" in power:
+                rank_required_from_input = _parse_rank_required(power.get("rank_required", 1))
+        else:
+            power_name = str(power).strip()
+
+        if not power_name:
+            continue
+
+        power_key = power_name.casefold()
+        if power_key not in power_index:
+            if rank_required_from_input is None:
+                warnings.append(f"Power '{power_name}' was not found in local rules data.")
+                continue
+            required_rank = rank_required_from_input
+        else:
+            db_rank = power_index[power_key]
+            required_rank = rank_required_from_input if rank_required_from_input is not None else db_rank
+
+        if required_rank is None:
+            errors.append(f"Power '{power_name}' has an invalid rank requirement.")
+            continue
+        if rank < required_rank:
+            issue = {"power": power_name, "rank_required": required_rank, "rank": rank, "valid": False}
+            power_issues.append(issue)
+            errors.append(f"Power '{power_name}' requires rank {required_rank}, but rank is {rank}.")
+
+    return {"valid": not errors, "errors": errors, "warnings": warnings, "power_issues": power_issues}
+
+
 def validate_character_build(
     name: str,
     archetype: str,
@@ -139,6 +180,7 @@ def validate_character_build(
     occupation: str = "None",
     traits: list[str] | None = None,
     tags: list[str] | None = None,
+    power_sets: list[str | dict] | None = None,
 ) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
@@ -147,6 +189,7 @@ def validate_character_build(
     normalized_occupation = str(occupation).strip() or "None"
     normalized_traits = list(dict.fromkeys([str(item).strip() for item in (traits or []) if str(item).strip()]))
     normalized_tags = list(dict.fromkeys([str(item).strip() for item in (tags or []) if str(item).strip()]))
+    normalized_power_sets = list(power_sets or [])
 
     if not normalized_name:
         errors.append("Character name is required.")
@@ -208,64 +251,15 @@ def validate_character_build(
                     f"Ability '{ability}' differs from {archetype} rank-{rank} template by {diff} points."
                 )
 
-    power_index = _get_power_requirements()
-    power_issues: list[dict[str, Any]] = []
-
-    for power in powers or []:
-        rank_required_from_input: int | None = None
-        invalid_input_rank_required = False
-        if isinstance(power, dict):
-            power_name = str(power.get("name", "")).strip()
-            if "rank_required" in power:
-                rank_required_from_input = _parse_rank_required(power.get("rank_required", 1))
-                invalid_input_rank_required = rank_required_from_input is None
-        else:
-            power_name = str(power).strip()
-
-        if not power_name:
-            continue
-        power_key = power_name.casefold()
-        if power_key not in power_index:
-            if rank_required_from_input is not None:
-                required_rank = rank_required_from_input
-            else:
-                warnings.append(f"Power '{power_name}' was not found in local rules data.")
-                continue
-        else:
-            database_rank_required = power_index[power_key]
-            if rank_required_from_input is not None:
-                required_rank = rank_required_from_input
-            elif invalid_input_rank_required:
-                if database_rank_required is not None:
-                    warnings.append(
-                        f"Power '{power_name}' provided invalid rank_required; using rules data value {database_rank_required}."
-                    )
-                    required_rank = database_rank_required
-                else:
-                    errors.append(
-                        f"Power '{power_name}' has invalid rank_required in input and invalid rank requirement in rules data."
-                    )
-                    continue
-            else:
-                required_rank = database_rank_required
-        if required_rank is None:
-            errors.append(f"Power '{power_name}' has an invalid rank requirement in rules data.")
-            continue
-        if rank < required_rank:
-            issue = {
-                "power": power_name,
-                "rank_required": required_rank,
-                "rank": rank,
-                "valid": False,
-            }
-            power_issues.append(issue)
-            errors.append(f"Power '{power_name}' requires rank {required_rank}, but rank is {rank}.")
+    power_validation = validate_character_powers(rank=rank, powers_list=powers)
+    errors.extend(power_validation["errors"])
+    warnings.extend(power_validation["warnings"])
 
     return {
         "valid": not errors,
         "errors": errors,
         "warnings": warnings,
-        "power_issues": power_issues,
+        "power_issues": power_validation["power_issues"],
         "rank": rank,
         "name": normalized_name,
         "archetype": archetype,
@@ -273,6 +267,7 @@ def validate_character_build(
         "occupation": normalized_occupation,
         "traits": normalized_traits,
         "tags": normalized_tags,
+        "power_sets": normalized_power_sets,
     }
 
 
@@ -284,6 +279,7 @@ def generate_character_from_template(
     occupation: str = "None",
     traits: list[str] | None = None,
     tags: list[str] | None = None,
+    power_sets: list[str | dict] | None = None,
 ) -> Character:
     normalized_name = "" if name is None else str(name).strip()
     if not normalized_name:
@@ -304,6 +300,7 @@ def generate_character_from_template(
         occupation=occupation,
         traits=traits,
         tags=tags,
+        power_sets=power_sets,
     )
     if not validation["valid"]:
         raise ValueError("; ".join(validation["errors"]))
@@ -321,4 +318,18 @@ def generate_character_from_template(
         occupation=validation["occupation"],
         traits=validation["traits"],
         tags=validation["tags"],
+        power_sets=validation["power_sets"],
     )
+
+
+def export_character_json(character: Character, filepath: str) -> None:
+    with open(filepath, "w", encoding="utf-8") as handle:
+        json.dump(character.to_dict(), handle, ensure_ascii=False, indent=2)
+
+
+def load_character_json(filepath: str) -> Character:
+    with open(filepath, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    allowed_fields = {field.name for field in fields(Character)}
+    character_kwargs = {key: value for key, value in payload.items() if key in allowed_fields}
+    return Character(**character_kwargs)
