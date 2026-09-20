@@ -38,6 +38,7 @@ class RulesDatabase:
 
     def __init__(self, path: Path | str | None = None) -> None:
         self._data = load_rules_database(path)
+        self._power_entries = self._iter_power_entries()
         self._lookup_index = self._build_lookup_index()
 
     def _build_lookup_index(self) -> dict[str, dict[str, Any]]:
@@ -51,7 +52,7 @@ class RulesDatabase:
                 if alias:
                     index[alias] = {"entry_type": "mechanic", "rule_key": str(key), **payload}
 
-        for payload in self._iter_power_entries():
+        for payload in self._power_entries:
             name = str(payload.get("name", "")).strip()
             if not name:
                 continue
@@ -138,7 +139,7 @@ class RulesDatabase:
                 )
 
         powers_matches: list[dict[str, Any]] = []
-        for payload in self._iter_power_entries():
+        for payload in self._power_entries:
             name = str(payload.get("name", "Unknown Power"))
             category = str(payload.get("category", "Uncategorized"))
             rank_required = payload.get("rank_required", "?")

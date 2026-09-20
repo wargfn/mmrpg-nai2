@@ -395,8 +395,10 @@ def validate_character_build(
 
     power_order: list[str] = []
     merged_power_entries: dict[str, Any] = {}
+    merged_power_sources: dict[str, str] = {}
+    source_precedence = {"powers": 1, "power_sets": 2}
     explicit_rank_requirements: dict[str, int] = {}
-    for source in [powers or [], normalized_power_sets]:
+    for source_name, source in [("powers", powers or []), ("power_sets", normalized_power_sets)]:
         for entry in source:
             power_name, rank_required, rank_required_was_provided = _parse_power_entry(entry)
             if power_name:
@@ -416,11 +418,18 @@ def validate_character_build(
             if key in merged_power_entries:
                 previous_entry = merged_power_entries[key]
                 _, _, previous_rank_was_provided = _parse_power_entry(previous_entry)
-                if rank_required_was_provided:
+                previous_source = merged_power_sources[key]
+                if rank_required_was_provided and (
+                    not previous_rank_was_provided
+                    or source_precedence[source_name] > source_precedence[previous_source]
+                    or source_name == previous_source
+                ):
                     merged_power_entries[key] = entry
+                    merged_power_sources[key] = source_name
                 continue
             power_order.append(key)
             merged_power_entries[key] = entry
+            merged_power_sources[key] = source_name
     combined_powers = [merged_power_entries[key] for key in power_order]
     power_validation = validate_character_powers(rank=rank, powers_list=combined_powers)
     errors.extend(power_validation["errors"])

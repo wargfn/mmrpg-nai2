@@ -7,6 +7,8 @@ from marvel_mcp_narrator.core.character_creation import (
     ARCHETYPE_TEMPLATES,
     export_character_json,
     generate_character_from_template,
+    list_tags,
+    list_traits,
     load_character_json,
     validate_power_selection,
     validate_character_powers,
@@ -378,6 +380,11 @@ def test_list_available_archetypes_returns_supported_entries():
     names = {entry["name"] for entry in archetypes}
     assert "Striker" in names
     assert "Polymath" in names
+
+
+def test_list_traits_and_tags_include_common_entries():
+    assert "Iron Will" in list_traits()
+    assert "X-Men" in list_tags()
 
 
 def test_list_available_origins_and_occupations():
