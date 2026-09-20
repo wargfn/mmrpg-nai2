@@ -200,6 +200,14 @@ class CharacterRoster:
     def _copy_character(character: Character) -> Character:
         return Character(**asdict(character))
 
+    @staticmethod
+    def _comparable_field_value(field_name: str, value: object) -> object:
+        if field_name in {"origin", "occupation"}:
+            return str(value).strip().casefold()
+        if field_name in {"traits", "tags"}:
+            return [str(item).strip().casefold() for item in value if str(item).strip()]  # type: ignore[arg-type]
+        return value
+
     def create_or_load(
         self,
         *,
@@ -238,7 +246,8 @@ class CharacterRoster:
                 mismatches = [
                     field_name
                     for field_name in _CHARACTER_DEFINITION_FIELDS
-                    if getattr(existing, field_name) != requested_values[field_name]
+                    if self._comparable_field_value(field_name, getattr(existing, field_name))
+                    != self._comparable_field_value(field_name, requested_values[field_name])
                 ]
                 if mismatches:
                     mismatch_parts = [

@@ -237,6 +237,40 @@ def test_create_or_load_character_accepts_case_only_name_variation():
     assert payload["created"] is False
 
 
+def test_create_or_load_character_accepts_case_only_metadata_variation():
+    narrator_tools.create_character(
+        name="Storm",
+        rank=4,
+        archetype="Polymath",
+        melee=2,
+        agility=4,
+        resilience=3,
+        vigilance=5,
+        ego=5,
+        logic=3,
+        origin="Mutation",
+        occupation="Scientist",
+        traits=["Iron Will"],
+        tags=["X-Men"],
+    )
+    payload = narrator_tools.create_character(
+        name="Storm",
+        rank=4,
+        archetype="Polymath",
+        melee=2,
+        agility=4,
+        resilience=3,
+        vigilance=5,
+        ego=5,
+        logic=3,
+        origin="mutation",
+        occupation="scientist",
+        traits=["iron will"],
+        tags=["x-men"],
+    )
+    assert payload["created"] is False
+
+
 def test_roster_get_returns_copy_not_live_state():
     narrator_tools.create_or_load_character(
         name="Storm",
@@ -295,6 +329,10 @@ def test_tool_signatures():
         "vigilance",
         "ego",
         "logic",
+        "origin",
+        "occupation",
+        "traits",
+        "tags",
     ]
     assert apply_signature.parameters["health_damage"].default == 0
     assert apply_signature.parameters["focus_damage"].default == 0

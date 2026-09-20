@@ -44,6 +44,10 @@ def create_character(
     vigilance: int,
     ego: int,
     logic: int,
+    origin: str = "Unknown",
+    occupation: str = "None",
+    traits: list[str] | None = None,
+    tags: list[str] | None = None,
 ) -> dict:
     """Create a new character or load an existing one by name."""
     character_sheet, created = character_roster.create_or_load(
@@ -56,6 +60,10 @@ def create_character(
         vigilance=vigilance,
         ego=ego,
         logic=logic,
+        origin=origin,
+        occupation=occupation,
+        traits=traits,
+        tags=tags,
     )
     return {
         "created": created,
@@ -105,6 +113,10 @@ def create_or_load_character(
     vigilance: int,
     ego: int,
     logic: int,
+    origin: str = "Unknown",
+    occupation: str = "None",
+    traits: list[str] | None = None,
+    tags: list[str] | None = None,
 ) -> dict:
     """Backward-compatible alias for create_character."""
     return create_character(
@@ -117,6 +129,10 @@ def create_or_load_character(
         vigilance=vigilance,
         ego=ego,
         logic=logic,
+        origin=origin,
+        occupation=occupation,
+        traits=traits,
+        tags=tags,
     )
 
 

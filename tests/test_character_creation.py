@@ -35,6 +35,20 @@ def test_generate_character_from_template_rejects_none_name():
         generate_character_from_template(name=None, archetype="Polymath", rank=3)  # type: ignore[arg-type]
 
 
+def test_generate_character_from_template_validates_origin_and_traits():
+    character = generate_character_from_template(
+        name="Ororo",
+        archetype="Polymath",
+        rank=3,
+        origin="mutation",
+        occupation="scientist",
+        traits=["iron will"],
+    )
+    assert character.origin == "Mutation"
+    assert character.occupation == "Scientist"
+    assert character.traits == ["Iron Will"]
+
+
 def test_validate_character_build_rejects_power_below_required_rank():
     result = validate_character_build(
         name="Nightcrawler",

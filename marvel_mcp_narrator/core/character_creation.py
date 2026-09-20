@@ -294,8 +294,21 @@ def generate_character_from_template(
         raise ValueError("Rank must be between 1 and 6.")
 
     template = ARCHETYPE_TEMPLATES[archetype]["ranks"][rank]
-    return Character(
+    validation = validate_character_build(
         name=normalized_name,
+        archetype=archetype,
+        rank=rank,
+        abilities=template,
+        powers=[],
+        origin=origin,
+        occupation=occupation,
+        traits=traits,
+        tags=tags,
+    )
+    if not validation["valid"]:
+        raise ValueError("; ".join(validation["errors"]))
+    return Character(
+        name=validation["name"],
         archetype=archetype,
         rank=rank,
         melee=template["melee"],
@@ -304,8 +317,8 @@ def generate_character_from_template(
         vigilance=template["vigilance"],
         ego=template["ego"],
         logic=template["logic"],
-        origin=origin,
-        occupation=occupation,
-        traits=list(traits or []),
-        tags=list(tags or []),
+        origin=validation["origin"],
+        occupation=validation["occupation"],
+        traits=validation["traits"],
+        tags=validation["tags"],
     )
