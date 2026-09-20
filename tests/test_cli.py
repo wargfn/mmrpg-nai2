@@ -266,6 +266,12 @@ class CLIHostNormalizationTests(unittest.TestCase):
             'http://localhost:11434/api/v1/chat/completions',
         )
 
+    def test_build_open_webui_chat_endpoint_appends_openai_path_for_v2(self):
+        self.assertEqual(
+            build_open_webui_chat_endpoint('http://localhost:11434/v2'),
+            'http://localhost:11434/v2/chat/completions',
+        )
+
     def test_build_open_webui_chat_endpoint_appends_openai_path_for_openai_base(self):
         self.assertEqual(
             build_open_webui_chat_endpoint('http://localhost:11434/openai'),

@@ -51,6 +51,13 @@ def _coerce_rank_required(value: Any, default: int = 1) -> int:
         return default
 
 
+def _parse_rank_required(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def list_archetypes() -> list[dict[str, str]]:
     return [
         {"name": name, "playstyle": payload["playstyle"]}
@@ -118,7 +125,7 @@ def validate_character_build(
         if isinstance(power, dict):
             power_name = str(power.get("name", "")).strip()
             if "rank_required" in power:
-                rank_required_from_input = _coerce_rank_required(power.get("rank_required", 1))
+                rank_required_from_input = _parse_rank_required(power.get("rank_required", 1))
         else:
             power_name = str(power).strip()
 
