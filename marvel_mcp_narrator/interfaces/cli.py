@@ -295,7 +295,12 @@ def main() -> None:
         parser.error(str(exc))
     model = args.model or config["model"] or DEFAULT_MODEL
     host = args.host or config["host"] or DEFAULT_OPEN_WEBUI_HOST
-    base_url = args.base_url or config["base_url"] or host
+    if args.base_url:
+        base_url = args.base_url
+    elif args.host:
+        base_url = args.host
+    else:
+        base_url = config["base_url"] or host
     api_key = args.api_key if args.api_key is not None else config["api_key"]
     run_cli(model=model, host=host, base_url=base_url, api_key=api_key)
 
