@@ -101,6 +101,26 @@ def test_attack_damage_formula_and_fantastic_double():
     assert fantastic["total_damage"] == 58
 
 
+def test_condition_management_ignores_whitespace_only_entries():
+    character = Character(
+        name="Daredevil",
+        archetype="Way-Watcher",
+        rank=3,
+        melee=4,
+        agility=5,
+        resilience=3,
+        vigilance=4,
+        ego=3,
+        logic=2,
+    )
+    character.add_condition("   ")
+    assert character.conditions == []
+    character.add_condition(" Blinded ")
+    assert character.conditions == ["Blinded"]
+    character.remove_condition("  Blinded  ")
+    assert character.conditions == []
+
+
 def test_attack_damage_rejects_negative_bonus_multiplier():
     character = Character(
         name="Captain Marvel",

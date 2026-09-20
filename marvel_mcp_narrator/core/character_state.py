@@ -152,12 +152,14 @@ class Character:
         return True
 
     def add_condition(self, condition: str) -> None:
-        if condition and condition not in self.conditions:
-            self.conditions.append(condition)
+        normalized = condition.strip()
+        if normalized and normalized not in self.conditions:
+            self.conditions.append(normalized)
 
     def remove_condition(self, condition: str) -> None:
-        if condition in self.conditions:
-            self.conditions.remove(condition)
+        normalized = condition.strip()
+        if normalized in self.conditions:
+            self.conditions.remove(normalized)
 
     def get_defenses(self) -> dict[str, int]:
         return {

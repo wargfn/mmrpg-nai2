@@ -44,8 +44,20 @@ def test_validate_character_build_handles_invalid_rank_required_in_input_power_d
         abilities=ARCHETYPE_TEMPLATES["Way-Watcher"]["ranks"][1],
         powers=[{"name": "Teleportation", "rank_required": None}],
     )
+    assert result["valid"] is True
+    assert result["errors"] == []
+
+
+def test_validate_character_build_prefers_input_rank_required_when_provided():
+    result = validate_character_build(
+        name="Cyclops",
+        archetype="Blaster",
+        rank=1,
+        abilities=ARCHETYPE_TEMPLATES["Blaster"]["ranks"][1],
+        powers=[{"name": "Blast", "rank_required": 2}],
+    )
     assert result["valid"] is False
-    assert any("requires rank" in message for message in result["errors"])
+    assert any("Blast" in message for message in result["errors"])
 
 
 def test_validate_character_build_accepts_balanced_template_and_valid_powers():

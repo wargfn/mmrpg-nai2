@@ -114,21 +114,22 @@ def validate_character_build(
     power_issues: list[dict[str, Any]] = []
 
     for power in powers or []:
+        rank_required_from_input: int | None = None
         if isinstance(power, dict):
             power_name = str(power.get("name", "")).strip()
-            provided_rank_required = _coerce_rank_required(power.get("rank_required", 1))
+            if "rank_required" in power:
+                rank_required_from_input = _coerce_rank_required(power.get("rank_required", 1))
         else:
             power_name = str(power).strip()
-            provided_rank_required = 1
 
         if not power_name:
             continue
         power_key = power_name.casefold()
         if power_key not in power_index:
             warnings.append(f"Power '{power_name}' was not found in local rules data.")
-            required_rank = provided_rank_required
+            required_rank = rank_required_from_input or 1
             continue
-        required_rank = power_index[power_key]
+        required_rank = rank_required_from_input if rank_required_from_input is not None else power_index[power_key]
         if rank < required_rank:
             issue = {
                 "power": power_name,
