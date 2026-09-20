@@ -141,7 +141,7 @@ def calculate_attack_damage(
     bonus_multiplier: int = 0,
 ) -> dict:
     """Backward-compatible alias for calculate_attack."""
-    return character_roster.calculate_attack_damage(
+    return calculate_attack(
         attacker_name=attacker_name,
         ability=ability,
         marvel_die=marvel_die,

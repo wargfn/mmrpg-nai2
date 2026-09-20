@@ -116,6 +116,19 @@ def test_validate_character_build_rejects_none_name():
     assert any("Character name is required" in message for message in result["errors"])
 
 
+def test_validate_character_build_rejects_unknown_trait():
+    result = validate_character_build(
+        name="Rogue",
+        archetype="Brawler",
+        rank=2,
+        abilities=ARCHETYPE_TEMPLATES["Brawler"]["ranks"][2],
+        powers=["Blast"],
+        traits=["NotARealTrait"],
+    )
+    assert result["valid"] is False
+    assert any("Unsupported trait" in message for message in result["errors"])
+
+
 def test_create_character_assisted_adds_character_to_roster():
     payload = narrator_tools.create_character_assisted(
         name="Logan",

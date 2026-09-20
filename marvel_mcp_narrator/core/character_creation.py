@@ -174,7 +174,7 @@ def validate_character_build(
 
     for trait in normalized_traits:
         if trait.casefold() not in traits_lookup:
-            warnings.append(f"Trait '{trait}' was not found in local rules data.")
+            errors.append(f"Unsupported trait '{trait}'.")
 
     normalized_abilities: dict[str, int] = {}
     for ability in ABILITY_FIELDS:
