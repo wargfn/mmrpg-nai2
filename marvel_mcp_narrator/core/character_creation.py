@@ -389,8 +389,8 @@ def validate_character_build(
                     f"Ability '{ability}' differs from {archetype} rank-{rank} template by {diff} points."
                 )
 
-    combined_powers: list = []
-    seen_power_entries: dict[str, int] = {}
+    power_order: list[str] = []
+    merged_power_entries: dict[str, Any] = {}
     explicit_rank_requirements: dict[str, int] = {}
     for source in [powers or [], normalized_power_sets]:
         for entry in source:
@@ -409,15 +409,15 @@ def validate_character_build(
                     )
                     continue
                 explicit_rank_requirements[key] = rank_required
-            if key in seen_power_entries:
-                previous_index = seen_power_entries[key]
-                previous_entry = combined_powers[previous_index]
+            if key in merged_power_entries:
+                previous_entry = merged_power_entries[key]
                 _, _, previous_rank_was_provided = _parse_power_entry(previous_entry)
                 if rank_required_was_provided and not previous_rank_was_provided:
-                    combined_powers[previous_index] = entry
+                    merged_power_entries[key] = entry
                 continue
-            seen_power_entries[key] = len(combined_powers)
-            combined_powers.append(entry)
+            power_order.append(key)
+            merged_power_entries[key] = entry
+    combined_powers = [merged_power_entries[key] for key in power_order]
     power_validation = validate_character_powers(rank=rank, powers_list=combined_powers)
     errors.extend(power_validation["errors"])
     warnings.extend(power_validation["warnings"])
