@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import fields
 from pathlib import Path
-from threading import Lock
+from threading import RLock
 from typing import Any
 
 from marvel_mcp_narrator.core.character_state import Character
@@ -57,7 +57,7 @@ def _parse_rank_required(value: Any) -> int | None:
 
 _POWER_REQUIREMENTS_CACHE: dict[str, int | None] | None = None
 _POWER_DETAILS_CACHE: dict[str, dict[str, Any]] | None = None
-_POWER_REQUIREMENTS_LOCK = Lock()
+_POWER_REQUIREMENTS_LOCK = RLock()
 _ORIGINS_CACHE: dict[str, str] | None = None
 _OCCUPATIONS_CACHE: dict[str, str] | None = None
 _TRAITS_CACHE: dict[str, str] | None = None
