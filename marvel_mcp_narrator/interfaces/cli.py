@@ -95,6 +95,7 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
         "base_url": None,
         "api_key": None,
     }
+    has_explicit_base_url = False
 
     path: Path | None = None
     if config_path:
@@ -121,6 +122,7 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
                 config["model"] = str(model)
             if base_url:
                 config["base_url"] = str(base_url)
+                has_explicit_base_url = True
             if host:
                 config["host"] = str(host)
                 if not base_url:
@@ -136,9 +138,10 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
         config["model"] = model_override
     if base_url_override:
         config["base_url"] = base_url_override
+        has_explicit_base_url = True
     if host_override:
         config["host"] = host_override
-        if not base_url_override:
+        if not has_explicit_base_url:
             config["base_url"] = host_override
     if api_key_override:
         config["api_key"] = api_key_override

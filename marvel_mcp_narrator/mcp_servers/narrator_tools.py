@@ -176,6 +176,8 @@ def create_character_assisted(
         for ability in ABILITY_FIELDS:
             if ability in custom_abilities:
                 abilities[ability] = custom_abilities[ability]
+    for ability in ABILITY_FIELDS:
+        setattr(character, ability, abilities[ability])
 
     validation = validate_character_build(
         name=name,
@@ -194,7 +196,7 @@ def create_character_assisted(
         raise ValueError("; ".join(validation["warnings"]))
 
     character_sheet, created = character_roster.create_or_load(
-        name=character.name,
+        name=validation["name"],
         archetype=archetype,
         rank=rank,
         melee=abilities["melee"],
