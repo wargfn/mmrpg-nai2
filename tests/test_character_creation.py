@@ -142,6 +142,19 @@ def test_validate_character_build_rejects_unknown_trait():
     assert any("Unsupported trait" in message for message in result["errors"])
 
 
+def test_validate_character_build_accepts_default_sentinels_case_insensitively():
+    result = validate_character_build(
+        name="Baseline Hero",
+        archetype="Polymath",
+        rank=1,
+        abilities=ARCHETYPE_TEMPLATES["Polymath"]["ranks"][1],
+        powers=[],
+        origin="unknown",
+        occupation="none",
+    )
+    assert result["valid"] is True
+
+
 def test_validate_character_build_uses_input_rank_for_unknown_power():
     result = validate_character_build(
         name="Mystery Hero",

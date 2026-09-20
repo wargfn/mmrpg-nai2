@@ -162,12 +162,12 @@ def validate_character_build(
     occupations_lookup = _get_occupations_lookup()
     traits_lookup = _get_traits_lookup()
 
-    if normalized_origin.casefold() not in origins_lookup and normalized_origin != "Unknown":
+    if normalized_origin.casefold() not in origins_lookup and normalized_origin.casefold() != "unknown":
         errors.append(f"Unsupported origin '{normalized_origin}'.")
     elif normalized_origin.casefold() in origins_lookup:
         normalized_origin = origins_lookup[normalized_origin.casefold()]
 
-    if normalized_occupation.casefold() not in occupations_lookup and normalized_occupation != "None":
+    if normalized_occupation.casefold() not in occupations_lookup and normalized_occupation.casefold() != "none":
         errors.append(f"Unsupported occupation '{normalized_occupation}'.")
     elif normalized_occupation.casefold() in occupations_lookup:
         normalized_occupation = occupations_lookup[normalized_occupation.casefold()]
