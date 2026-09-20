@@ -309,6 +309,13 @@ def test_load_character_json_rejects_unknown_fields(tmp_path: Path):
         load_character_json(str(output))
 
 
+def test_load_character_json_rejects_non_object_payload(tmp_path: Path):
+    output = tmp_path / "bad-array.json"
+    output.write_text('["not","an","object"]', encoding="utf-8")
+    with pytest.raises(ValueError, match="JSON object"):
+        load_character_json(str(output))
+
+
 def test_validate_character_powers_tool_uses_character_rank():
     narrator_tools.create_character_assisted(
         name="Logan",

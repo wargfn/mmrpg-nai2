@@ -378,7 +378,7 @@ class CLIConfigTests(unittest.TestCase):
         },
         clear=True,
     )
-    def test_load_cli_config_host_env_override_preserves_explicit_file_base_url(self):
+    def test_load_cli_config_host_env_override_updates_base_url_without_base_url_env(self):
         with TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / 'narrator_config.toml'
             config_path.write_text(
@@ -390,7 +390,7 @@ class CLIConfigTests(unittest.TestCase):
             config = load_cli_config(str(config_path))
 
         self.assertEqual(config['host'], 'http://env-host:11434')
-        self.assertEqual(config['base_url'], 'http://file-host:11434/v1')
+        self.assertEqual(config['base_url'], 'http://env-host:11434')
 
     @patch.dict(
         'os.environ',

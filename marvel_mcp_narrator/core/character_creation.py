@@ -335,6 +335,8 @@ def export_character_json(character: Character, filepath: str) -> None:
 def load_character_json(filepath: str) -> Character:
     with open(filepath, "r", encoding="utf-8") as handle:
         payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise ValueError("Character file must contain a JSON object.")
     allowed_fields = {field.name for field in fields(Character)}
     derived_fields = {"defenses", "attack_profiles"}
     unknown_fields = sorted(set(payload) - allowed_fields - derived_fields)
