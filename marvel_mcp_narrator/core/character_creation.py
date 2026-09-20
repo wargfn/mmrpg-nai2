@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import fields
+from pathlib import Path
 from threading import Lock
 from typing import Any
 
@@ -323,7 +324,9 @@ def generate_character_from_template(
 
 
 def export_character_json(character: Character, filepath: str) -> None:
-    with open(filepath, "w", encoding="utf-8") as handle:
+    output_path = Path(filepath)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as handle:
         json.dump(character.to_dict(), handle, ensure_ascii=False, indent=2)
 
 
@@ -331,5 +334,9 @@ def load_character_json(filepath: str) -> Character:
     with open(filepath, "r", encoding="utf-8") as handle:
         payload = json.load(handle)
     allowed_fields = {field.name for field in fields(Character)}
+    derived_fields = {"defenses", "attack_profiles"}
+    unknown_fields = sorted(set(payload) - allowed_fields - derived_fields)
+    if unknown_fields:
+        raise ValueError(f"Unsupported fields in character file: {', '.join(unknown_fields)}")
     character_kwargs = {key: value for key, value in payload.items() if key in allowed_fields}
     return Character(**character_kwargs)

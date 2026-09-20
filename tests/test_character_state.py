@@ -271,6 +271,32 @@ def test_create_or_load_character_accepts_case_only_metadata_variation():
     assert payload["created"] is False
 
 
+def test_create_or_load_character_accepts_case_only_archetype_variation():
+    narrator_tools.create_character(
+        name="Storm",
+        rank=4,
+        archetype="Polymath",
+        melee=2,
+        agility=4,
+        resilience=3,
+        vigilance=5,
+        ego=5,
+        logic=3,
+    )
+    payload = narrator_tools.create_character(
+        name="Storm",
+        rank=4,
+        archetype="polymath",
+        melee=2,
+        agility=4,
+        resilience=3,
+        vigilance=5,
+        ego=5,
+        logic=3,
+    )
+    assert payload["created"] is False
+
+
 def test_roster_get_returns_copy_not_live_state():
     narrator_tools.create_or_load_character(
         name="Storm",

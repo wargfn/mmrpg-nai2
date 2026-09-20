@@ -242,6 +242,8 @@ class CharacterRoster:
 
     @staticmethod
     def _comparable_field_value(field_name: str, value: object) -> object:
+        if field_name == "archetype":
+            return str(value).strip().casefold()
         if field_name in {"origin", "occupation"}:
             return str(value).strip().casefold()
         if field_name in {"traits", "tags"}:

@@ -282,6 +282,20 @@ def test_character_json_export_and_import_roundtrip(tmp_path: Path):
     assert loaded.power_sets == ["Telepathy", {"name": "Telekinesis", "rank_required": 3}]
 
 
+def test_export_character_json_creates_parent_directories(tmp_path: Path):
+    character = generate_character_from_template(name="Jean", archetype="Blaster", rank=3)
+    output = tmp_path / "nested" / "dir" / "jean.json"
+    export_character_json(character, str(output))
+    assert output.is_file()
+
+
+def test_load_character_json_rejects_unknown_fields(tmp_path: Path):
+    output = tmp_path / "bad.json"
+    output.write_text('{"name":"Jean","archetype":"Blaster","rank":3,"melee":1,"agility":1,"resilience":1,"vigilance":1,"ego":1,"logic":1,"unknown_field":"x"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="Unsupported fields"):
+        load_character_json(str(output))
+
+
 def test_validate_character_powers_tool_uses_character_rank():
     narrator_tools.create_character_assisted(
         name="Logan",

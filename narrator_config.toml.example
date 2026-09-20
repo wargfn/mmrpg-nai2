@@ -2,7 +2,7 @@
 # Host for Open WebUI API
 host = "http://127.0.0.1:3000"
 # Optional OpenAI/OpenWebUI-compatible base URL override
-base_url = "http://127.0.0.1:3000"
+# base_url = "http://127.0.0.1:11434/v1"
 
 # Default model used by the CLI if --model is not passed
 model = "gemma2:9b"
