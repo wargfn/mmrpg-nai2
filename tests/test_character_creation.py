@@ -86,18 +86,42 @@ def test_validate_character_build_accepts_balanced_template_and_valid_powers():
         rank=2,
         abilities=ARCHETYPE_TEMPLATES["Blaster"]["ranks"][2],
         powers=["Blast"],
+        origin="Mutation",
+        occupation="Athlete",
+        traits=["Iron Will"],
+        tags=["X-Men"],
     )
     assert result["valid"] is True
     assert result["errors"] == []
+    assert result["origin"] == "Mutation"
+    assert result["occupation"] == "Athlete"
+    assert result["traits"] == ["Iron Will"]
+    assert result["tags"] == ["X-Men"]
 
 
 def test_create_character_assisted_adds_character_to_roster():
-    payload = narrator_tools.create_character_assisted(name="Logan", archetype="Brawler", rank=3)
+    payload = narrator_tools.create_character_assisted(
+        name="Logan",
+        archetype="Brawler",
+        rank=3,
+        origin="Mutation",
+        occupation="Military",
+        traits=["Brawler", "Iron Will"],
+        tags=["X-Men", "Canadian"],
+    )
     assert payload["created"] is True
     assert payload["character"]["name"] == "Logan"
     assert payload["character"]["defenses"]["resilience_defense"] == payload["character"]["resilience"] + 10
+    assert payload["character"]["origin"] == "Mutation"
+    assert payload["character"]["occupation"] == "Military"
+    assert payload["character"]["traits"] == ["Brawler", "Iron Will"]
+    assert payload["character"]["tags"] == ["X-Men", "Canadian"]
     sheet = narrator_tools.get_character("Logan")
     assert sheet["rank"] == 3
+    assert sheet["origin"] == "Mutation"
+    assert sheet["occupation"] == "Military"
+    assert sheet["traits"] == ["Brawler", "Iron Will"]
+    assert sheet["tags"] == ["X-Men", "Canadian"]
 
 
 def test_create_character_assisted_rejects_invalid_custom_abilities():
@@ -115,3 +139,10 @@ def test_list_available_archetypes_returns_supported_entries():
     names = {entry["name"] for entry in archetypes}
     assert "Striker" in names
     assert "Polymath" in names
+
+
+def test_list_available_origins_and_occupations():
+    origins = narrator_tools.list_available_origins()
+    occupations = narrator_tools.list_available_occupations()
+    assert "Mutant" in origins
+    assert "Scientist" in occupations

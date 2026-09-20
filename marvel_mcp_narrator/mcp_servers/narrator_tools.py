@@ -8,6 +8,8 @@ from marvel_mcp_narrator.core.character_creation import (
     ABILITY_FIELDS,
     generate_character_from_template,
     list_archetypes,
+    list_occupations,
+    list_origins,
     validate_character_build,
 )
 from marvel_mcp_narrator.core.character_state import character_roster
@@ -154,9 +156,21 @@ def create_character_assisted(
     archetype: str,
     rank: int,
     custom_abilities: dict | None = None,
+    origin: str = "Unknown",
+    occupation: str = "None",
+    traits: list[str] | None = None,
+    tags: list[str] | None = None,
 ) -> dict:
     """Create a character from templates with optional custom ability overrides."""
-    character = generate_character_from_template(name=name, archetype=archetype, rank=rank)
+    character = generate_character_from_template(
+        name=name,
+        archetype=archetype,
+        rank=rank,
+        origin=origin,
+        occupation=occupation,
+        traits=traits,
+        tags=tags,
+    )
     abilities = {ability: getattr(character, ability) for ability in ABILITY_FIELDS}
     if custom_abilities:
         for ability in ABILITY_FIELDS:
@@ -169,6 +183,10 @@ def create_character_assisted(
         rank=rank,
         abilities=abilities,
         powers=[],
+        origin=origin,
+        occupation=occupation,
+        traits=traits,
+        tags=tags,
     )
     if not validation["valid"]:
         raise ValueError("; ".join(validation["errors"]))
@@ -183,6 +201,10 @@ def create_character_assisted(
         vigilance=abilities["vigilance"],
         ego=abilities["ego"],
         logic=abilities["logic"],
+        origin=validation["origin"],
+        occupation=validation["occupation"],
+        traits=validation["traits"],
+        tags=validation["tags"],
     )
     return {
         "created": created,
@@ -195,6 +217,18 @@ def create_character_assisted(
 def list_available_archetypes() -> list:
     """List supported archetypes and playstyle summaries."""
     return list_archetypes()
+
+
+@mcp.tool()
+def list_available_origins() -> list[str]:
+    """List supported origins for character creation."""
+    return list_origins()
+
+
+@mcp.tool()
+def list_available_occupations() -> list[str]:
+    """List supported occupations for character creation."""
+    return list_occupations()
 
 
 if __name__ == "__main__":

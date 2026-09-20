@@ -52,11 +52,20 @@ def test_health_and_focus_pools_initialize_from_resilience_and_vigilance():
         vigilance=2,
         ego=2,
         logic=2,
+        origin="Mutation",
+        occupation="Military",
+        traits=["Brawler"],
+        tags=["Weapon X"],
     )
     assert character.max_health == 120
     assert character.current_health == 120
     assert character.max_focus == 60
     assert character.current_focus == 60
+    payload = character.to_dict()
+    assert payload["origin"] == "Mutation"
+    assert payload["occupation"] == "Military"
+    assert payload["traits"] == ["Brawler"]
+    assert payload["tags"] == ["Weapon X"]
 
 
 def test_take_damage_threshold_states():

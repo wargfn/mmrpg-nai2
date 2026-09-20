@@ -7,7 +7,7 @@ from threading import RLock
 
 
 _ABILITY_FIELDS = ("melee", "agility", "resilience", "vigilance", "ego", "logic")
-_CHARACTER_DEFINITION_FIELDS = ("archetype", "rank", *_ABILITY_FIELDS)
+_CHARACTER_DEFINITION_FIELDS = ("archetype", "rank", *_ABILITY_FIELDS, "origin", "occupation", "traits", "tags")
 
 
 @dataclass(slots=True)
@@ -23,6 +23,10 @@ class Character:
     vigilance: int
     ego: int
     logic: int
+    origin: str = "Unknown"
+    occupation: str = "None"
+    traits: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     max_health: int | None = None
     current_health: int | None = None
     max_focus: int | None = None
@@ -55,6 +59,10 @@ class Character:
         self.current_health = max(0, min(self.current_health, self.max_health))
         self.current_focus = max(0, min(self.current_focus, self.max_focus))
         self.conditions = list(dict.fromkeys(self.conditions))
+        self.traits = [str(item).strip() for item in self.traits if str(item).strip()]
+        self.traits = list(dict.fromkeys(self.traits))
+        self.tags = [str(item).strip() for item in self.tags if str(item).strip()]
+        self.tags = list(dict.fromkeys(self.tags))
 
     @property
     def melee_defense(self) -> int:
@@ -204,6 +212,10 @@ class CharacterRoster:
         vigilance: int,
         ego: int,
         logic: int,
+        origin: str = "Unknown",
+        occupation: str = "None",
+        traits: list[str] | None = None,
+        tags: list[str] | None = None,
     ) -> tuple[dict, bool]:
         key = self._normalize(name)
         requested_values = {
@@ -215,6 +227,10 @@ class CharacterRoster:
             "vigilance": vigilance,
             "ego": ego,
             "logic": logic,
+            "origin": str(origin).strip() or "Unknown",
+            "occupation": str(occupation).strip() or "None",
+            "traits": list(dict.fromkeys([str(item).strip() for item in (traits or []) if str(item).strip()])),
+            "tags": list(dict.fromkeys([str(item).strip() for item in (tags or []) if str(item).strip()])),
         }
         with self._lock:
             existing = self._characters.get(key)
@@ -243,6 +259,10 @@ class CharacterRoster:
                 vigilance=vigilance,
                 ego=ego,
                 logic=logic,
+                origin=requested_values["origin"],
+                occupation=requested_values["occupation"],
+                traits=requested_values["traits"],
+                tags=requested_values["tags"],
             )
             self._characters[key] = created
             return self._copy_character(created).to_dict(), True

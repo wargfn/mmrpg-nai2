@@ -45,5 +45,71 @@
       "rank_required": 3,
       "description": "Recover Health over time and resist lingering physical harm."
     }
+  ],
+  "origins": [
+    {
+      "name": "Mutant",
+      "description": "Innate powers linked to mutation and superhuman genetics."
+    },
+    {
+      "name": "High-Tech",
+      "description": "Abilities powered by advanced gear, armor, or inventions."
+    },
+    {
+      "name": "Science",
+      "description": "Extraordinary capabilities gained through experiments or accidents."
+    },
+    {
+      "name": "Magic",
+      "description": "Mystic training, arcane pact, or supernatural spellcraft."
+    },
+    {
+      "name": "Mutation",
+      "description": "Altered physiology granting unusual powers and traits."
+    },
+    {
+      "name": "Alien",
+      "description": "Off-world heritage, biology, or cosmic lineage."
+    }
+  ],
+  "occupations": [
+    {
+      "name": "Scientist",
+      "description": "Research-driven expert with technical and analytical training."
+    },
+    {
+      "name": "Cop",
+      "description": "Law-enforcement professional trained in investigation and tactics."
+    },
+    {
+      "name": "Criminal",
+      "description": "Underworld operator with illicit contacts and survival instincts."
+    },
+    {
+      "name": "Athlete",
+      "description": "Competitive performer with exceptional physical conditioning."
+    },
+    {
+      "name": "Military",
+      "description": "Service veteran trained in combat, discipline, and command structures."
+    }
+  ],
+  "traits": [
+    {
+      "name": "Connections",
+      "description": "Strong personal network that can provide leads and support."
+    },
+    {
+      "name": "Rich",
+      "description": "Significant resources and access to high-end equipment."
+    },
+    {
+      "name": "Brawler",
+      "description": "Instinctive close-quarters fighter who excels in scrappy combat."
+    },
+    {
+      "name": "Iron Will",
+      "description": "Exceptional mental resilience against fear, coercion, and stress."
+    }
   ]
 }

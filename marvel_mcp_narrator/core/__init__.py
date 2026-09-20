@@ -6,6 +6,9 @@ from .character_creation import (
     ARCHETYPE_TEMPLATES,
     generate_character_from_template,
     list_archetypes,
+    list_occupations,
+    list_origins,
+    list_traits,
     validate_character_build,
 )
 from .rules_database import (
@@ -26,6 +29,9 @@ __all__ = [
     "validate_character_build",
     "generate_character_from_template",
     "list_archetypes",
+    "list_origins",
+    "list_occupations",
+    "list_traits",
     "lookup_rule_reference",
     "load_rules_database",
     "query_rulebook_database",

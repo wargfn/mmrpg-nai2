@@ -54,6 +54,9 @@ def _parse_rank_required(value: Any) -> int | None:
 
 _POWER_REQUIREMENTS_CACHE: dict[str, int | None] | None = None
 _POWER_REQUIREMENTS_LOCK = Lock()
+_ORIGINS_CACHE: dict[str, str] | None = None
+_OCCUPATIONS_CACHE: dict[str, str] | None = None
+_TRAITS_CACHE: dict[str, str] | None = None
 
 
 def _get_power_requirements() -> dict[str, int | None]:
@@ -70,11 +73,60 @@ def _get_power_requirements() -> dict[str, int | None]:
     return _POWER_REQUIREMENTS_CACHE
 
 
+def _build_named_lookup(key: str) -> dict[str, str]:
+    entries = load_rules_database().get(key, [])
+    lookup: dict[str, str] = {}
+    for entry in entries:
+        name = str(entry.get("name", "")).strip()
+        if name:
+            lookup[name.casefold()] = name
+    return lookup
+
+
+def _get_origins_lookup() -> dict[str, str]:
+    global _ORIGINS_CACHE
+    if _ORIGINS_CACHE is None:
+        with _POWER_REQUIREMENTS_LOCK:
+            if _ORIGINS_CACHE is None:
+                _ORIGINS_CACHE = _build_named_lookup("origins")
+    return _ORIGINS_CACHE
+
+
+def _get_occupations_lookup() -> dict[str, str]:
+    global _OCCUPATIONS_CACHE
+    if _OCCUPATIONS_CACHE is None:
+        with _POWER_REQUIREMENTS_LOCK:
+            if _OCCUPATIONS_CACHE is None:
+                _OCCUPATIONS_CACHE = _build_named_lookup("occupations")
+    return _OCCUPATIONS_CACHE
+
+
+def _get_traits_lookup() -> dict[str, str]:
+    global _TRAITS_CACHE
+    if _TRAITS_CACHE is None:
+        with _POWER_REQUIREMENTS_LOCK:
+            if _TRAITS_CACHE is None:
+                _TRAITS_CACHE = _build_named_lookup("traits")
+    return _TRAITS_CACHE
+
+
 def list_archetypes() -> list[dict[str, str]]:
     return [
         {"name": name, "playstyle": payload["playstyle"]}
         for name, payload in sorted(ARCHETYPE_TEMPLATES.items(), key=lambda item: item[0])
     ]
+
+
+def list_origins() -> list[str]:
+    return sorted(_get_origins_lookup().values())
+
+
+def list_occupations() -> list[str]:
+    return sorted(_get_occupations_lookup().values())
+
+
+def list_traits() -> list[str]:
+    return sorted(_get_traits_lookup().values())
 
 
 def validate_character_build(
@@ -83,9 +135,17 @@ def validate_character_build(
     rank: int,
     abilities: dict,
     powers: list,
+    origin: str = "Unknown",
+    occupation: str = "None",
+    traits: list[str] | None = None,
+    tags: list[str] | None = None,
 ) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
+    normalized_origin = str(origin).strip() or "Unknown"
+    normalized_occupation = str(occupation).strip() or "None"
+    normalized_traits = list(dict.fromkeys([str(item).strip() for item in (traits or []) if str(item).strip()]))
+    normalized_tags = list(dict.fromkeys([str(item).strip() for item in (tags or []) if str(item).strip()]))
 
     if not name.strip():
         errors.append("Character name is required.")
@@ -96,6 +156,24 @@ def validate_character_build(
 
     if not 1 <= rank <= 6:
         errors.append("Rank must be between 1 and 6.")
+
+    origins_lookup = _get_origins_lookup()
+    occupations_lookup = _get_occupations_lookup()
+    traits_lookup = _get_traits_lookup()
+
+    if normalized_origin.casefold() not in origins_lookup and normalized_origin != "Unknown":
+        errors.append(f"Unsupported origin '{normalized_origin}'.")
+    elif normalized_origin.casefold() in origins_lookup:
+        normalized_origin = origins_lookup[normalized_origin.casefold()]
+
+    if normalized_occupation.casefold() not in occupations_lookup and normalized_occupation != "None":
+        errors.append(f"Unsupported occupation '{normalized_occupation}'.")
+    elif normalized_occupation.casefold() in occupations_lookup:
+        normalized_occupation = occupations_lookup[normalized_occupation.casefold()]
+
+    for trait in normalized_traits:
+        if trait.casefold() not in traits_lookup:
+            warnings.append(f"Trait '{trait}' was not found in local rules data.")
 
     normalized_abilities: dict[str, int] = {}
     for ability in ABILITY_FIELDS:
@@ -180,10 +258,22 @@ def validate_character_build(
         "power_issues": power_issues,
         "rank": rank,
         "archetype": archetype,
+        "origin": normalized_origin,
+        "occupation": normalized_occupation,
+        "traits": normalized_traits,
+        "tags": normalized_tags,
     }
 
 
-def generate_character_from_template(name: str, archetype: str, rank: int) -> Character:
+def generate_character_from_template(
+    name: str,
+    archetype: str,
+    rank: int,
+    origin: str = "Unknown",
+    occupation: str = "None",
+    traits: list[str] | None = None,
+    tags: list[str] | None = None,
+) -> Character:
     if not name.strip():
         raise ValueError("Character name is required.")
     if archetype not in ARCHETYPE_TEMPLATES:
@@ -202,4 +292,8 @@ def generate_character_from_template(name: str, archetype: str, rank: int) -> Ch
         vigilance=template["vigilance"],
         ego=template["ego"],
         logic=template["logic"],
+        origin=origin,
+        occupation=occupation,
+        traits=list(traits or []),
+        tags=list(tags or []),
     )
