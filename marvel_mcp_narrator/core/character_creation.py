@@ -129,10 +129,12 @@ def validate_character_build(
 
     for power in powers or []:
         rank_required_from_input: int | None = None
+        invalid_input_rank_required = False
         if isinstance(power, dict):
             power_name = str(power.get("name", "")).strip()
             if "rank_required" in power:
                 rank_required_from_input = _parse_rank_required(power.get("rank_required", 1))
+                invalid_input_rank_required = rank_required_from_input is None
         else:
             power_name = str(power).strip()
 
@@ -145,6 +147,17 @@ def validate_character_build(
         database_rank_required = power_index[power_key]
         if rank_required_from_input is not None:
             required_rank = rank_required_from_input
+        elif invalid_input_rank_required:
+            if database_rank_required is not None:
+                warnings.append(
+                    f"Power '{power_name}' provided invalid rank_required; using rules data value {database_rank_required}."
+                )
+                required_rank = database_rank_required
+            else:
+                errors.append(
+                    f"Power '{power_name}' has invalid rank_required in input and invalid rank requirement in rules data."
+                )
+                continue
         else:
             required_rank = database_rank_required
         if required_rank is None:

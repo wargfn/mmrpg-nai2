@@ -230,7 +230,7 @@ class CharacterRoster:
                         for field_name in sorted(mismatches)
                     ]
                     raise ValueError(
-                        f"Character '{name}' already exists with conflicting attributes: {', '.join(mismatch_parts)}."
+                        f"Character '{existing.name}' already exists with conflicting attributes: {', '.join(mismatch_parts)}."
                     )
                 return self._copy_character(existing).to_dict(), False
             created = Character(
