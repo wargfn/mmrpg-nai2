@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from threading import Lock
 from typing import Any
 
 from marvel_mcp_narrator.core.character_state import Character
@@ -44,18 +45,29 @@ ARCHETYPE_TEMPLATES: dict[str, dict[str, Any]] = {
 }
 
 
-def _coerce_rank_required(value: Any, default: int = 1) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
 def _parse_rank_required(value: Any) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+_POWER_REQUIREMENTS_CACHE: dict[str, int | None] | None = None
+_POWER_REQUIREMENTS_LOCK = Lock()
+
+
+def _get_power_requirements() -> dict[str, int | None]:
+    global _POWER_REQUIREMENTS_CACHE
+    if _POWER_REQUIREMENTS_CACHE is None:
+        with _POWER_REQUIREMENTS_LOCK:
+            if _POWER_REQUIREMENTS_CACHE is None:
+                powers_data = load_rules_database().get("powers", [])
+                _POWER_REQUIREMENTS_CACHE = {
+                    str(power.get("name", "")).strip().casefold(): _parse_rank_required(power.get("rank_required", 1))
+                    for power in powers_data
+                    if str(power.get("name", "")).strip()
+                }
+    return _POWER_REQUIREMENTS_CACHE
 
 
 def list_archetypes() -> list[dict[str, str]]:
@@ -112,12 +124,7 @@ def validate_character_build(
                     f"Ability '{ability}' differs from {archetype} rank-{rank} template by {diff} points."
                 )
 
-    powers_data = load_rules_database().get("powers", [])
-    power_index = {
-        str(power.get("name", "")).strip().casefold(): _coerce_rank_required(power.get("rank_required", 1))
-        for power in powers_data
-        if str(power.get("name", "")).strip()
-    }
+    power_index = _get_power_requirements()
     power_issues: list[dict[str, Any]] = []
 
     for power in powers or []:
@@ -135,7 +142,14 @@ def validate_character_build(
         if power_key not in power_index:
             warnings.append(f"Power '{power_name}' was not found in local rules data.")
             continue
-        required_rank = rank_required_from_input if rank_required_from_input is not None else power_index[power_key]
+        database_rank_required = power_index[power_key]
+        if rank_required_from_input is not None:
+            required_rank = rank_required_from_input
+        else:
+            required_rank = database_rank_required
+        if required_rank is None:
+            errors.append(f"Power '{power_name}' has an invalid rank requirement in rules data.")
+            continue
         if rank < required_rank:
             issue = {
                 "power": power_name,

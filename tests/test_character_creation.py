@@ -1,5 +1,6 @@
 import pytest
 
+from marvel_mcp_narrator.core import character_creation
 from marvel_mcp_narrator.core.character_creation import (
     ARCHETYPE_TEMPLATES,
     generate_character_from_template,
@@ -58,6 +59,19 @@ def test_validate_character_build_prefers_input_rank_required_when_provided():
     )
     assert result["valid"] is False
     assert any("Blast" in message for message in result["errors"])
+
+
+def test_validate_character_build_reports_invalid_rules_rank_requirement(monkeypatch):
+    monkeypatch.setattr(character_creation, "_POWER_REQUIREMENTS_CACHE", {"teleportation": None})
+    result = validate_character_build(
+        name="Nightcrawler",
+        archetype="Way-Watcher",
+        rank=3,
+        abilities=ARCHETYPE_TEMPLATES["Way-Watcher"]["ranks"][3],
+        powers=["Teleportation"],
+    )
+    assert result["valid"] is False
+    assert any("invalid rank requirement" in message for message in result["errors"])
 
 
 def test_validate_character_build_accepts_balanced_template_and_valid_powers():

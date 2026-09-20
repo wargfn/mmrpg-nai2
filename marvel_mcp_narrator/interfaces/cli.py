@@ -44,6 +44,8 @@ def build_open_webui_chat_endpoint(host: str) -> str:
     is_version_segment = len(last_segment) > 1 and last_segment.startswith("v") and last_segment[1:].isdigit()
     if path.endswith("/chat/completions"):
         endpoint_path = path
+    elif path.endswith("/chat"):
+        endpoint_path = f"{path}/completions"
     elif is_version_segment or path.endswith("/api") or path.endswith("/openai"):
         endpoint_path = f"{path}/chat/completions"
     else:
