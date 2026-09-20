@@ -295,7 +295,7 @@ def generate_character_from_template(
         archetype=archetype,
         rank=rank,
         abilities=template,
-        powers=[],
+        powers=list(power_sets or []),
         origin=origin,
         occupation=occupation,
         traits=traits,

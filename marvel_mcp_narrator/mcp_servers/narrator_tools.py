@@ -211,7 +211,7 @@ def create_character_assisted(
         archetype=archetype,
         rank=rank,
         abilities=abilities,
-        powers=[],
+        powers=list(power_sets or []),
         origin=origin,
         occupation=occupation,
         traits=traits,
@@ -270,7 +270,9 @@ def export_character(name: str) -> dict:
     character = character_roster.get_copy(name)
     export_dir = Path("/tmp/mmrpg-character-exports")
     export_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"{character.name.strip().replace(' ', '_')}.json"
+    safe_name = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in character.name.strip())
+    safe_name = safe_name.strip("_") or "character"
+    filename = f"{safe_name}.json"
     filepath = export_dir / filename
     export_character_json(character, str(filepath))
     return {

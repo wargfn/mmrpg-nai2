@@ -200,7 +200,7 @@ def test_create_character_assisted_adds_character_to_roster():
         occupation="Military",
         traits=["Brawler", "Iron Will"],
         tags=["X-Men", "Canadian"],
-        power_sets=["Healing Factor", "Adamantium Claws"],
+        power_sets=["Regeneration", "Blast"],
     )
     assert payload["created"] is True
     assert payload["character"]["name"] == "Logan"
@@ -209,14 +209,14 @@ def test_create_character_assisted_adds_character_to_roster():
     assert payload["character"]["occupation"] == "Military"
     assert payload["character"]["traits"] == ["Brawler", "Iron Will"]
     assert payload["character"]["tags"] == ["X-Men", "Canadian"]
-    assert payload["character"]["power_sets"] == ["Healing Factor", "Adamantium Claws"]
+    assert payload["character"]["power_sets"] == ["Regeneration", "Blast"]
     sheet = narrator_tools.get_character("Logan")
     assert sheet["rank"] == 3
     assert sheet["origin"] == "Mutation"
     assert sheet["occupation"] == "Military"
     assert sheet["traits"] == ["Brawler", "Iron Will"]
     assert sheet["tags"] == ["X-Men", "Canadian"]
-    assert sheet["power_sets"] == ["Healing Factor", "Adamantium Claws"]
+    assert sheet["power_sets"] == ["Regeneration", "Blast"]
 
 
 def test_create_character_assisted_rejects_invalid_custom_abilities():
@@ -305,8 +305,21 @@ def test_export_character_tool_writes_json_file():
         occupation="Scientist",
         traits=["Connections"],
         tags=["Spider-Man"],
-        power_sets=["Wall-Crawling"],
+        power_sets=["Blast"],
     )
     payload = narrator_tools.export_character("Peter Parker")
     assert Path(payload["filepath"]).is_file()
     assert payload["character"]["name"] == "Peter Parker"
+
+
+def test_create_character_assisted_rejects_power_sets_above_rank():
+    with pytest.raises(ValueError, match="requires rank"):
+        narrator_tools.create_character_assisted(
+            name="Low Rank Hero",
+            archetype="Polymath",
+            rank=1,
+            origin="Mutation",
+            occupation="Scientist",
+            traits=["Connections"],
+            power_sets=["Regeneration"],
+        )
