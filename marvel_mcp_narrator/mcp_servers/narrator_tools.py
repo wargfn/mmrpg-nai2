@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastmcp import FastMCP
@@ -272,7 +273,8 @@ def export_character(name: str) -> dict:
     export_dir.mkdir(parents=True, exist_ok=True)
     safe_name = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in character.name.strip())
     safe_name = safe_name.strip("_") or "character"
-    filename = f"{safe_name}.json"
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    filename = f"{safe_name}_{timestamp}.json"
     filepath = export_dir / filename
     export_character_json(character, str(filepath))
     return {

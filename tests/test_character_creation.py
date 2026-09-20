@@ -191,6 +191,19 @@ def test_validate_character_powers_rejects_above_rank():
     assert any("requires rank" in message for message in result["errors"])
 
 
+def test_validate_character_build_validates_power_sets_when_powers_empty():
+    result = validate_character_build(
+        name="Nova",
+        archetype="Polymath",
+        rank=1,
+        abilities=ARCHETYPE_TEMPLATES["Polymath"]["ranks"][1],
+        powers=[],
+        power_sets=["Regeneration"],
+    )
+    assert result["valid"] is False
+    assert any("requires rank" in message for message in result["errors"])
+
+
 def test_create_character_assisted_adds_character_to_roster():
     payload = narrator_tools.create_character_assisted(
         name="Logan",

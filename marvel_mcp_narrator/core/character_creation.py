@@ -252,7 +252,9 @@ def validate_character_build(
                     f"Ability '{ability}' differs from {archetype} rank-{rank} template by {diff} points."
                 )
 
-    power_validation = validate_character_powers(rank=rank, powers_list=powers)
+    if not normalized_power_sets and powers:
+        normalized_power_sets = list(powers)
+    power_validation = validate_character_powers(rank=rank, powers_list=normalized_power_sets)
     errors.extend(power_validation["errors"])
     warnings.extend(power_validation["warnings"])
 
