@@ -84,7 +84,7 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
     config: dict[str, str | None] = {
         "model": DEFAULT_MODEL,
         "host": DEFAULT_OPEN_WEBUI_HOST,
-        "base_url": DEFAULT_OPEN_WEBUI_HOST,
+        "base_url": None,
         "api_key": None,
     }
 
@@ -128,7 +128,6 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
         config["model"] = model_override
     if base_url_override:
         config["base_url"] = base_url_override
-        config["host"] = base_url_override
     if host_override:
         config["host"] = host_override
         if not base_url_override:
@@ -297,10 +296,10 @@ def main() -> None:
     host = args.host or config["host"] or DEFAULT_OPEN_WEBUI_HOST
     if args.base_url:
         base_url = args.base_url
-    elif args.host:
-        base_url = args.host
+    elif config["base_url"]:
+        base_url = config["base_url"]
     else:
-        base_url = config["base_url"] or host
+        base_url = host
     api_key = args.api_key if args.api_key is not None else config["api_key"]
     run_cli(model=model, host=host, base_url=base_url, api_key=api_key)
 
