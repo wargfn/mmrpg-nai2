@@ -15,6 +15,7 @@ from marvel_mcp_narrator.core.character_creation import (
     list_archetypes,
     list_occupations,
     list_origins,
+    list_tags,
     validate_character_powers as validate_character_powers_core,
     validate_character_build,
 )
@@ -263,6 +264,12 @@ def list_available_origins() -> list[str]:
 def list_available_occupations() -> list[str]:
     """List supported occupations for character creation."""
     return list_occupations()
+
+
+@mcp.tool()
+def list_available_tags() -> list[str]:
+    """List supported character tags."""
+    return list_tags()
 
 
 @mcp.tool()

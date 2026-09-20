@@ -51,7 +51,7 @@ class RulesDatabase:
                 if alias:
                     index[alias] = {"entry_type": "mechanic", "rule_key": str(key), **payload}
 
-        for payload in self._data.get("powers", []):
+        for payload in self._iter_power_entries():
             name = str(payload.get("name", "")).strip()
             if not name:
                 continue
@@ -61,6 +61,21 @@ class RulesDatabase:
                 index[alias] = {"entry_type": "power", "rule_key": rule_key, **payload}
 
         return index
+
+    def _iter_power_entries(self) -> list[dict[str, Any]]:
+        entries: list[dict[str, Any]] = []
+        entries.extend(self._data.get("powers", []))
+        for power_set in self._data.get("power_sets", []):
+            set_name = str(power_set.get("name", "Power Set")).strip() or "Power Set"
+            for payload in power_set.get("powers", []):
+                if not isinstance(payload, dict):
+                    continue
+                entry = dict(payload)
+                entry.setdefault("category", set_name)
+                if "summary" in entry and "description" not in entry:
+                    entry["description"] = entry["summary"]
+                entries.append(entry)
+        return entries
 
     def lookup_rule(self, query: str) -> dict[str, Any]:
         """Return an exact indexed rule lookup by key, title, or power name."""
@@ -123,7 +138,7 @@ class RulesDatabase:
                 )
 
         powers_matches: list[dict[str, Any]] = []
-        for payload in self._data.get("powers", []):
+        for payload in self._iter_power_entries():
             name = str(payload.get("name", "Unknown Power"))
             category = str(payload.get("category", "Uncategorized"))
             rank_required = payload.get("rank_required", "?")

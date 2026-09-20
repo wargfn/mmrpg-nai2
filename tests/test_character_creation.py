@@ -142,6 +142,19 @@ def test_validate_character_build_normalizes_trait_casing():
     assert result["traits"] == ["Iron Will"]
 
 
+def test_validate_character_build_normalizes_tag_casing():
+    result = validate_character_build(
+        name="Cyclops",
+        archetype="Blaster",
+        rank=2,
+        abilities=ARCHETYPE_TEMPLATES["Blaster"]["ranks"][2],
+        powers=["Blast"],
+        tags=["x-men"],
+    )
+    assert result["valid"] is True
+    assert result["tags"] == ["X-Men"]
+
+
 def test_validate_character_build_rejects_none_name():
     result = validate_character_build(
         name=None,  # type: ignore[arg-type]
@@ -165,6 +178,19 @@ def test_validate_character_build_rejects_unknown_trait():
     )
     assert result["valid"] is False
     assert any("Unsupported trait" in message for message in result["errors"])
+
+
+def test_validate_character_build_rejects_unknown_tag():
+    result = validate_character_build(
+        name="Rogue",
+        archetype="Brawler",
+        rank=2,
+        abilities=ARCHETYPE_TEMPLATES["Brawler"]["ranks"][2],
+        powers=["Blast"],
+        tags=["NotARealTag"],
+    )
+    assert result["valid"] is False
+    assert any("Unsupported tag" in message for message in result["errors"])
 
 
 def test_validate_character_build_accepts_default_sentinels_case_insensitively():
@@ -236,6 +262,12 @@ def test_validate_power_selection_requires_rank_threshold():
     assert "requires rank 4" in reason
 
 
+def test_validate_power_selection_requires_new_expansion_prerequisite():
+    valid, reason = validate_power_selection(character_rank=2, owned_powers=["Venom Bash"], target_power="Venom Sword")
+    assert valid is False
+    assert "Venom Blast" in reason
+
+
 def test_validate_character_powers_requires_prerequisites_in_selection_order():
     result = validate_character_powers(rank=3, powers_list=["Mighty 3", "Mighty 2"])
     assert result["valid"] is False
@@ -263,7 +295,7 @@ def test_create_character_assisted_adds_character_to_roster():
         origin="Mutation",
         occupation="Military",
         traits=["Brawler", "Iron Will"],
-        tags=["X-Men", "Canadian"],
+        tags=["X-Men", "Tech"],
         power_sets=["Regeneration", "Blast"],
     )
     assert payload["created"] is True
@@ -272,14 +304,14 @@ def test_create_character_assisted_adds_character_to_roster():
     assert payload["character"]["origin"] == "Mutation"
     assert payload["character"]["occupation"] == "Military"
     assert payload["character"]["traits"] == ["Brawler", "Iron Will"]
-    assert payload["character"]["tags"] == ["X-Men", "Canadian"]
+    assert payload["character"]["tags"] == ["X-Men", "Tech"]
     assert payload["character"]["power_sets"] == ["Regeneration", "Blast"]
     sheet = narrator_tools.get_character("Logan")
     assert sheet["rank"] == 3
     assert sheet["origin"] == "Mutation"
     assert sheet["occupation"] == "Military"
     assert sheet["traits"] == ["Brawler", "Iron Will"]
-    assert sheet["tags"] == ["X-Men", "Canadian"]
+    assert sheet["tags"] == ["X-Men", "Tech"]
     assert sheet["power_sets"] == ["Regeneration", "Blast"]
 
 
@@ -392,7 +424,7 @@ def test_export_character_tool_writes_json_file():
         origin="Mutation",
         occupation="Scientist",
         traits=["Connections"],
-        tags=["Spider-Man"],
+        tags=["Tech"],
         power_sets=["Blast"],
     )
     payload = narrator_tools.export_character("Peter Parker")

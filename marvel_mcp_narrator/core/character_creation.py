@@ -75,6 +75,7 @@ _POWER_REQUIREMENTS_LOCK = RLock()
 _ORIGINS_CACHE: dict[str, str] | None = None
 _OCCUPATIONS_CACHE: dict[str, str] | None = None
 _TRAITS_CACHE: dict[str, str] | None = None
+_TAGS_CACHE: dict[str, str] | None = None
 
 
 def _get_power_details() -> dict[str, dict[str, Any]]:
@@ -177,6 +178,15 @@ def _get_traits_lookup() -> dict[str, str]:
     return _TRAITS_CACHE
 
 
+def _get_tags_lookup() -> dict[str, str]:
+    global _TAGS_CACHE
+    if _TAGS_CACHE is None:
+        with _POWER_REQUIREMENTS_LOCK:
+            if _TAGS_CACHE is None:
+                _TAGS_CACHE = _build_named_lookup("tags")
+    return _TAGS_CACHE
+
+
 def list_archetypes() -> list[dict[str, str]]:
     return [
         {"name": name, "playstyle": payload["playstyle"]}
@@ -194,6 +204,10 @@ def list_occupations() -> list[str]:
 
 def list_traits() -> list[str]:
     return sorted(_get_traits_lookup().values())
+
+
+def list_tags() -> list[str]:
+    return sorted(_get_tags_lookup().values())
 
 
 def validate_power_selection(character_rank: int, owned_powers: list[str], target_power: str) -> tuple[bool, str]:
@@ -318,6 +332,7 @@ def validate_character_build(
     origins_lookup = _get_origins_lookup()
     occupations_lookup = _get_occupations_lookup()
     traits_lookup = _get_traits_lookup()
+    tags_lookup = _get_tags_lookup()
 
     if normalized_origin.casefold() not in origins_lookup and normalized_origin.casefold() != "unknown":
         errors.append(f"Unsupported origin '{normalized_origin}'.")
@@ -337,6 +352,15 @@ def validate_character_build(
             continue
         canonical_traits.append(traits_lookup[key])
     normalized_traits = list(dict.fromkeys(canonical_traits))
+
+    canonical_tags: list[str] = []
+    for tag in normalized_tags:
+        key = tag.casefold()
+        if key not in tags_lookup:
+            errors.append(f"Unsupported tag '{tag}'.")
+            continue
+        canonical_tags.append(tags_lookup[key])
+    normalized_tags = list(dict.fromkeys(canonical_tags))
 
     normalized_abilities: dict[str, int] = {}
     for ability in ABILITY_FIELDS:
