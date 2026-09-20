@@ -1,3 +1,4 @@
+import json
 import pytest
 from pathlib import Path
 
@@ -292,6 +293,9 @@ def test_character_json_export_and_import_roundtrip(tmp_path: Path):
     )
     output = tmp_path / "jean.json"
     export_character_json(character, str(output))
+    exported = json.loads(output.read_text(encoding="utf-8"))
+    assert "defenses" in exported
+    assert "attack_profiles" in exported
     loaded = load_character_json(str(output))
     assert loaded.name == "Jean"
     assert loaded.origin == "Mutation"
@@ -350,6 +354,18 @@ def test_export_character_tool_writes_json_file():
     payload = narrator_tools.export_character("Peter Parker")
     assert Path(payload["filepath"]).is_file()
     assert payload["character"]["name"] == "Peter Parker"
+
+
+def test_create_character_assisted_canonicalizes_name_case():
+    payload = narrator_tools.create_character_assisted(
+        name="storm",
+        archetype="Polymath",
+        rank=3,
+        origin="Mutation",
+        occupation="Scientist",
+        traits=["Connections"],
+    )
+    assert payload["character"]["name"] == "Storm"
 
 
 def test_create_character_assisted_rejects_power_sets_above_rank():

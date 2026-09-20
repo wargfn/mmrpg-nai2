@@ -256,6 +256,10 @@ class CharacterRoster:
         return identifier.casefold()
 
     @staticmethod
+    def _canonical_name(name: str) -> str:
+        return str(name).strip().title()
+
+    @staticmethod
     def _copy_character(character: Character) -> Character:
         return Character(**asdict(character))
 
@@ -294,7 +298,8 @@ class CharacterRoster:
         tags: list[str] | None = None,
         power_sets: list[str | dict] | None = None,
     ) -> tuple[dict, bool]:
-        key = self._normalize(name)
+        canonical_name = self._canonical_name(name)
+        key = self._normalize(canonical_name)
         requested_values = {
             "archetype": archetype,
             "rank": rank,
@@ -329,7 +334,7 @@ class CharacterRoster:
                     )
                 return self._copy_character(existing).to_dict(), False
             created = Character(
-                name=name,
+                name=canonical_name,
                 archetype=archetype,
                 rank=rank,
                 melee=melee,

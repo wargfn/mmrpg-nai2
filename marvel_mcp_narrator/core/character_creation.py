@@ -252,9 +252,23 @@ def validate_character_build(
                     f"Ability '{ability}' differs from {archetype} rank-{rank} template by {diff} points."
                 )
 
-    if not normalized_power_sets and powers:
-        normalized_power_sets = list(powers)
-    power_validation = validate_character_powers(rank=rank, powers_list=normalized_power_sets)
+    combined_powers: list = []
+    seen_power_entries: set[str] = set()
+    for source in [powers or [], normalized_power_sets]:
+        for entry in source:
+            if isinstance(entry, dict):
+                key = json.dumps(entry, ensure_ascii=False, sort_keys=True)
+            else:
+                key = str(entry).strip().casefold()
+            if not key:
+                continue
+            if key in seen_power_entries:
+                continue
+            seen_power_entries.add(key)
+            combined_powers.append(entry)
+    if not normalized_power_sets and combined_powers:
+        normalized_power_sets = list(combined_powers)
+    power_validation = validate_character_powers(rank=rank, powers_list=combined_powers)
     errors.extend(power_validation["errors"])
     warnings.extend(power_validation["warnings"])
 

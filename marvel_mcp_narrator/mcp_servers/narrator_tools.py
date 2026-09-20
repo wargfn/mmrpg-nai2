@@ -12,7 +12,6 @@ from marvel_mcp_narrator.core.character_creation import (
     ABILITY_FIELDS,
     export_character_json,
     generate_character_from_template,
-    load_character_json,
     list_archetypes,
     list_occupations,
     list_origins,
@@ -281,7 +280,7 @@ def export_character(name: str) -> dict:
     return {
         "name": character.name,
         "filepath": str(filepath),
-        "character": load_character_json(str(filepath)).to_dict(),
+        "character": character.to_dict(),
     }
 
 
