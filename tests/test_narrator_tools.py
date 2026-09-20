@@ -51,6 +51,21 @@ class NarratorToolsTests(unittest.TestCase):
         self.assertEqual(payload["name"], "Storm")
         self.assertEqual(payload["max_focus"], 150)
 
+    def test_get_character_accepts_trimmed_identifier(self):
+        narrator_tools.create_character(
+            name="Storm",
+            archetype="Blaster",
+            rank=4,
+            melee=2,
+            agility=4,
+            resilience=3,
+            vigilance=5,
+            ego=5,
+            logic=3,
+        )
+        payload = narrator_tools.get_character("  Storm  ")
+        self.assertEqual(payload["name"], "Storm")
+
     def test_apply_damage_to_character_updates_resources(self):
         narrator_tools.create_character(
             name="Wolverine",

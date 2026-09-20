@@ -281,13 +281,11 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
                 continue
 
         if power_key not in power_index:
-            if rank_required_from_input is None:
-                errors.append(f"Unsupported power '{power_name}'.")
-                continue
-            required_rank = rank_required_from_input
-        else:
-            db_rank = power_index[power_key]
-            required_rank = rank_required_from_input if rank_required_from_input is not None else db_rank
+            errors.append(f"Unsupported power '{power_name}'.")
+            continue
+
+        db_rank = power_index[power_key]
+        required_rank = rank_required_from_input if rank_required_from_input is not None else db_rank
 
         if required_rank is None:
             errors.append(f"Power '{power_name}' has an invalid rank requirement.")
@@ -392,7 +390,7 @@ def validate_character_build(
             diff = abs(normalized_abilities[ability] - template[ability])
             if diff > 2:
                 warnings.append(
-                    f"Ability '{ability}' differs from {archetype} rank-{rank} template by {diff} points."
+                    f"Ability '{ability}' differs from {(canonical_archetype or archetype)} rank-{rank} template by {diff} points."
                 )
 
     power_order: list[str] = []

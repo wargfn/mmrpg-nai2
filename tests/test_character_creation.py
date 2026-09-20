@@ -220,7 +220,7 @@ def test_validate_character_build_uses_input_rank_for_unknown_power():
         powers=[{"name": "UnknownPower", "rank_required": 2}],
     )
     assert result["valid"] is False
-    assert any("UnknownPower" in message for message in result["errors"])
+    assert any("Unsupported power 'UnknownPower'" in message for message in result["errors"])
 
 
 def test_validate_character_build_rejects_conflicting_duplicate_power_rank_inputs():

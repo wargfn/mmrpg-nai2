@@ -253,7 +253,7 @@ class CharacterRoster:
 
     @staticmethod
     def _normalize(identifier: str) -> str:
-        return identifier.casefold()
+        return str(identifier).strip().casefold()
 
     @staticmethod
     def _canonical_name(name: str) -> str:
