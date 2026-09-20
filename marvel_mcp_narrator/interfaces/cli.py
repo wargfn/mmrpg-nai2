@@ -37,16 +37,16 @@ def normalize_open_webui_host(host: str) -> str:
 
 def build_open_webui_chat_endpoint(host: str) -> str:
     """Build a chat-completions endpoint URL from OpenWebUI/OpenAI-compatible base URL."""
-    normalized_host = normalize_open_webui_host(host).rstrip("/")
+    normalized_host = normalize_open_webui_host(host)
     parsed = urlparse(normalized_host)
     path = parsed.path.rstrip("/")
     if path.endswith("/chat/completions"):
-        return normalized_host
-    if path.endswith("/v1"):
-        return f"{normalized_host}/chat/completions"
-    if path.endswith("/api"):
-        return f"{normalized_host}/chat/completions"
-    return f"{normalized_host}/api/chat/completions"
+        endpoint_path = path
+    elif path.endswith("/v1") or path.endswith("/api"):
+        endpoint_path = f"{path}/chat/completions"
+    else:
+        endpoint_path = f"{path}/api/chat/completions"
+    return urlunparse(parsed._replace(path=endpoint_path))
 
 
 def request_open_webui_chat(
