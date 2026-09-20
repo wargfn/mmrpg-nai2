@@ -134,6 +134,23 @@ def test_create_character_assisted_rejects_invalid_custom_abilities():
         )
 
 
+def test_create_character_assisted_rejects_out_of_guideline_warnings():
+    with pytest.raises(ValueError, match="differs from Striker rank-2 template"):
+        narrator_tools.create_character_assisted(
+            name="Swingy Build",
+            archetype="Striker",
+            rank=2,
+            custom_abilities={
+                "melee": 10,
+                "agility": 4,
+                "resilience": 3,
+                "vigilance": 3,
+                "ego": 2,
+                "logic": 2,
+            },
+        )
+
+
 def test_list_available_archetypes_returns_supported_entries():
     archetypes = narrator_tools.list_available_archetypes()
     names = {entry["name"] for entry in archetypes}

@@ -190,6 +190,8 @@ def create_character_assisted(
     )
     if not validation["valid"]:
         raise ValueError("; ".join(validation["errors"]))
+    if validation["warnings"]:
+        raise ValueError("; ".join(validation["warnings"]))
 
     character_sheet, created = character_roster.create_or_load(
         name=name,

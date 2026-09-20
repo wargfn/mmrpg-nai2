@@ -368,6 +368,27 @@ class CLIConfigTests(unittest.TestCase):
     @patch.dict(
         'os.environ',
         {
+            'NARRATOR_OPEN_WEBUI_HOST': 'http://env-host:11434',
+        },
+        clear=True,
+    )
+    def test_load_cli_config_preserves_file_base_url_when_host_env_override_set(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                'host = "http://file-host:3000"\n'
+                'base_url = "http://file-host:11434/v1"\n',
+                encoding='utf-8',
+            )
+            config = load_cli_config(str(config_path))
+
+        self.assertEqual(config['host'], 'http://env-host:11434')
+        self.assertEqual(config['base_url'], 'http://file-host:11434/v1')
+
+    @patch.dict(
+        'os.environ',
+        {
             'NARRATOR_OPENAI_BASE_URL': 'http://openai-host:11434/v1',
         },
         clear=True,
