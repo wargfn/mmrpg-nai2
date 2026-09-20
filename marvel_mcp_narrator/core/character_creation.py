@@ -416,7 +416,7 @@ def validate_character_build(
             if key in merged_power_entries:
                 previous_entry = merged_power_entries[key]
                 _, _, previous_rank_was_provided = _parse_power_entry(previous_entry)
-                if rank_required_was_provided and not previous_rank_was_provided:
+                if rank_required_was_provided:
                     merged_power_entries[key] = entry
                 continue
             power_order.append(key)
