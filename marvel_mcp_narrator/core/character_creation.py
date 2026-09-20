@@ -134,7 +134,6 @@ def validate_character_build(
         power_key = power_name.casefold()
         if power_key not in power_index:
             warnings.append(f"Power '{power_name}' was not found in local rules data.")
-            required_rank = rank_required_from_input or 1
             continue
         required_rank = rank_required_from_input if rank_required_from_input is not None else power_index[power_key]
         if rank < required_rank:
