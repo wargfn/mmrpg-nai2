@@ -284,6 +284,12 @@ class CLIHostNormalizationTests(unittest.TestCase):
             'http://localhost:11434/v1/chat/completions',
         )
 
+    def test_build_open_webui_chat_endpoint_preserves_completions_path(self):
+        self.assertEqual(
+            build_open_webui_chat_endpoint('http://localhost:11434/v1/completions'),
+            'http://localhost:11434/v1/completions',
+        )
+
     def test_build_open_webui_chat_endpoint_preserves_query_params(self):
         self.assertEqual(
             build_open_webui_chat_endpoint('http://localhost:11434/v1?api-version=2024-12-01'),

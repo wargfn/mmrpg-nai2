@@ -142,12 +142,13 @@ def validate_character_build(
 ) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
+    normalized_name = "" if name is None else str(name).strip()
     normalized_origin = str(origin).strip() or "Unknown"
     normalized_occupation = str(occupation).strip() or "None"
     normalized_traits = list(dict.fromkeys([str(item).strip() for item in (traits or []) if str(item).strip()]))
     normalized_tags = list(dict.fromkeys([str(item).strip() for item in (tags or []) if str(item).strip()]))
 
-    if not name.strip():
+    if not normalized_name:
         errors.append("Character name is required.")
 
     template_info = ARCHETYPE_TEMPLATES.get(archetype)
@@ -257,6 +258,7 @@ def validate_character_build(
         "warnings": warnings,
         "power_issues": power_issues,
         "rank": rank,
+        "name": normalized_name,
         "archetype": archetype,
         "origin": normalized_origin,
         "occupation": normalized_occupation,
@@ -274,7 +276,8 @@ def generate_character_from_template(
     traits: list[str] | None = None,
     tags: list[str] | None = None,
 ) -> Character:
-    if not name.strip():
+    normalized_name = "" if name is None else str(name).strip()
+    if not normalized_name:
         raise ValueError("Character name is required.")
     if archetype not in ARCHETYPE_TEMPLATES:
         raise ValueError(f"Unsupported archetype '{archetype}'.")
@@ -283,7 +286,7 @@ def generate_character_from_template(
 
     template = ARCHETYPE_TEMPLATES[archetype]["ranks"][rank]
     return Character(
-        name=name,
+        name=normalized_name,
         archetype=archetype,
         rank=rank,
         melee=template["melee"],

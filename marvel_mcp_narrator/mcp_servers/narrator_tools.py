@@ -194,7 +194,7 @@ def create_character_assisted(
         raise ValueError("; ".join(validation["warnings"]))
 
     character_sheet, created = character_roster.create_or_load(
-        name=name,
+        name=character.name,
         archetype=archetype,
         rank=rank,
         melee=abilities["melee"],

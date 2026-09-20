@@ -30,6 +30,11 @@ def test_generate_character_from_template_rejects_blank_name():
         generate_character_from_template(name="   ", archetype="Polymath", rank=3)
 
 
+def test_generate_character_from_template_rejects_none_name():
+    with pytest.raises(ValueError, match="Character name is required"):
+        generate_character_from_template(name=None, archetype="Polymath", rank=3)  # type: ignore[arg-type]
+
+
 def test_validate_character_build_rejects_power_below_required_rank():
     result = validate_character_build(
         name="Nightcrawler",
@@ -97,6 +102,18 @@ def test_validate_character_build_accepts_balanced_template_and_valid_powers():
     assert result["occupation"] == "Athlete"
     assert result["traits"] == ["Iron Will"]
     assert result["tags"] == ["X-Men"]
+
+
+def test_validate_character_build_rejects_none_name():
+    result = validate_character_build(
+        name=None,  # type: ignore[arg-type]
+        archetype="Blaster",
+        rank=2,
+        abilities=ARCHETYPE_TEMPLATES["Blaster"]["ranks"][2],
+        powers=["Blast"],
+    )
+    assert result["valid"] is False
+    assert any("Character name is required" in message for message in result["errors"])
 
 
 def test_create_character_assisted_adds_character_to_roster():
