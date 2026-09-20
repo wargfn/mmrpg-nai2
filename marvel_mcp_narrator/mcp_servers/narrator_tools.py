@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from tempfile import gettempdir
 
 from fastmcp import FastMCP
 
@@ -269,7 +270,7 @@ def list_available_occupations() -> list[str]:
 def export_character(name: str) -> dict:
     """Export a tracked character sheet to JSON on disk."""
     character = character_roster.get_copy(name)
-    export_dir = Path("/tmp/mmrpg-character-exports")
+    export_dir = Path(gettempdir()) / "mmrpg-character-exports"
     export_dir.mkdir(parents=True, exist_ok=True)
     safe_name = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in character.name.strip())
     safe_name = safe_name.strip("_") or "character"
