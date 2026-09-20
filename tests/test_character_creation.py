@@ -236,6 +236,12 @@ def test_validate_power_selection_requires_rank_threshold():
     assert "requires rank 4" in reason
 
 
+def test_validate_character_powers_requires_prerequisites_in_selection_order():
+    result = validate_character_powers(rank=3, powers_list=["Mighty 3", "Mighty 2"])
+    assert result["valid"] is False
+    assert any("Mighty 2" in message for message in result["errors"])
+
+
 def test_validate_character_build_validates_power_sets_when_powers_empty():
     result = validate_character_build(
         name="Nova",
@@ -394,7 +400,7 @@ def test_export_character_tool_writes_json_file():
     assert payload["character"]["name"] == "Peter Parker"
 
 
-def test_create_character_assisted_canonicalizes_name_case():
+def test_create_character_assisted_preserves_name_casing():
     payload = narrator_tools.create_character_assisted(
         name="storm",
         archetype="Polymath",
@@ -403,7 +409,7 @@ def test_create_character_assisted_canonicalizes_name_case():
         occupation="Scientist",
         traits=["Connections"],
     )
-    assert payload["character"]["name"] == "Storm"
+    assert payload["character"]["name"] == "storm"
 
 
 def test_create_character_assisted_rejects_power_sets_above_rank():

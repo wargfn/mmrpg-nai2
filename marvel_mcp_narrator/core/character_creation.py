@@ -221,15 +221,7 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
     warnings: list[str] = []
     power_issues: list[dict[str, Any]] = []
     power_index = _get_power_requirements()
-    selected_power_names: dict[str, str] = {}
-
-    for power in powers_list or []:
-        if isinstance(power, dict):
-            power_name = str(power.get("name", "")).strip()
-        else:
-            power_name = str(power).strip()
-        if power_name:
-            selected_power_names.setdefault(power_name.casefold(), power_name)
+    owned_so_far: list[str] = []
 
     for power in powers_list or []:
         rank_required_from_input: int | None = None
@@ -242,13 +234,11 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
 
         if not power_name:
             continue
-
         power_key = power_name.casefold()
         if power_key in power_index:
-            remaining_owned = [name for key, name in selected_power_names.items() if key != power_key]
             valid_selection, selection_message = validate_power_selection(
                 character_rank=rank,
-                owned_powers=remaining_owned,
+                owned_powers=owned_so_far,
                 target_power=power_name,
             )
             if not valid_selection:
@@ -276,6 +266,9 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
             issue = {"power": power_name, "rank_required": required_rank, "rank": rank, "valid": False}
             power_issues.append(issue)
             errors.append(f"Power '{power_name}' requires rank {required_rank}, but rank is {rank}.")
+            continue
+
+        owned_so_far.append(power_name)
 
     return {"valid": not errors, "errors": errors, "warnings": warnings, "power_issues": power_issues}
 

@@ -257,7 +257,7 @@ class CharacterRoster:
 
     @staticmethod
     def _canonical_name(name: str) -> str:
-        return str(name).strip().title()
+        return str(name).strip()
 
     @staticmethod
     def _copy_character(character: Character) -> Character:
