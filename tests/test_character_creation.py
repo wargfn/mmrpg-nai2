@@ -218,6 +218,19 @@ def test_validate_character_build_uses_input_rank_for_unknown_power():
     assert any("UnknownPower" in message for message in result["errors"])
 
 
+def test_validate_character_build_rejects_conflicting_duplicate_power_rank_inputs():
+    result = validate_character_build(
+        name="Cyclops",
+        archetype="Blaster",
+        rank=3,
+        abilities=ARCHETYPE_TEMPLATES["Blaster"]["ranks"][3],
+        powers=[{"name": "Blast", "rank_required": 2}],
+        power_sets=[{"name": "Blast", "rank_required": 3}],
+    )
+    assert result["valid"] is False
+    assert any("Conflicting rank requirements" in message for message in result["errors"])
+
+
 def test_validate_character_powers_rejects_above_rank():
     result = validate_character_powers(rank=1, powers_list=["Regeneration"])
     assert result["valid"] is False

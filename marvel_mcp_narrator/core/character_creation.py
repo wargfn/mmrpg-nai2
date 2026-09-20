@@ -391,15 +391,24 @@ def validate_character_build(
 
     combined_powers: list = []
     seen_power_entries: set[str] = set()
+    explicit_rank_requirements: dict[str, int] = {}
     for source in [powers or [], normalized_power_sets]:
         for entry in source:
-            power_name, _, _ = _parse_power_entry(entry)
+            power_name, rank_required, rank_required_was_provided = _parse_power_entry(entry)
             if power_name:
                 key = power_name.casefold()
             else:
                 key = str(entry).strip().casefold()
             if not key:
                 continue
+            if rank_required_was_provided and rank_required is not None:
+                existing_rank = explicit_rank_requirements.get(key)
+                if existing_rank is not None and existing_rank != rank_required:
+                    errors.append(
+                        f"Conflicting rank requirements provided for power '{power_name}': {existing_rank} vs {rank_required}."
+                    )
+                    continue
+                explicit_rank_requirements[key] = rank_required
             if key in seen_power_entries:
                 continue
             seen_power_entries.add(key)
