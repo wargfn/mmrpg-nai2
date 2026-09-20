@@ -19,7 +19,7 @@ SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "
     "Use deterministic tool outputs provided in context for dice and rules."
 )
-DEFAULT_MODEL = "llama3.3"
+DEFAULT_MODEL = "gemma2:9b"
 DEFAULT_OPEN_WEBUI_HOST = "http://127.0.0.1:3000"
 
 
@@ -36,20 +36,27 @@ def normalize_open_webui_host(host: str) -> str:
 
 
 def build_open_webui_chat_endpoint(host: str) -> str:
-    """Build an Open WebUI chat-completions endpoint URL from host/base URL."""
+    """Build a chat-completions endpoint URL from OpenWebUI/OpenAI-compatible base URL."""
     normalized_host = normalize_open_webui_host(host).rstrip("/")
+    parsed = urlparse(normalized_host)
+    path = parsed.path.rstrip("/")
+    if path.endswith("/chat/completions"):
+        return normalized_host
+    if path.endswith("/v1") or path.endswith("/api"):
+        return f"{normalized_host}/chat/completions"
     return f"{normalized_host}/api/chat/completions"
 
 
 def request_open_webui_chat(
     *,
-    host: str,
+    host: str | None = None,
+    base_url: str | None = None,
     model: str,
     messages: list[dict[str, str]],
     api_key: str | None = None,
 ) -> str:
     """Send a chat request to Open WebUI and return assistant content."""
-    endpoint = build_open_webui_chat_endpoint(host)
+    endpoint = build_open_webui_chat_endpoint(base_url or host or DEFAULT_OPEN_WEBUI_HOST)
     headers: dict[str, str] = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = "Bearer " + api_key
@@ -77,6 +84,7 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
     config: dict[str, str | None] = {
         "model": DEFAULT_MODEL,
         "host": DEFAULT_OPEN_WEBUI_HOST,
+        "base_url": DEFAULT_OPEN_WEBUI_HOST,
         "api_key": None,
     }
 
@@ -99,21 +107,32 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
         if isinstance(open_webui_block, dict):
             model = open_webui_block.get("model")
             host = open_webui_block.get("host")
+            base_url = open_webui_block.get("base_url")
             api_key = open_webui_block.get("api_key")
             if model:
                 config["model"] = str(model)
+            if base_url:
+                config["base_url"] = str(base_url)
             if host:
                 config["host"] = str(host)
+                if not base_url:
+                    config["base_url"] = str(host)
             if api_key:
                 config["api_key"] = str(api_key)
 
     model_override = os.getenv("NARRATOR_MODEL")
+    base_url_override = os.getenv("NARRATOR_BASE_URL") or os.getenv("NARRATOR_OPENAI_BASE_URL")
     host_override = os.getenv("NARRATOR_OPEN_WEBUI_HOST") or os.getenv("NARRATOR_OLLAMA_HOST")
     api_key_override = os.getenv("NARRATOR_API_KEY")
     if model_override:
         config["model"] = model_override
+    if base_url_override:
+        config["base_url"] = base_url_override
+        config["host"] = base_url_override
     if host_override:
         config["host"] = host_override
+        if not base_url_override:
+            config["base_url"] = host_override
     if api_key_override:
         config["api_key"] = api_key_override
     return config
@@ -181,7 +200,12 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
     return None, None
 
 
-def run_cli(model: str, host: str = DEFAULT_OPEN_WEBUI_HOST, api_key: str | None = None) -> None:
+def run_cli(
+    model: str,
+    host: str = DEFAULT_OPEN_WEBUI_HOST,
+    base_url: str | None = None,
+    api_key: str | None = None,
+) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
     print("Marvel MCP Narrator CLI")
     print("Type '/roll [--edge|--trouble] [--tn N]' or '/rule <keyword>' for deterministic tools.")
@@ -218,6 +242,7 @@ def run_cli(model: str, host: str = DEFAULT_OPEN_WEBUI_HOST, api_key: str | None
         try:
             final_content = request_open_webui_chat(
                 host=host,
+                base_url=base_url or host,
                 model=model,
                 messages=list(messages),
                 api_key=api_key,
@@ -249,6 +274,11 @@ def main() -> None:
         help=f"Open WebUI host URL (defaults to config/env or {DEFAULT_OPEN_WEBUI_HOST})",
     )
     parser.add_argument(
+        "--base-url",
+        default=None,
+        help="OpenAI/OpenWebUI-compatible base URL for chat completions",
+    )
+    parser.add_argument(
         "--api-key",
         default=None,
         help="Optional API key sent in the Authorization header",
@@ -265,8 +295,9 @@ def main() -> None:
         parser.error(str(exc))
     model = args.model or config["model"] or DEFAULT_MODEL
     host = args.host or config["host"] or DEFAULT_OPEN_WEBUI_HOST
+    base_url = args.base_url or config["base_url"] or host
     api_key = args.api_key if args.api_key is not None else config["api_key"]
-    run_cli(model=model, host=host, api_key=api_key)
+    run_cli(model=model, host=host, base_url=base_url, api_key=api_key)
 
 
 if __name__ == "__main__":

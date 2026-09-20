@@ -183,8 +183,9 @@ class CLIMainTests(unittest.TestCase):
     def test_main_uses_default_model(self, mock_run_cli):
         main()
         mock_run_cli.assert_called_once_with(
-            model='llama3.3',
+            model='gemma2:9b',
             host='http://127.0.0.1:3000',
+            base_url='http://127.0.0.1:3000',
             api_key=None,
         )
 
@@ -195,6 +196,7 @@ class CLIMainTests(unittest.TestCase):
         mock_run_cli.assert_called_once_with(
             model='qwen2.5-coder',
             host='http://127.0.0.1:3000',
+            base_url='http://127.0.0.1:3000',
             api_key=None,
         )
 
@@ -203,9 +205,21 @@ class CLIMainTests(unittest.TestCase):
     def test_main_passes_custom_host_and_api_key(self, mock_run_cli):
         main()
         mock_run_cli.assert_called_once_with(
-            model='llama3.3',
+            model='gemma2:9b',
             host='http://remote:11434',
+            base_url='http://remote:11434',
             api_key='abc123',
+        )
+
+    @patch('marvel_mcp_narrator.interfaces.cli.run_cli')
+    @patch('sys.argv', ['cli', '--base-url', 'http://localhost:11434/v1'])
+    def test_main_passes_custom_base_url(self, mock_run_cli):
+        main()
+        mock_run_cli.assert_called_once_with(
+            model='gemma2:9b',
+            host='http://127.0.0.1:3000',
+            base_url='http://localhost:11434/v1',
+            api_key=None,
         )
 
 
@@ -234,6 +248,12 @@ class CLIHostNormalizationTests(unittest.TestCase):
             'http://localhost:3000/api/chat/completions',
         )
 
+    def test_build_open_webui_chat_endpoint_appends_openai_path_for_v1(self):
+        self.assertEqual(
+            build_open_webui_chat_endpoint('http://localhost:11434/v1'),
+            'http://localhost:11434/v1/chat/completions',
+        )
+
 
 class CLIConfigTests(unittest.TestCase):
     def test_load_cli_config_reads_file_values(self):
@@ -243,6 +263,7 @@ class CLIConfigTests(unittest.TestCase):
                 '[open_webui]\n'
                 'model = "qwen2.5-coder"\n'
                 'host = "http://remote:11434"\n'
+                'base_url = "http://remote:11434/v1"\n'
                 'api_key = "key-from-file"\n',
                 encoding='utf-8',
             )
@@ -250,6 +271,7 @@ class CLIConfigTests(unittest.TestCase):
 
         self.assertEqual(config['model'], 'qwen2.5-coder')
         self.assertEqual(config['host'], 'http://remote:11434')
+        self.assertEqual(config['base_url'], 'http://remote:11434/v1')
         self.assertEqual(config['api_key'], 'key-from-file')
 
     def test_load_cli_config_accepts_legacy_ollama_file_block(self):
@@ -291,6 +313,7 @@ class CLIConfigTests(unittest.TestCase):
 
         self.assertEqual(config['model'], 'env-model')
         self.assertEqual(config['host'], 'http://env-host:11434')
+        self.assertEqual(config['base_url'], 'http://env-host:11434')
         self.assertEqual(config['api_key'], 'env-key')
 
     @patch.dict(
@@ -304,6 +327,18 @@ class CLIConfigTests(unittest.TestCase):
         config = load_cli_config()
 
         self.assertEqual(config['host'], 'http://legacy-env-host:11434')
+        self.assertEqual(config['base_url'], 'http://legacy-env-host:11434')
+
+    @patch.dict(
+        'os.environ',
+        {
+            'NARRATOR_OPENAI_BASE_URL': 'http://openai-host:11434/v1',
+        },
+        clear=True,
+    )
+    def test_load_cli_config_accepts_openai_base_url_env_var(self):
+        config = load_cli_config()
+        self.assertEqual(config['base_url'], 'http://openai-host:11434/v1')
 
 
 class OpenWebUIRequestTests(unittest.TestCase):
@@ -314,7 +349,7 @@ class OpenWebUIRequestTests(unittest.TestCase):
         }
         response = request_open_webui_chat(
             host='http://localhost:3000',
-            model='llama3.3',
+            model='gemma2:9b',
             messages=[{'role': 'user', 'content': 'hi'}],
             api_key='token',
         )
@@ -325,6 +360,21 @@ class OpenWebUIRequestTests(unittest.TestCase):
         self.assertEqual(
             mock_post.call_args.args[0],
             'http://localhost:3000/api/chat/completions',
+        )
+
+    @patch('marvel_mcp_narrator.interfaces.cli.httpx.post')
+    def test_request_open_webui_chat_supports_openai_compatible_base_url(self, mock_post):
+        mock_post.return_value.json.return_value = {
+            'choices': [{'message': {'content': 'hello'}}],
+        }
+        request_open_webui_chat(
+            base_url='http://localhost:11434/v1',
+            model='gemma2:9b',
+            messages=[{'role': 'user', 'content': 'hi'}],
+        )
+        self.assertEqual(
+            mock_post.call_args.args[0],
+            'http://localhost:11434/v1/chat/completions',
         )
 
 

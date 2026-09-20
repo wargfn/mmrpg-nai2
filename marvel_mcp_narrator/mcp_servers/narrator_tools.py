@@ -25,11 +25,11 @@ def lookup_rule(rule_key: str) -> dict:
 
 
 @mcp.tool()
-def create_or_load_character(
+def create_character(
     *,
     name: str,
-    rank: int,
     archetype: str,
+    rank: int,
     melee: int,
     agility: int,
     resilience: int,
@@ -56,15 +56,70 @@ def create_or_load_character(
 
 
 @mcp.tool()
-def get_character_sheet(name: str) -> dict:
+def get_character(name: str) -> dict:
     """Return a full character sheet and mutable state."""
     return character_roster.get_sheet(name)
 
 
 @mcp.tool()
-def apply_damage(name: str, health_damage: int = 0, focus_damage: int = 0) -> dict:
+def apply_damage_to_character(name: str, health_damage: int = 0, focus_damage: int = 0) -> dict:
     """Apply health and/or focus damage to a tracked character."""
     return character_roster.apply_damage(name=name, health_damage=health_damage, focus_damage=focus_damage)
+
+
+@mcp.tool()
+def calculate_attack(
+    attacker_name: str,
+    ability: str,
+    marvel_die: int,
+    is_fantastic: bool = False,
+) -> dict:
+    """Calculate attack damage using rank-based multipliers."""
+    return character_roster.calculate_attack_damage(
+        attacker_name=attacker_name,
+        ability=ability,
+        marvel_die=marvel_die,
+        is_fantastic=is_fantastic,
+    )
+
+
+@mcp.tool()
+def create_or_load_character(
+    *,
+    name: str,
+    rank: int,
+    archetype: str,
+    melee: int,
+    agility: int,
+    resilience: int,
+    vigilance: int,
+    ego: int,
+    logic: int,
+) -> dict:
+    """Backward-compatible alias for create_character."""
+    return create_character(
+        name=name,
+        archetype=archetype,
+        rank=rank,
+        melee=melee,
+        agility=agility,
+        resilience=resilience,
+        vigilance=vigilance,
+        ego=ego,
+        logic=logic,
+    )
+
+
+@mcp.tool()
+def get_character_sheet(name: str) -> dict:
+    """Backward-compatible alias for get_character."""
+    return get_character(name)
+
+
+@mcp.tool()
+def apply_damage(name: str, health_damage: int = 0, focus_damage: int = 0) -> dict:
+    """Backward-compatible alias for apply_damage_to_character."""
+    return apply_damage_to_character(name=name, health_damage=health_damage, focus_damage=focus_damage)
 
 
 @mcp.tool()
@@ -75,7 +130,7 @@ def calculate_attack_damage(
     is_fantastic: bool = False,
     bonus_multiplier: int = 0,
 ) -> dict:
-    """Calculate attack damage using rank-based multipliers."""
+    """Backward-compatible alias for calculate_attack."""
     return character_roster.calculate_attack_damage(
         attacker_name=attacker_name,
         ability=ability,
