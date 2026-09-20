@@ -390,7 +390,7 @@ def validate_character_build(
                 )
 
     combined_powers: list = []
-    seen_power_entries: set[str] = set()
+    seen_power_entries: dict[str, int] = {}
     explicit_rank_requirements: dict[str, int] = {}
     for source in [powers or [], normalized_power_sets]:
         for entry in source:
@@ -410,8 +410,13 @@ def validate_character_build(
                     continue
                 explicit_rank_requirements[key] = rank_required
             if key in seen_power_entries:
+                previous_index = seen_power_entries[key]
+                previous_entry = combined_powers[previous_index]
+                _, _, previous_rank_was_provided = _parse_power_entry(previous_entry)
+                if rank_required_was_provided and not previous_rank_was_provided:
+                    combined_powers[previous_index] = entry
                 continue
-            seen_power_entries.add(key)
+            seen_power_entries[key] = len(combined_powers)
             combined_powers.append(entry)
     power_validation = validate_character_powers(rank=rank, powers_list=combined_powers)
     errors.extend(power_validation["errors"])

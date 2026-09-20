@@ -231,6 +231,19 @@ def test_validate_character_build_rejects_conflicting_duplicate_power_rank_input
     assert any("Conflicting rank requirements" in message for message in result["errors"])
 
 
+def test_validate_character_build_prefers_duplicate_entry_with_explicit_rank():
+    result = validate_character_build(
+        name="Cyclops",
+        archetype="Blaster",
+        rank=3,
+        abilities=ARCHETYPE_TEMPLATES["Blaster"]["ranks"][3],
+        powers=["Blast"],
+        power_sets=[{"name": "Blast", "rank_required": 4}],
+    )
+    assert result["valid"] is False
+    assert any("requires rank 4" in message for message in result["errors"])
+
+
 def test_validate_character_powers_rejects_above_rank():
     result = validate_character_powers(rank=1, powers_list=["Regeneration"])
     assert result["valid"] is False
