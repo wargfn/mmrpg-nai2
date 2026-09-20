@@ -36,6 +36,18 @@ def test_validate_character_build_rejects_power_below_required_rank():
     assert any("requires rank" in message for message in result["errors"])
 
 
+def test_validate_character_build_handles_invalid_rank_required_in_input_power_dict():
+    result = validate_character_build(
+        name="Nightcrawler",
+        archetype="Way-Watcher",
+        rank=1,
+        abilities=ARCHETYPE_TEMPLATES["Way-Watcher"]["ranks"][1],
+        powers=[{"name": "Teleportation", "rank_required": None}],
+    )
+    assert result["valid"] is False
+    assert any("requires rank" in message for message in result["errors"])
+
+
 def test_validate_character_build_accepts_balanced_template_and_valid_powers():
     result = validate_character_build(
         name="Cyclops",

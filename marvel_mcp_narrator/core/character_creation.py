@@ -109,7 +109,11 @@ def validate_character_build(
     for power in powers or []:
         if isinstance(power, dict):
             power_name = str(power.get("name", "")).strip()
-            provided_rank_required = int(power.get("rank_required", 1))
+            raw_rank_required = power.get("rank_required", 1)
+            try:
+                provided_rank_required = int(raw_rank_required)
+            except (TypeError, ValueError):
+                provided_rank_required = 1
         else:
             power_name = str(power).strip()
             provided_rank_required = 1
