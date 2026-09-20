@@ -42,7 +42,7 @@ def build_open_webui_chat_endpoint(host: str) -> str:
     path = parsed.path.rstrip("/")
     if path.endswith("/chat/completions"):
         endpoint_path = path
-    elif path.endswith("/v1") or path.endswith("/api"):
+    elif path.endswith("/v1") or path.endswith("/api/v1") or path.endswith("/api"):
         endpoint_path = f"{path}/chat/completions"
     else:
         endpoint_path = f"{path}/api/chat/completions"
