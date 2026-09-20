@@ -38,7 +38,7 @@ def create_character(
     logic: int,
 ) -> dict:
     """Create a new character or load an existing one by name."""
-    character, created = character_roster.create_or_load(
+    character_sheet, created = character_roster.create_or_load(
         name=name,
         rank=rank,
         archetype=archetype,
@@ -51,7 +51,7 @@ def create_character(
     )
     return {
         "created": created,
-        "character": character.to_dict(),
+        "character": character_sheet,
     }
 
 

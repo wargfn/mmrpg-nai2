@@ -202,7 +202,7 @@ class CharacterRoster:
         vigilance: int,
         ego: int,
         logic: int,
-    ) -> tuple[Character, bool]:
+    ) -> tuple[dict, bool]:
         key = self._normalize(name)
         requested_values = {
             "archetype": archetype,
@@ -230,7 +230,7 @@ class CharacterRoster:
                     raise ValueError(
                         f"Character '{name}' already exists with conflicting attributes: {', '.join(mismatch_parts)}."
                     )
-                return self._copy_character(existing), False
+                return self._copy_character(existing).to_dict(), False
             created = Character(
                 name=name,
                 archetype=archetype,
@@ -243,7 +243,7 @@ class CharacterRoster:
                 logic=logic,
             )
             self._characters[key] = created
-            return self._copy_character(created), True
+            return self._copy_character(created).to_dict(), True
 
     def get_copy(self, name: str) -> Character:
         key = self._normalize(name)

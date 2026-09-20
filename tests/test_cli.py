@@ -383,6 +383,23 @@ class OpenWebUIRequestTests(unittest.TestCase):
             'http://localhost:11434/v1/chat/completions',
         )
 
+    @patch.dict('os.environ', {'NARRATOR_OPENAI_BASE_URL': 'http://localhost:11434/v1'}, clear=True)
+    @patch('marvel_mcp_narrator.interfaces.cli.httpx.post')
+    def test_openai_base_url_env_routes_to_v1_chat_completions(self, mock_post):
+        mock_post.return_value.json.return_value = {
+            'choices': [{'message': {'content': 'hello'}}],
+        }
+        config = load_cli_config()
+        request_open_webui_chat(
+            base_url=config['base_url'],
+            model='gemma2:9b',
+            messages=[{'role': 'user', 'content': 'hi'}],
+        )
+        self.assertEqual(
+            mock_post.call_args.args[0],
+            'http://localhost:11434/v1/chat/completions',
+        )
+
 
 class PackagingEntryPointTests(unittest.TestCase):
     def test_pyproject_defines_cli_entrypoint(self):
