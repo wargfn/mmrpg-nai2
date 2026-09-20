@@ -225,14 +225,19 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
 
     for power in powers_list or []:
         rank_required_from_input: int | None = None
+        rank_required_was_provided = False
         if isinstance(power, dict):
             power_name = str(power.get("name", "")).strip()
             if "rank_required" in power:
+                rank_required_was_provided = True
                 rank_required_from_input = _parse_rank_required(power.get("rank_required", 1))
         else:
             power_name = str(power).strip()
 
         if not power_name:
+            continue
+        if rank_required_was_provided and rank_required_from_input is None:
+            errors.append(f"Power '{power_name}' has an invalid rank requirement.")
             continue
         power_key = power_name.casefold()
         if power_key in power_index:

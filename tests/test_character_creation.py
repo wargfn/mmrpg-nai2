@@ -76,7 +76,7 @@ def test_validate_character_build_handles_invalid_rank_required_in_input_power_d
         powers=[{"name": "Teleportation", "rank_required": None}],
     )
     assert result["valid"] is False
-    assert any("requires rank" in message for message in result["errors"])
+    assert any("invalid rank requirement" in message for message in result["errors"])
 
 
 def test_validate_character_build_prefers_input_rank_required_when_provided():
