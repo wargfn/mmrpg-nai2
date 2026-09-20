@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from marvel_mcp_narrator.core.character_creation import (
+    ABILITY_FIELDS,
+    generate_character_from_template,
+    list_archetypes,
+    validate_character_build,
+)
 from marvel_mcp_narrator.core.character_state import character_roster
 from marvel_mcp_narrator.core.d616_engine import roll_d616 as roll_d616_core
 from marvel_mcp_narrator.core.rules_database import lookup_rule_reference
@@ -140,6 +146,55 @@ def calculate_attack_damage(
         is_fantastic=is_fantastic,
         bonus_multiplier=bonus_multiplier,
     )
+
+
+@mcp.tool()
+def create_character_assisted(
+    name: str,
+    archetype: str,
+    rank: int,
+    custom_abilities: dict | None = None,
+) -> dict:
+    """Create a character from templates with optional custom ability overrides."""
+    character = generate_character_from_template(name=name, archetype=archetype, rank=rank)
+    abilities = {ability: getattr(character, ability) for ability in ABILITY_FIELDS}
+    if custom_abilities:
+        for ability in ABILITY_FIELDS:
+            if ability in custom_abilities:
+                abilities[ability] = custom_abilities[ability]
+
+    validation = validate_character_build(
+        name=name,
+        archetype=archetype,
+        rank=rank,
+        abilities=abilities,
+        powers=[],
+    )
+    if not validation["valid"]:
+        raise ValueError("; ".join(validation["errors"]))
+
+    character_sheet, created = character_roster.create_or_load(
+        name=name,
+        archetype=archetype,
+        rank=rank,
+        melee=abilities["melee"],
+        agility=abilities["agility"],
+        resilience=abilities["resilience"],
+        vigilance=abilities["vigilance"],
+        ego=abilities["ego"],
+        logic=abilities["logic"],
+    )
+    return {
+        "created": created,
+        "character": character_sheet,
+        "validation": validation,
+    }
+
+
+@mcp.tool()
+def list_available_archetypes() -> list:
+    """List supported archetypes and playstyle summaries."""
+    return list_archetypes()
 
 
 if __name__ == "__main__":

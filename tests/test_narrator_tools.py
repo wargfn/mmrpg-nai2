@@ -94,6 +94,8 @@ class NarratorToolsTests(unittest.TestCase):
         self.assertTrue(callable(narrator_tools.get_character))
         self.assertTrue(callable(narrator_tools.apply_damage_to_character))
         self.assertTrue(callable(narrator_tools.calculate_attack))
+        self.assertTrue(callable(narrator_tools.create_character_assisted))
+        self.assertTrue(callable(narrator_tools.list_available_archetypes))
 
     def test_create_character_rejects_conflicting_definition(self):
         narrator_tools.create_character(
