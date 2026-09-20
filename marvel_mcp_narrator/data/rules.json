@@ -111,5 +111,222 @@
       "name": "Iron Will",
       "description": "Exceptional mental resilience against fear, coercion, and stress."
     }
+  ],
+  "power_sets": [
+    {
+      "name": "Basic Boosters",
+      "type": "basic_booster_chain",
+      "powers": [
+        {"name": "Accuracy 1", "rank_required": 1, "prerequisites": []},
+        {"name": "Accuracy 2", "rank_required": 2, "prerequisites": ["Accuracy 1"]},
+        {"name": "Accuracy 3", "rank_required": 3, "prerequisites": ["Accuracy 2"]},
+        {"name": "Accuracy 4", "rank_required": 4, "prerequisites": ["Accuracy 3"]},
+        {"name": "Brilliance 1", "rank_required": 1, "prerequisites": []},
+        {"name": "Brilliance 2", "rank_required": 2, "prerequisites": ["Brilliance 1"]},
+        {"name": "Brilliance 3", "rank_required": 3, "prerequisites": ["Brilliance 2"]},
+        {"name": "Brilliance 4", "rank_required": 4, "prerequisites": ["Brilliance 3"]},
+        {"name": "Discipline 1", "rank_required": 1, "prerequisites": []},
+        {"name": "Discipline 2", "rank_required": 2, "prerequisites": ["Discipline 1"]},
+        {"name": "Discipline 3", "rank_required": 3, "prerequisites": ["Discipline 2"]},
+        {"name": "Discipline 4", "rank_required": 4, "prerequisites": ["Discipline 3"]},
+        {"name": "Mighty 1", "rank_required": 1, "prerequisites": []},
+        {"name": "Mighty 2", "rank_required": 2, "prerequisites": ["Mighty 1"]},
+        {"name": "Mighty 3", "rank_required": 3, "prerequisites": ["Mighty 2"]},
+        {"name": "Mighty 4", "rank_required": 4, "prerequisites": ["Mighty 3"]},
+        {"name": "Sturdy 1", "rank_required": 1, "prerequisites": []},
+        {"name": "Sturdy 2", "rank_required": 2, "prerequisites": ["Sturdy 1"]},
+        {"name": "Sturdy 3", "rank_required": 3, "prerequisites": ["Sturdy 2"]},
+        {"name": "Sturdy 4", "rank_required": 4, "prerequisites": ["Sturdy 3"]},
+        {"name": "Uncanny 1", "rank_required": 1, "prerequisites": []},
+        {"name": "Uncanny 2", "rank_required": 2, "prerequisites": ["Uncanny 1"]},
+        {"name": "Uncanny 3", "rank_required": 3, "prerequisites": ["Uncanny 2"]},
+        {"name": "Uncanny 4", "rank_required": 4, "prerequisites": ["Uncanny 3"]}
+      ]
+    },
+    {
+      "name": "Basic Combat and Utility",
+      "type": "basic_misc",
+      "powers": [
+        {"name": "Anger", "rank_required": 4, "prerequisites": ["Mighty 3"]},
+        {"name": "Brawling", "rank_required": 1, "prerequisites": []},
+        {"name": "Evasion", "rank_required": 1, "prerequisites": []},
+        {"name": "Integrity", "rank_required": 1, "prerequisites": []},
+        {"name": "Wisecracker", "rank_required": 1, "prerequisites": []},
+        {"name": "Wisdom", "rank_required": 1, "prerequisites": []},
+        {"name": "Combat Trickery", "rank_required": 2, "prerequisites": []},
+        {"name": "Slow-Motion Dodge", "rank_required": 2, "prerequisites": []},
+        {"name": "Reinforced Skeleton", "rank_required": 1, "prerequisites": ["Sturdy 1"]},
+        {"name": "Healing Factor", "rank_required": 1, "prerequisites": []},
+        {"name": "Inspiration", "rank_required": 1, "prerequisites": []},
+        {"name": "Additional Limbs", "rank_required": 1, "prerequisites": []},
+        {"name": "Flight 1", "rank_required": 1, "prerequisites": []},
+        {"name": "Flight 2", "rank_required": 2, "prerequisites": ["Flight 1"]},
+        {"name": "Group Flight", "rank_required": 2, "prerequisites": ["Flight 1"]},
+        {"name": "Heightened Senses 1", "rank_required": 1, "prerequisites": []},
+        {"name": "Heightened Senses 2", "rank_required": 2, "prerequisites": ["Heightened Senses 1"]},
+        {"name": "Disguise", "rank_required": 1, "prerequisites": []},
+        {"name": "Shape-Shift", "rank_required": 3, "prerequisites": ["Disguise"]}
+      ]
+    },
+    {
+      "name": "Elemental Control",
+      "type": "core",
+      "independent_by_element": true,
+      "elements": ["Fire", "Ice", "Energy", "Electricity", "Air", "Earth", "Water"],
+      "powers": [
+        {"name": "Elemental Burst", "rank_required": 1, "prerequisites": []},
+        {"name": "Elemental Blast", "rank_required": 2, "prerequisites": ["Elemental Burst"]},
+        {"name": "Elemental Grab", "rank_required": 2, "prerequisites": ["Elemental Burst"]},
+        {"name": "Elemental Push", "rank_required": 3, "prerequisites": ["Elemental Grab"]},
+        {"name": "Supernova", "rank_required": 4, "prerequisites": ["Elemental Blast"]},
+        {"name": "Elemental Barrier", "rank_required": 1, "prerequisites": ["Elemental Burst"]},
+        {"name": "Elemental Protection 1", "rank_required": 2, "prerequisites": ["Elemental Barrier"]},
+        {"name": "Elemental Protection 2", "rank_required": 3, "prerequisites": ["Elemental Protection 1"]},
+        {"name": "Elemental Protection 3", "rank_required": 4, "prerequisites": ["Elemental Protection 2"]},
+        {"name": "Elemental Protection 4", "rank_required": 5, "prerequisites": ["Elemental Protection 3"]}
+      ]
+    },
+    {
+      "name": "Martial Arts",
+      "type": "core",
+      "powers": [
+        {"name": "Attack Stance", "rank_required": 1, "prerequisites": []},
+        {"name": "Defense Stance", "rank_required": 1, "prerequisites": []},
+        {"name": "Fast Strikes", "rank_required": 1, "prerequisites": []},
+        {"name": "Banging Heads", "rank_required": 1, "prerequisites": []},
+        {"name": "Counterstrike Technique", "rank_required": 2, "prerequisites": ["Attack Stance", "Defense Stance"]},
+        {"name": "Untouchable Position", "rank_required": 3, "prerequisites": ["Counterstrike Technique"]},
+        {"name": "Chain Strikes", "rank_required": 2, "prerequisites": ["Fast Strikes"]},
+        {"name": "Focused Strike", "rank_required": 3, "prerequisites": ["Chain Strikes"]}
+      ]
+    },
+    {
+      "name": "Melee Weapons",
+      "type": "core",
+      "powers": [
+        {"name": "Fast Attacks", "rank_required": 1, "prerequisites": []},
+        {"name": "Whirling Frenzy", "rank_required": 2, "prerequisites": ["Fast Attacks"]},
+        {"name": "Furious Attacks", "rank_required": 3, "prerequisites": ["Whirling Frenzy"]},
+        {"name": "Vicious Attack", "rank_required": 1, "prerequisites": []},
+        {"name": "Exploit", "rank_required": 2, "prerequisites": ["Vicious Attack"]},
+        {"name": "Focused Fury", "rank_required": 3, "prerequisites": ["Exploit"]}
+      ]
+    },
+    {
+      "name": "Spider-Powers",
+      "type": "core",
+      "powers": [
+        {"name": "Spider-Dodge", "rank_required": 1, "prerequisites": []},
+        {"name": "Spider-Sense", "rank_required": 1, "prerequisites": []},
+        {"name": "Spider-Strike", "rank_required": 1, "prerequisites": []},
+        {"name": "Spider-Pheromones", "rank_required": 1, "prerequisites": []},
+        {"name": "Wallcrawling", "rank_required": 1, "prerequisites": []},
+        {"name": "Webcasting", "rank_required": 1, "prerequisites": []},
+        {"name": "Venom Bash", "rank_required": 1, "prerequisites": []},
+        {"name": "Webslinging", "rank_required": 1, "prerequisites": ["Webcasting"]},
+        {"name": "Webgliding", "rank_required": 2, "prerequisites": ["Webslinging"]},
+        {"name": "Stick Around", "rank_required": 2, "prerequisites": ["Wallcrawling"]},
+        {"name": "Repulse", "rank_required": 3, "prerequisites": ["Stick Around"]}
+      ]
+    },
+    {
+      "name": "Super-Speed",
+      "type": "core",
+      "powers": [
+        {"name": "Speed Run 1", "rank_required": 1, "prerequisites": []},
+        {"name": "Speed Run 2", "rank_required": 2, "prerequisites": ["Speed Run 1"]},
+        {"name": "Speed Run 3", "rank_required": 3, "prerequisites": ["Speed Run 2"]},
+        {"name": "Fast Run", "rank_required": 1, "prerequisites": ["Speed Run 1"]},
+        {"name": "Speed Dodge", "rank_required": 1, "prerequisites": ["Speed Run 1"]},
+        {"name": "Catch Projectiles", "rank_required": 2, "prerequisites": ["Speed Run 2"]},
+        {"name": "Speed Strike", "rank_required": 2, "prerequisites": ["Speed Run 2"]},
+        {"name": "Molecular Destabilization", "rank_required": 4, "prerequisites": ["Speed Run 3"]}
+      ]
+    },
+    {
+      "name": "Super-Strength",
+      "type": "core",
+      "powers": [
+        {"name": "Clobber", "rank_required": 1, "prerequisites": []},
+        {"name": "Immovable", "rank_required": 1, "prerequisites": []},
+        {"name": "Smash", "rank_required": 1, "prerequisites": []},
+        {"name": "Ground Shake", "rank_required": 3, "prerequisites": ["Smash"]},
+        {"name": "Thunderclap", "rank_required": 3, "prerequisites": ["Smash"]}
+      ]
+    },
+    {
+      "name": "Telekinesis",
+      "type": "core",
+      "powers": [
+        {"name": "Telekinetic Attack", "rank_required": 1, "prerequisites": []},
+        {"name": "Levitation", "rank_required": 1, "prerequisites": []},
+        {"name": "Telekinetic Grab", "rank_required": 2, "prerequisites": ["Telekinetic Attack"]},
+        {"name": "Telekinetic Crush", "rank_required": 3, "prerequisites": ["Telekinetic Grab"]}
+      ]
+    },
+    {
+      "name": "Telepathy",
+      "type": "core",
+      "powers": [
+        {"name": "Telepathic Link", "rank_required": 1, "prerequisites": []},
+        {"name": "Cloak", "rank_required": 1, "prerequisites": []},
+        {"name": "Sense Emotion", "rank_required": 1, "prerequisites": []},
+        {"name": "Mind Reading", "rank_required": 2, "prerequisites": ["Telepathic Link"]},
+        {"name": "Edit Memory", "rank_required": 3, "prerequisites": ["Mind Reading"]}
+      ]
+    },
+    {
+      "name": "Teleportation",
+      "type": "core",
+      "powers": [
+        {"name": "Blink", "rank_required": 1, "prerequisites": []},
+        {"name": "Teleport 1", "rank_required": 2, "prerequisites": ["Blink"]},
+        {"name": "Teleport Other", "rank_required": 3, "prerequisites": ["Teleport 1"]},
+        {"name": "Teleport Together", "rank_required": 3, "prerequisites": ["Teleport 1"]},
+        {"name": "Teleportal", "rank_required": 4, "prerequisites": ["Teleport Other", "Teleport Together"]},
+        {"name": "Warp Portal", "rank_required": 4, "prerequisites": ["Teleport Other", "Teleport Together"]}
+      ]
+    },
+    {
+      "name": "Healing",
+      "type": "expansion",
+      "powers": [
+        {"name": "Soothing Touch", "rank_required": 1, "prerequisites": []},
+        {"name": "Healing Hands", "rank_required": 2, "prerequisites": ["Soothing Touch"]},
+        {"name": "Cure-All", "rank_required": 3, "prerequisites": ["Healing Hands"]},
+        {"name": "Restore", "rank_required": 4, "prerequisites": ["Cure-All"]},
+        {"name": "Resurrect", "rank_required": 5, "prerequisites": ["Restore"]}
+      ]
+    },
+    {
+      "name": "Luck",
+      "type": "expansion",
+      "powers": [
+        {"name": "Lucky You", "rank_required": 1, "prerequisites": []},
+        {"name": "Lucky Me", "rank_required": 2, "prerequisites": ["Lucky You"]},
+        {"name": "Lucky Us", "rank_required": 3, "prerequisites": ["Lucky Me"]},
+        {"name": "Charmed Life", "rank_required": 4, "prerequisites": ["Lucky Us"]},
+        {"name": "Jinx You", "rank_required": 1, "prerequisites": []},
+        {"name": "Evil Eye", "rank_required": 2, "prerequisites": ["Jinx You"]},
+        {"name": "Real Jinx", "rank_required": 3, "prerequisites": ["Evil Eye"]}
+      ]
+    },
+    {
+      "name": "Sixth Sense",
+      "type": "expansion",
+      "powers": [
+        {"name": "Danger Sense", "rank_required": 1, "prerequisites": []},
+        {"name": "Detect Supers", "rank_required": 2, "prerequisites": ["Danger Sense"]},
+        {"name": "Cosmic Awareness", "rank_required": 4, "prerequisites": ["Detect Supers"]},
+        {"name": "Intuition", "rank_required": 1, "prerequisites": []},
+        {"name": "Precognition 1", "rank_required": 2, "prerequisites": ["Intuition"]}
+      ]
+    },
+    {
+      "name": "Magic",
+      "type": "meta",
+      "independent_by_subcategory": true,
+      "subcategories": ["Arcane", "Sorcery", "Divine", "Chaos"]
+    }
   ]
 }

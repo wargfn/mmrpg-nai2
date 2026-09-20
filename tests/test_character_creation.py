@@ -8,6 +8,7 @@ from marvel_mcp_narrator.core.character_creation import (
     export_character_json,
     generate_character_from_template,
     load_character_json,
+    validate_power_selection,
     validate_character_powers,
     validate_character_build,
 )
@@ -92,6 +93,11 @@ def test_validate_character_build_prefers_input_rank_required_when_provided():
 
 def test_validate_character_build_reports_invalid_rules_rank_requirement(monkeypatch):
     monkeypatch.setattr(character_creation, "_POWER_REQUIREMENTS_CACHE", {"teleportation": None})
+    monkeypatch.setattr(
+        character_creation,
+        "_POWER_DETAILS_CACHE",
+        {"teleportation": {"name": "Teleportation", "rank_required": None, "prerequisites": []}},
+    )
     result = validate_character_build(
         name="Nightcrawler",
         archetype="Way-Watcher",
@@ -196,6 +202,38 @@ def test_validate_character_powers_rejects_unsupported_power_name():
     result = validate_character_powers(rank=3, powers_list=["MadeUpPower"])
     assert result["valid"] is False
     assert any("Unsupported power" in message for message in result["errors"])
+
+
+def test_validate_power_selection_requires_sequential_chain():
+    valid, reason = validate_power_selection(character_rank=3, owned_powers=["Mighty 1"], target_power="Mighty 3")
+    assert valid is False
+    assert "Mighty 2" in reason
+
+
+def test_validate_power_selection_allows_sequential_chain_when_prereq_owned():
+    valid, reason = validate_power_selection(character_rank=3, owned_powers=["Mighty 2"], target_power="Mighty 3")
+    assert valid is True
+    assert "valid" in reason
+
+
+def test_validate_power_selection_requires_branch_prereqs():
+    valid, reason = validate_power_selection(
+        character_rank=4,
+        owned_powers=["Teleport 1", "Teleport Other"],
+        target_power="Teleportal",
+    )
+    assert valid is False
+    assert "Teleport Together" in reason
+
+
+def test_validate_power_selection_requires_rank_threshold():
+    valid, reason = validate_power_selection(
+        character_rank=3,
+        owned_powers=["Teleport Other", "Teleport Together"],
+        target_power="Teleportal",
+    )
+    assert valid is False
+    assert "requires rank 4" in reason
 
 
 def test_validate_character_build_validates_power_sets_when_powers_empty():

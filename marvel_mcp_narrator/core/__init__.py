@@ -12,6 +12,7 @@ from .character_creation import (
     list_origins,
     list_traits,
     validate_character_build,
+    validate_power_selection,
     validate_character_powers,
 )
 from .rules_database import (
@@ -30,6 +31,7 @@ __all__ = [
     "character_roster",
     "ARCHETYPE_TEMPLATES",
     "validate_character_build",
+    "validate_power_selection",
     "validate_character_powers",
     "generate_character_from_template",
     "export_character_json",

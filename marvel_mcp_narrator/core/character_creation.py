@@ -56,10 +56,63 @@ def _parse_rank_required(value: Any) -> int | None:
 
 
 _POWER_REQUIREMENTS_CACHE: dict[str, int | None] | None = None
+_POWER_DETAILS_CACHE: dict[str, dict[str, Any]] | None = None
 _POWER_REQUIREMENTS_LOCK = Lock()
 _ORIGINS_CACHE: dict[str, str] | None = None
 _OCCUPATIONS_CACHE: dict[str, str] | None = None
 _TRAITS_CACHE: dict[str, str] | None = None
+
+
+def _get_power_details() -> dict[str, dict[str, Any]]:
+    global _POWER_DETAILS_CACHE
+    if _POWER_DETAILS_CACHE is None:
+        with _POWER_REQUIREMENTS_LOCK:
+            if _POWER_DETAILS_CACHE is None:
+                rules = load_rules_database()
+                details: dict[str, dict[str, Any]] = {}
+
+                for power in rules.get("powers", []):
+                    name = str(power.get("name", "")).strip()
+                    if not name:
+                        continue
+                    details[name.casefold()] = {
+                        "name": name,
+                        "rank_required": _parse_rank_required(power.get("rank_required", 1)),
+                        "prerequisites": [],
+                    }
+
+                for power_set in rules.get("power_sets", []):
+                    for power in power_set.get("powers", []):
+                        name = str(power.get("name", "")).strip()
+                        if not name:
+                            continue
+                        key = name.casefold()
+                        prerequisites = [
+                            str(prerequisite).strip()
+                            for prerequisite in power.get("prerequisites", [])
+                            if str(prerequisite).strip()
+                        ]
+                        rank_required = _parse_rank_required(power.get("rank_required", 1))
+                        if key in details:
+                            existing = details[key]
+                            existing_rank = existing.get("rank_required")
+                            if rank_required is not None and (
+                                existing_rank is None or rank_required > existing_rank
+                            ):
+                                existing["rank_required"] = rank_required
+                            existing_prereqs = [str(item).strip() for item in existing.get("prerequisites", [])]
+                            merged_prereqs = list(dict.fromkeys(existing_prereqs + prerequisites))
+                            existing["prerequisites"] = merged_prereqs
+                            continue
+
+                        details[key] = {
+                            "name": name,
+                            "rank_required": rank_required,
+                            "prerequisites": prerequisites,
+                        }
+
+                _POWER_DETAILS_CACHE = details
+    return _POWER_DETAILS_CACHE
 
 
 def _get_power_requirements() -> dict[str, int | None]:
@@ -67,11 +120,8 @@ def _get_power_requirements() -> dict[str, int | None]:
     if _POWER_REQUIREMENTS_CACHE is None:
         with _POWER_REQUIREMENTS_LOCK:
             if _POWER_REQUIREMENTS_CACHE is None:
-                powers_data = load_rules_database().get("powers", [])
                 _POWER_REQUIREMENTS_CACHE = {
-                    str(power.get("name", "")).strip().casefold(): _parse_rank_required(power.get("rank_required", 1))
-                    for power in powers_data
-                    if str(power.get("name", "")).strip()
+                    name: payload.get("rank_required") for name, payload in _get_power_details().items()
                 }
     return _POWER_REQUIREMENTS_CACHE
 
@@ -132,11 +182,55 @@ def list_traits() -> list[str]:
     return sorted(_get_traits_lookup().values())
 
 
+def validate_power_selection(character_rank: int, owned_powers: list[str], target_power: str) -> tuple[bool, str]:
+    normalized_target = str(target_power).strip()
+    if not normalized_target:
+        return False, "Power name is required."
+
+    power_details = _get_power_details()
+    target_data = power_details.get(normalized_target.casefold())
+    if target_data is None:
+        return False, f"Unsupported power '{normalized_target}'."
+
+    required_rank = target_data.get("rank_required")
+    if required_rank is None:
+        return False, f"Power '{target_data['name']}' has an invalid rank requirement."
+    if character_rank < required_rank:
+        return (
+            False,
+            f"Power '{target_data['name']}' requires rank {required_rank}, but rank is {character_rank}.",
+        )
+
+    owned_lookup = {str(power).strip().casefold() for power in owned_powers if str(power).strip()}
+    missing_prerequisites = [
+        prerequisite
+        for prerequisite in target_data.get("prerequisites", [])
+        if str(prerequisite).strip().casefold() not in owned_lookup
+    ]
+    if missing_prerequisites:
+        return (
+            False,
+            f"Power '{target_data['name']}' requires: {', '.join(missing_prerequisites)}.",
+        )
+
+    return True, f"Power '{target_data['name']}' is valid."
+
+
 def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
     power_issues: list[dict[str, Any]] = []
     power_index = _get_power_requirements()
+    normalized_names: list[str] = []
+
+    for power in powers_list or []:
+        if isinstance(power, dict):
+            power_name = str(power.get("name", "")).strip()
+        else:
+            power_name = str(power).strip()
+        if power_name:
+            normalized_names.append(power_name)
+    normalized_names = list(dict.fromkeys(normalized_names))
 
     for power in powers_list or []:
         rank_required_from_input: int | None = None
@@ -151,6 +245,22 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
             continue
 
         power_key = power_name.casefold()
+        if power_key in power_index:
+            remaining_owned = [entry for entry in normalized_names if entry.casefold() != power_name.casefold()]
+            valid_selection, selection_message = validate_power_selection(
+                character_rank=rank,
+                owned_powers=remaining_owned,
+                target_power=power_name,
+            )
+            if not valid_selection:
+                errors.append(selection_message)
+                required_rank = power_index.get(power_key)
+                if isinstance(required_rank, int) and rank < required_rank:
+                    power_issues.append(
+                        {"power": power_name, "rank_required": required_rank, "rank": rank, "valid": False}
+                    )
+                continue
+
         if power_key not in power_index:
             if rank_required_from_input is None:
                 errors.append(f"Unsupported power '{power_name}'.")
