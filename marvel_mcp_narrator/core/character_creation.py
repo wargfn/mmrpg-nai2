@@ -221,7 +221,7 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
     warnings: list[str] = []
     power_issues: list[dict[str, Any]] = []
     power_index = _get_power_requirements()
-    normalized_names: list[str] = []
+    selected_power_names: dict[str, str] = {}
 
     for power in powers_list or []:
         if isinstance(power, dict):
@@ -229,8 +229,7 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
         else:
             power_name = str(power).strip()
         if power_name:
-            normalized_names.append(power_name)
-    normalized_names = list(dict.fromkeys(normalized_names))
+            selected_power_names.setdefault(power_name.casefold(), power_name)
 
     for power in powers_list or []:
         rank_required_from_input: int | None = None
@@ -246,7 +245,7 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
 
         power_key = power_name.casefold()
         if power_key in power_index:
-            remaining_owned = [entry for entry in normalized_names if entry.casefold() != power_name.casefold()]
+            remaining_owned = [name for key, name in selected_power_names.items() if key != power_key]
             valid_selection, selection_message = validate_power_selection(
                 character_rank=rank,
                 owned_powers=remaining_owned,
