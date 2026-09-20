@@ -359,7 +359,18 @@ def validate_character_build(
     for source in [powers or [], normalized_power_sets]:
         for entry in source:
             if isinstance(entry, dict):
-                key = json.dumps(entry, ensure_ascii=False, sort_keys=True)
+                normalized_dict: dict[str, Any] = {}
+                for raw_key, raw_value in entry.items():
+                    normalized_key = str(raw_key).strip().casefold()
+                    if isinstance(raw_value, str):
+                        normalized_dict[normalized_key] = raw_value.strip().casefold()
+                    elif isinstance(raw_value, list):
+                        normalized_dict[normalized_key] = [
+                            str(item).strip().casefold() if isinstance(item, str) else item for item in raw_value
+                        ]
+                    else:
+                        normalized_dict[normalized_key] = raw_value
+                key = json.dumps(normalized_dict, ensure_ascii=False, sort_keys=True)
             else:
                 key = str(entry).strip().casefold()
             if not key:
