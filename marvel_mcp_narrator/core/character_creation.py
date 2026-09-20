@@ -55,6 +55,20 @@ def _parse_rank_required(value: Any) -> int | None:
         return None
 
 
+def _normalize_power_dict_keys(entry: dict[str, Any]) -> dict[str, Any]:
+    return {str(key).strip().casefold(): value for key, value in entry.items()}
+
+
+def _parse_power_entry(entry: Any) -> tuple[str, int | None, bool]:
+    if isinstance(entry, dict):
+        normalized = _normalize_power_dict_keys(entry)
+        power_name = str(normalized.get("name", "")).strip()
+        rank_key_present = "rank_required" in normalized
+        rank_required = _parse_rank_required(normalized.get("rank_required", 1)) if rank_key_present else None
+        return power_name, rank_required, rank_key_present
+    return str(entry).strip(), None, False
+
+
 _POWER_REQUIREMENTS_CACHE: dict[str, int | None] | None = None
 _POWER_DETAILS_CACHE: dict[str, dict[str, Any]] | None = None
 _POWER_REQUIREMENTS_LOCK = RLock()
@@ -224,15 +238,7 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
     owned_so_far: list[str] = []
 
     for power in powers_list or []:
-        rank_required_from_input: int | None = None
-        rank_required_was_provided = False
-        if isinstance(power, dict):
-            power_name = str(power.get("name", "")).strip()
-            if "rank_required" in power:
-                rank_required_was_provided = True
-                rank_required_from_input = _parse_rank_required(power.get("rank_required", 1))
-        else:
-            power_name = str(power).strip()
+        power_name, rank_required_from_input, rank_required_was_provided = _parse_power_entry(power)
 
         if not power_name:
             continue
@@ -363,19 +369,9 @@ def validate_character_build(
     seen_power_entries: set[str] = set()
     for source in [powers or [], normalized_power_sets]:
         for entry in source:
-            if isinstance(entry, dict):
-                normalized_dict: dict[str, Any] = {}
-                for raw_key, raw_value in entry.items():
-                    normalized_key = str(raw_key).strip().casefold()
-                    if isinstance(raw_value, str):
-                        normalized_dict[normalized_key] = raw_value.strip().casefold()
-                    elif isinstance(raw_value, list):
-                        normalized_dict[normalized_key] = [
-                            str(item).strip().casefold() if isinstance(item, str) else item for item in raw_value
-                        ]
-                    else:
-                        normalized_dict[normalized_key] = raw_value
-                key = json.dumps(normalized_dict, ensure_ascii=False, sort_keys=True)
+            power_name, _, _ = _parse_power_entry(entry)
+            if power_name:
+                key = power_name.casefold()
             else:
                 key = str(entry).strip().casefold()
             if not key:
