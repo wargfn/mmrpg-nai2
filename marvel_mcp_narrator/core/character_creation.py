@@ -429,6 +429,9 @@ def validate_character_build(
                 key = str(entry).strip().casefold()
             if not key:
                 continue
+            if rank_required_was_provided and rank_required is None:
+                errors.append(f"Power '{power_name}' has an invalid rank requirement.")
+                continue
             if rank_required_was_provided and rank_required is not None:
                 existing_rank = explicit_rank_requirements.get(key)
                 if existing_rank is not None and existing_rank != rank_required:

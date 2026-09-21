@@ -261,7 +261,28 @@ class CharacterRoster:
 
     @staticmethod
     def _copy_character(character: Character) -> Character:
-        return Character(**asdict(character))
+        return Character(
+            name=character.name,
+            archetype=character.archetype,
+            rank=character.rank,
+            melee=character.melee,
+            agility=character.agility,
+            resilience=character.resilience,
+            vigilance=character.vigilance,
+            ego=character.ego,
+            logic=character.logic,
+            max_health=character.max_health,
+            current_health=character.current_health,
+            max_focus=character.max_focus,
+            current_focus=character.current_focus,
+            karma=character.karma,
+            conditions=list(character.conditions),
+            origin=character.origin,
+            occupation=character.occupation,
+            traits=list(character.traits),
+            tags=list(character.tags),
+            power_sets=[dict(item) if isinstance(item, dict) else item for item in character.power_sets],
+        )
 
     @staticmethod
     def _comparable_field_value(field_name: str, value: object) -> object:

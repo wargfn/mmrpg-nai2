@@ -98,6 +98,19 @@ def test_validate_character_build_handles_invalid_rank_required_in_input_power_d
     assert any("invalid rank requirement" in message for message in result["errors"])
 
 
+def test_validate_character_build_reports_invalid_rank_required_from_power_sets_entry():
+    result = validate_character_build(
+        name="Nightcrawler",
+        archetype="Way-Watcher",
+        rank=2,
+        abilities=ARCHETYPE_TEMPLATES["Way-Watcher"]["ranks"][2],
+        powers=["Teleportation"],
+        power_sets=[{"name": "Teleportation", "rank_required": None}],
+    )
+    assert result["valid"] is False
+    assert any("invalid rank requirement" in message for message in result["errors"])
+
+
 def test_validate_character_build_prefers_input_rank_required_when_provided():
     result = validate_character_build(
         name="Cyclops",
