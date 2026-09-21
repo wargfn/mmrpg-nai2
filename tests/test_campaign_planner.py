@@ -76,6 +76,19 @@ def test_conclude_session_generates_recap_highlights_and_logs_events():
     assert any("Hydra strike team" in memory["content"] for memory in memories)
 
 
+def test_conclude_session_rejects_out_of_order_progression():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Temporal Fracture",
+        villain="Kang",
+        hero_team=["Wasp", "Iron Man"],
+        desired_session_count=2,
+    )
+
+    with pytest.raises(ValueError, match="session 1 is active"):
+        planner.conclude_session(2, "The heroes leaped ahead in the timeline.")
+
+
 def test_wrap_up_current_session_tool_advances_campaign():
     narrator_tools.create_campaign_plan("Mystic Crisis", "Loki", 2)
 
@@ -93,6 +106,19 @@ def test_create_campaign_plan_tool_returns_summary():
     summary = narrator_tools.create_campaign_plan("Gamma Panic", "Leader", 2)
 
     assert "Created 2-session campaign against Leader" in summary
+
+
+def test_create_campaign_plan_defaults_blank_hero_team_entries():
+    planner = campaign_planner.CampaignPlanner()
+
+    plan = planner.create_campaign_plan(
+        theme="Shadow Scheme",
+        villain="Mister Negative",
+        hero_team=["   "],
+        desired_session_count=1,
+    )
+
+    assert plan["hero_team"] == ["Marvel heroes"]
 
 
 def test_get_next_session_briefing_requires_active_campaign():

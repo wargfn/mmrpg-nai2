@@ -680,6 +680,11 @@ class CampaignDatabase:
         context = self.get_current_session_context()
         if context is None:
             raise ValueError("No active campaign plan is available.")
+        if session_number != int(context["active_session_number"]):
+            raise ValueError(
+                f"Session {session_number} cannot be concluded while session "
+                f"{context['active_session_number']} is active."
+            )
         plan = self.get_active_campaign_plan()
         assert plan is not None
         session = next(

@@ -32,6 +32,8 @@ class CampaignPlanner:
             raise ValueError("Campaign session count must be at least 1.")
 
         resolved_hero_team = [hero.strip() for hero in (hero_team or ["Marvel heroes"]) if hero.strip()]
+        if not resolved_hero_team:
+            resolved_hero_team = ["Marvel heroes"]
         sessions = self._build_sessions(
             theme=cleaned_theme,
             villain=cleaned_villain,
