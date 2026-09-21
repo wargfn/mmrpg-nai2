@@ -14,6 +14,7 @@ from urllib.parse import urlparse, urlunparse
 
 import httpx
 
+from marvel_mcp_narrator.core.character_creation import ABILITY_FIELDS
 from marvel_mcp_narrator.core.character_state import character_roster
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, resolve_d616_roll, roll_d616
 from marvel_mcp_narrator.core.memory.campaign_db import (
@@ -478,10 +479,15 @@ def _parse_attack_command(stripped: str, *, command_name: str) -> tuple[str, str
             raise ValueError(f"Usage: {command_name} <attacker> | <ability> | <target> [| manual d616 roll]")
         attacker_name, ability, target_name = fields
     else:
-        parts = remainder.split(maxsplit=2)
-        if len(parts) != 3:
+        parts = remainder.split()
+        ability_index = next((index for index, token in enumerate(parts) if token.casefold() in ABILITY_FIELDS), None)
+        if ability_index is None:
             raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
-        attacker_name, ability, target_name = parts
+        attacker_name = " ".join(parts[:ability_index]).strip()
+        ability = parts[ability_index]
+        target_name = " ".join(parts[ability_index + 1 :]).strip()
+        if not attacker_name or not target_name:
+            raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
     return attacker_name.strip(), ability.strip(), target_name.strip(), manual_roll
 
 

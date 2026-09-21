@@ -29,7 +29,12 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
 - Run `marvel-narrator-cli --help` to see CLI flags and interactive command help.
 - During a session:
   - `/help` shows the available commands
-  - `/roll [--edge|--trouble] [--tn N]` runs a deterministic roll
-  - `/rule <keyword>` searches the local rulebook
+  - `/roll [edges] [troubles]` or `/roll [--edge|--trouble] [--tn N]` runs a deterministic d616 roll
+  - `/rules <keyword>` or `/rule <keyword>` searches the local rulebook
+  - `/attack <attacker> <ability> <target> [manual d616 roll]` resolves a player attack and can ingest manual reports such as `[4, 5, 1 (Marvel)]`
+  - `/npc-attack <attacker> <ability> <target>` automatically resolves an NPC or enemy action
+  - `/combat` shows tracked combatant health/focus state
+  - `/memories` prints stored campaign memory entries
+  - A plain manual d616 report such as `[4, 5, 1 (Marvel)]` is normalized and added to the session history without calling the model
   - `exit`, `quit`, `/exit`, or `/quit` gracefully shut down the narrator
 - Pressing `Ctrl+C` or `Ctrl+D` also exits the CLI cleanly.

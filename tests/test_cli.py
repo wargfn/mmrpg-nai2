@@ -108,6 +108,26 @@ class CLIToolInjectionTests(unittest.TestCase):
         )
         self.assertIn('Damage: 4 health', payload)
 
+    @patch('marvel_mcp_narrator.interfaces.cli.resolve_player_attack', return_value={
+        "attacker": {"name": "Captain America", "side": "player"},
+        "target": {"name": "Red Skull", "side": "enemy", "current_health": 71, "max_health": 75, "current_focus": 50, "max_focus": 50},
+        "ability": "melee",
+        "target_number": 13,
+        "target_resource": "health",
+        "roll": {"dice_values": [6, 1, 6], "total_score": 22, "is_fantastic": True, "success": True},
+        "damage": {"total_damage": 4},
+    })
+    def test_router_attack_command_supports_multi_word_names(self, mock_attack):
+        name, _payload = _route_intent_command('/attack Captain America melee Red Skull')
+        self.assertEqual(name, 'resolve_player_attack')
+        mock_attack.assert_called_once_with(
+            attacker_name='Captain America',
+            target_name='Red Skull',
+            ability='melee',
+            dice_values=None,
+            marvel_index=1,
+        )
+
     @patch('marvel_mcp_narrator.interfaces.cli.get_combat_state', return_value={
         "combatants": [
             {"name": "Hydra", "side": "enemy", "current_health": 30, "max_health": 50, "current_focus": 20, "max_focus": 20}
