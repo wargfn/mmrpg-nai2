@@ -15,7 +15,14 @@ SEARCH_RESULT_LIMIT = 10
 
 def _default_database_path() -> Path:
     """Return the default persistent campaign database path."""
-    return Path(__file__).resolve().parents[3] / "data" / "campaign.db"
+    return Path(__file__).resolve().parent.parent.parent.parent / "data" / "campaign.db"
+
+
+def _configure_connection(connection: sqlite3.Connection) -> sqlite3.Connection:
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("PRAGMA busy_timeout = 5000")
+    return connection
 
 
 CAMPAIGN_DB_PATH = _default_database_path()
@@ -42,8 +49,7 @@ class CampaignDatabase:
                 return self.path
 
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with sqlite3.connect(self.path) as connection:
-                connection.row_factory = sqlite3.Row
+            with _configure_connection(sqlite3.connect(self.path, check_same_thread=False)) as connection:
                 connection.execute(
                     """
                     CREATE TABLE IF NOT EXISTS memories (
@@ -132,9 +138,7 @@ class CampaignDatabase:
 
     def _connect(self) -> sqlite3.Connection:
         self.initialize()
-        connection = sqlite3.connect(self.path, check_same_thread=False)
-        connection.row_factory = sqlite3.Row
-        return connection
+        return _configure_connection(sqlite3.connect(self.path, check_same_thread=False))
 
     def _migrate_legacy_tables(self, connection: sqlite3.Connection) -> None:
         tables = {

@@ -528,7 +528,7 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
     if not stripped:
         return None
 
-    manual_roll = _parse_manual_roll_text(stripped) if stripped.startswith("[") else None
+    manual_roll = _parse_manual_roll_text(stripped) if MANUAL_D616_ROLL_PATTERN.fullmatch(stripped) else None
     if manual_roll is not None:
         dice_values, marvel_index = manual_roll
         return "manual_d616_report", _format_router_roll_result(

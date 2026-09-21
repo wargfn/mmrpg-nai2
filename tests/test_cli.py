@@ -87,6 +87,9 @@ class CLIToolInjectionTests(unittest.TestCase):
         mock_manual_roll.assert_called_once_with(dice_values=[4, 5, 1], marvel_index=2)
         self.assertIn('Fantastic: True', payload)
 
+    def test_router_does_not_treat_roll_plus_narration_as_standalone_manual_report(self):
+        self.assertIsNone(_route_intent_command('[4, 5, 1 (Marvel)] Spider-Man lunges forward'))
+
     @patch('marvel_mcp_narrator.interfaces.cli.resolve_player_attack', return_value={
         "attacker": {"name": "Spider-Man", "side": "player"},
         "target": {"name": "Hydra", "side": "enemy", "current_health": 71, "max_health": 75, "current_focus": 50, "max_focus": 50},
