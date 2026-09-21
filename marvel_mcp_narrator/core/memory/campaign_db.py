@@ -623,44 +623,10 @@ class CampaignDatabase:
 
     def get_active_campaign_plan(self) -> dict[str, Any] | None:
         """Return the current active campaign and all of its sessions."""
-        with self._connect() as connection:
-            active_campaign_id = self._get_state(connection, "active_campaign_id")
-            active_session_value = self._get_state(connection, "active_session_number")
-            if active_campaign_id is None or active_session_value is None:
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
-            try:
-                campaign_id = int(active_campaign_id)
-                active_session_number = int(active_session_value)
-            except ValueError:
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
-            if active_session_number < 1:
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
-        plan = self.get_campaign_plan(campaign_id)
-        if plan is not None:
-            active_session = next(
-                (
-                    session
-                    for session in plan["sessions"]
-                    if session["session_number"] == active_session_number
-                ),
-                None,
-            )
-            if active_session is not None and active_session.get("status") != "completed":
-                return plan
-        with self._connect() as connection:
-            self._clear_state(connection, "active_campaign_id")
-            self._clear_state(connection, "active_session_number")
-            connection.commit()
-        return None
+        context = self.get_current_session_context()
+        if context is None:
+            return None
+        return self.get_campaign_plan(int(context["campaign_id"]))
 
     def get_campaign_plan(self, campaign_id: int) -> dict[str, Any] | None:
         """Return a campaign plan and all of its sessions by id."""
