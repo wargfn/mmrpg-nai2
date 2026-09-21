@@ -9,9 +9,14 @@ from tempfile import gettempdir
 from fastmcp import FastMCP
 
 from marvel_mcp_narrator.core.memory.campaign_db import (
+    get_entity,
     get_npc,
+    load_memory,
+    save_entity,
+    save_memory,
     log_event,
     save_npc,
+    search_entities,
     search_memory,
 )
 from marvel_mcp_narrator.core.character_creation import (
@@ -312,6 +317,72 @@ def remember_npc(name: str, affiliation: str = "", description: str = "", notes:
         "message": message,
         "npc": get_npc(name),
     }
+
+
+@mcp.tool()
+def save_campaign_memory(key: str, content: str) -> str:
+    """Persist a named campaign memory entry."""
+    save_memory(key=key, content=content)
+    return f"Saved campaign memory '{key.strip()}'."
+
+
+@mcp.tool()
+def load_campaign_memory(key: str) -> str:
+    """Load a named campaign memory entry."""
+    content = load_memory(key)
+    if content is None:
+        return f"No campaign memory found for '{key}'."
+    return content
+
+
+@mcp.tool()
+def remember_entity(
+    name: str,
+    category: str,
+    description: str,
+    disposition: str = "Neutral",
+    location: str = "Unknown",
+    notes: str = "",
+) -> str:
+    """Persist a named campaign entity."""
+    save_entity(
+        name=name,
+        category=category,
+        description=description,
+        disposition=disposition,
+        location=location,
+        notes=notes,
+    )
+    return f"Saved {category.strip() or 'entity'} '{name.strip()}'."
+
+
+@mcp.tool()
+def recall_entity(name_or_query: str) -> str:
+    """Recall a single entity or search across tracked entities."""
+    entity = get_entity(name_or_query)
+    if entity:
+        return "\n".join(
+            [
+                f"Name: {entity['name']}",
+                f"Category: {entity.get('category') or 'Unknown'}",
+                f"Description: {entity.get('description') or 'Unknown'}",
+                f"Disposition: {entity.get('disposition') or 'Neutral'}",
+                f"Location: {entity.get('location') or 'Unknown'}",
+                f"Notes: {entity.get('notes') or 'None'}",
+            ]
+        )
+
+    matches = search_entities(name_or_query)
+    if not matches:
+        return f"No entity found for '{name_or_query}'."
+
+    lines = [f"Entity matches for '{name_or_query}':"]
+    for match in matches:
+        lines.append(
+            f"- [{match['category']}] {match['name']} ({match['location']}): "
+            f"{match['description']}"
+        )
+    return "\n".join(lines)
 
 
 @mcp.tool()

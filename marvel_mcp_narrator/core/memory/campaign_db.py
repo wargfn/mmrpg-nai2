@@ -1,4 +1,4 @@
-"""SQLite-backed persistent campaign memory helpers."""
+"""SQLite-backed persistent campaign memory and entity tracking."""
 
 from __future__ import annotations
 
@@ -9,331 +9,95 @@ from pathlib import Path
 from typing import Any
 
 
+SEARCH_RESULT_LIMIT = 10
+
+
 def _default_database_path() -> Path:
     """Return the default persistent campaign database path."""
-    return Path(__file__).resolve().parents[3] / "data" / "campaign_memory.db"
+    return Path(__file__).resolve().parents[3] / "data" / "campaign.db"
 
 
 CAMPAIGN_DB_PATH = _default_database_path()
-SEARCH_RESULT_LIMIT = 10
-_ALLOWED_IDENTIFIERS = {
-    "npcs": {
-        "archetype_or_role",
-        "affiliation",
-        "disposition",
-        "location",
-        "notes",
-        "custom_stats_json",
-    },
-    "locations": {"description", "current_status"},
-    "plot_logs": {"session_number", "event_summary", "timestamp"},
-}
+_DEFAULT_DATABASE: CampaignDatabase | None = None
 
 
-def _quote_identifier(identifier: str) -> str:
-    if not identifier.replace("_", "").isalnum():
-        raise ValueError(f"Unsafe SQL identifier: {identifier}")
-    return f'"{identifier}"'
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
-def _existing_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
-    if table_name not in _ALLOWED_IDENTIFIERS:
-        raise ValueError(f"Unsupported table for migration: {table_name}")
-    quoted_table_name = _quote_identifier(table_name)
-    return {row[1] for row in connection.execute(f"PRAGMA table_info({quoted_table_name})").fetchall()}
+class CampaignDatabase:
+    """Persistent key-value memory and named entity store for campaign state."""
 
+    def __init__(self, path: Path | str | None = None) -> None:
+        self.path = Path(path) if path is not None else CAMPAIGN_DB_PATH
+        self._initialized = False
 
-def _ensure_columns(connection: sqlite3.Connection, table_name: str, column_definitions: dict[str, str]) -> None:
-    allowed_columns = _ALLOWED_IDENTIFIERS.get(table_name)
-    if allowed_columns is None:
-        raise ValueError(f"Unsupported table for migration: {table_name}")
-    existing_columns = _existing_columns(connection, table_name)
-    for column_name, column_definition in column_definitions.items():
-        if column_name not in allowed_columns:
-            raise ValueError(f"Unsupported column for migration: {table_name}.{column_name}")
-        if column_name not in existing_columns:
-            normalized_definition = column_definition.upper()
-            if "NOT NULL" in normalized_definition and "DEFAULT" not in normalized_definition:
-                raise ValueError(
-                    f"SQLite migration for {table_name}.{column_name} requires a DEFAULT value for NOT NULL columns."
+    def initialize(self) -> Path:
+        """Create the database schema and perform lightweight legacy migrations."""
+        if self._initialized and self.path.exists():
+            return self.path
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(self.path) as connection:
+            connection.row_factory = sqlite3.Row
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS memories (
+                    key TEXT PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
                 )
-            quoted_table_name = _quote_identifier(table_name)
-            quoted_column_name = _quote_identifier(column_name)
-            connection.execute(
-                f"ALTER TABLE {quoted_table_name} ADD COLUMN {quoted_column_name} {column_definition}"
+                """
             )
-
-
-def _merge_case_insensitive_npc_duplicates(connection: sqlite3.Connection) -> None:
-    connection.row_factory = sqlite3.Row
-    rows = connection.execute(
-        """
-        SELECT id, name, archetype_or_role, affiliation, disposition, location, notes, custom_stats_json
-        FROM npcs
-        ORDER BY id
-        """
-    ).fetchall()
-    seen_ids_by_name: dict[str, int] = {}
-    for row in rows:
-        normalized_name = str(row["name"]).strip().casefold()
-        if not normalized_name:
-            continue
-        primary_id = seen_ids_by_name.get(normalized_name)
-        if primary_id is None:
-            seen_ids_by_name[normalized_name] = row["id"]
-            continue
-
-        primary_row = connection.execute(
-            """
-            SELECT id, name, archetype_or_role, affiliation, disposition, location, notes, custom_stats_json
-            FROM npcs
-            WHERE id = ?
-            """,
-            (primary_id,),
-        ).fetchone()
-        merged_name = row["name"] or primary_row["name"]
-        merged_role = row["archetype_or_role"] or primary_row["archetype_or_role"]
-        merged_affiliation = row["affiliation"] or primary_row["affiliation"]
-        merged_disposition = row["disposition"] or primary_row["disposition"]
-        merged_location = row["location"] or primary_row["location"]
-        merged_notes = row["notes"] or primary_row["notes"]
-        merged_custom_stats = row["custom_stats_json"] or primary_row["custom_stats_json"]
-        connection.execute("DELETE FROM npcs WHERE id = ?", (row["id"],))
-        connection.execute(
-            """
-            UPDATE npcs
-            SET
-                name = ?,
-                archetype_or_role = ?,
-                affiliation = ?,
-                disposition = ?,
-                location = ?,
-                notes = ?,
-                custom_stats_json = ?
-            WHERE id = ?
-            """,
-            (
-                merged_name,
-                merged_role,
-                merged_affiliation,
-                merged_disposition,
-                merged_location,
-                merged_notes,
-                merged_custom_stats,
-                primary_row["id"],
-            ),
-        )
-
-
-def _rebuild_npcs_table_without_case_sensitive_unique(connection: sqlite3.Connection) -> None:
-    table_sql = connection.execute(
-        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'npcs'"
-    ).fetchone()
-    if table_sql is None or "UNIQUE" not in str(table_sql[0]).upper():
-        return
-
-    existing_columns = _existing_columns(connection, "npcs")
-    optional_columns = [
-        "archetype_or_role",
-        "affiliation",
-        "disposition",
-        "location",
-        "notes",
-        "custom_stats_json",
-    ]
-    select_list = [
-        "id",
-        "name",
-        *[
-            _quote_identifier(column_name)
-            if column_name in existing_columns
-            else f"NULL AS {_quote_identifier(column_name)}"
-            for column_name in optional_columns
-        ],
-    ]
-
-    connection.execute(
-        """
-        CREATE TABLE npcs_rebuilt (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            archetype_or_role TEXT,
-            affiliation TEXT,
-            disposition TEXT,
-            location TEXT,
-            notes TEXT,
-            custom_stats_json TEXT
-        )
-        """
-    )
-    connection.execute(
-        """
-        INSERT INTO npcs_rebuilt (
-            id,
-            name,
-            archetype_or_role,
-            affiliation,
-            disposition,
-            location,
-            notes,
-            custom_stats_json
-        )
-        SELECT
-            """
-        + ", ".join(select_list)
-        + """
-        FROM "npcs"
-        """
-    )
-    connection.execute("DROP TABLE npcs")
-    connection.execute("ALTER TABLE npcs_rebuilt RENAME TO npcs")
-
-
-def initialize_database(path: Path | str | None = None) -> Path:
-    """Create the campaign memory database and schema if needed."""
-    db_path = Path(path) if path is not None else CAMPAIGN_DB_PATH
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path) as connection:
-        connection.execute("BEGIN IMMEDIATE")
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS npcs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                archetype_or_role TEXT,
-                affiliation TEXT,
-                disposition TEXT,
-                location TEXT,
-                notes TEXT,
-                custom_stats_json TEXT
-            )
-            """
-        )
-        _rebuild_npcs_table_without_case_sensitive_unique(connection)
-        _ensure_columns(
-            connection,
-            "npcs",
-            {
-                "archetype_or_role": "TEXT",
-                "affiliation": "TEXT",
-                "disposition": "TEXT",
-                "location": "TEXT",
-                "notes": "TEXT",
-                "custom_stats_json": "TEXT",
-            },
-        )
-        _merge_case_insensitive_npc_duplicates(connection)
-        connection.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_npcs_name_nocase ON npcs (name COLLATE NOCASE)"
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS locations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                description TEXT,
-                current_status TEXT
-            )
-            """
-        )
-        _ensure_columns(
-            connection,
-            "locations",
-            {
-                "description": "TEXT",
-                "current_status": "TEXT",
-            },
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS plot_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_number INTEGER NOT NULL,
-                event_summary TEXT NOT NULL,
-                timestamp TEXT NOT NULL
-            )
-            """
-        )
-        _ensure_columns(
-            connection,
-            "plot_logs",
-            {
-                "session_number": "INTEGER NOT NULL DEFAULT 1",
-                "event_summary": "TEXT NOT NULL DEFAULT ''",
-                "timestamp": "TEXT NOT NULL DEFAULT ''",
-            },
-        )
-        connection.commit()
-    return db_path
-
-
-def _connect(path: Path | str | None = None) -> sqlite3.Connection:
-    db_path = initialize_database(path)
-    connection = sqlite3.connect(db_path)
-    connection.row_factory = sqlite3.Row
-    return connection
-
-
-def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
-    """Persist or update an NPC in campaign memory."""
-    cleaned_name = name.strip()
-    if not cleaned_name:
-        raise ValueError("NPC name is required.")
-
-    with _connect() as connection:
-        connection.execute("BEGIN IMMEDIATE")
-        existing_npc = connection.execute(
-            "SELECT id FROM npcs WHERE name = ? COLLATE NOCASE",
-            (cleaned_name,),
-        ).fetchone()
-        if existing_npc is None:
             connection.execute(
                 """
-                INSERT INTO npcs (name, archetype_or_role, affiliation, notes, custom_stats_json)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    cleaned_name,
-                    description.strip() or None,
-                    affiliation.strip() or None,
-                    notes.strip() or None,
-                    json.dumps({}),
-                ),
-            )
-        else:
-            connection.execute(
+                CREATE TABLE IF NOT EXISTS entities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    disposition TEXT NOT NULL DEFAULT 'Neutral',
+                    location TEXT NOT NULL DEFAULT 'Unknown',
+                    notes TEXT NOT NULL DEFAULT '',
+                    affiliation TEXT NOT NULL DEFAULT '',
+                    custom_stats_json TEXT NOT NULL DEFAULT '{}'
+                )
                 """
-                UPDATE npcs
-                SET
-                    name = ?,
-                    archetype_or_role = COALESCE(?, archetype_or_role),
-                    affiliation = COALESCE(?, affiliation),
-                    notes = COALESCE(?, notes)
-                WHERE id = ?
-                """,
-                (
-                    cleaned_name,
-                    description.strip() or None,
-                    affiliation.strip() or None,
-                    notes.strip() or None,
-                    existing_npc["id"],
-                ),
             )
-        connection.commit()
-    return f"Saved NPC '{cleaned_name}'."
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_entities_name_nocase ON entities (name COLLATE NOCASE)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_entities_category_name ON entities (category, name COLLATE NOCASE)"
+            )
+            self._migrate_legacy_tables(connection)
+            connection.commit()
 
+        self._initialized = True
+        return self.path
 
-def get_npc(name: str) -> dict[str, Any]:
-    """Return a persisted NPC by name."""
-    cleaned_name = name.strip()
-    if not cleaned_name:
-        return {}
+    def _connect(self) -> sqlite3.Connection:
+        self.initialize()
+        connection = sqlite3.connect(self.path)
+        connection.row_factory = sqlite3.Row
+        return connection
 
-    with _connect() as connection:
-        row = connection.execute(
+    def _migrate_legacy_tables(self, connection: sqlite3.Connection) -> None:
+        tables = {
+            row["name"]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+        }
+        if "npcs" in tables:
+            self._migrate_legacy_npcs(connection)
+        if "locations" in tables:
+            self._migrate_legacy_locations(connection)
+        if "plot_logs" in tables:
+            self._migrate_legacy_plot_logs(connection)
+
+    def _migrate_legacy_npcs(self, connection: sqlite3.Connection) -> None:
+        rows = connection.execute(
             """
             SELECT
-                id,
                 name,
                 archetype_or_role,
                 affiliation,
@@ -342,111 +106,465 @@ def get_npc(name: str) -> dict[str, Any]:
                 notes,
                 custom_stats_json
             FROM npcs
-            WHERE name = ? COLLATE NOCASE
-            """,
-            (cleaned_name,),
-        ).fetchone()
+            ORDER BY id
+            """
+        ).fetchall()
+        for row in rows:
+            name = str(row["name"]).strip()
+            if not name:
+                continue
+            existing = connection.execute(
+                "SELECT id, custom_stats_json FROM entities WHERE name = ? COLLATE NOCASE",
+                (name,),
+            ).fetchone()
+            payload = (
+                name,
+                "NPC",
+                str(row["archetype_or_role"] or "Unknown entity"),
+                str(row["disposition"] or "Neutral"),
+                str(row["location"] or "Unknown"),
+                str(row["notes"] or ""),
+                str(row["affiliation"] or ""),
+                str(row["custom_stats_json"] or "{}"),
+            )
+            if existing is None:
+                connection.execute(
+                    """
+                    INSERT INTO entities (
+                        name,
+                        category,
+                        description,
+                        disposition,
+                        location,
+                        notes,
+                        affiliation,
+                        custom_stats_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    payload,
+                )
+            else:
+                connection.execute(
+                    """
+                    UPDATE entities
+                    SET
+                        name = ?,
+                        category = 'NPC',
+                        description = ?,
+                        disposition = ?,
+                        location = ?,
+                        notes = ?,
+                        affiliation = ?,
+                        custom_stats_json = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        payload[0],
+                        payload[2],
+                        payload[3],
+                        payload[4],
+                        payload[5],
+                        payload[6],
+                        payload[7],
+                        existing["id"],
+                    ),
+                )
 
-    if row is None:
+    def _migrate_legacy_locations(self, connection: sqlite3.Connection) -> None:
+        rows = connection.execute(
+            "SELECT name, description, current_status FROM locations ORDER BY id"
+        ).fetchall()
+        for row in rows:
+            name = str(row["name"]).strip()
+            if not name:
+                continue
+            existing = connection.execute(
+                "SELECT id FROM entities WHERE name = ? COLLATE NOCASE",
+                (name,),
+            ).fetchone()
+            payload = (
+                name,
+                "Location",
+                str(row["description"] or "Unknown location"),
+                "Neutral",
+                name,
+                str(row["current_status"] or ""),
+                "",
+                "{}",
+            )
+            if existing is None:
+                connection.execute(
+                    """
+                    INSERT INTO entities (
+                        name,
+                        category,
+                        description,
+                        disposition,
+                        location,
+                        notes,
+                        affiliation,
+                        custom_stats_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    payload,
+                )
+            else:
+                connection.execute(
+                    """
+                    UPDATE entities
+                    SET
+                        name = ?,
+                        category = 'Location',
+                        description = ?,
+                        location = ?,
+                        notes = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        payload[0],
+                        payload[2],
+                        payload[4],
+                        payload[5],
+                        existing["id"],
+                    ),
+                )
+
+    def _migrate_legacy_plot_logs(self, connection: sqlite3.Connection) -> None:
+        rows = connection.execute(
+            "SELECT id, session_number, event_summary, timestamp FROM plot_logs ORDER BY id"
+        ).fetchall()
+        for row in rows:
+            key = f"legacy_plot_log_{row['id']}"
+            summary = str(row["event_summary"] or "").strip()
+            if not summary:
+                continue
+            content = f"Session {row['session_number']}: {summary}"
+            updated_at = str(row["timestamp"] or _utc_now())
+            connection.execute(
+                """
+                INSERT INTO memories (key, content, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    content = excluded.content,
+                    updated_at = excluded.updated_at
+                """,
+                (key, content, updated_at),
+            )
+
+    def save_memory(self, key: str, content: str) -> None:
+        """Save or update a named campaign memory entry."""
+        cleaned_key = key.strip()
+        cleaned_content = content.strip()
+        if not cleaned_key:
+            raise ValueError("Memory key is required.")
+        if not cleaned_content:
+            raise ValueError("Memory content is required.")
+
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO memories (key, content, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    content = excluded.content,
+                    updated_at = excluded.updated_at
+                """,
+                (cleaned_key, cleaned_content, _utc_now()),
+            )
+            connection.commit()
+
+    def load_memory(self, key: str) -> str | None:
+        """Load a saved campaign memory by key."""
+        cleaned_key = key.strip()
+        if not cleaned_key:
+            return None
+
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT content FROM memories WHERE key = ?",
+                (cleaned_key,),
+            ).fetchone()
+        return None if row is None else str(row["content"])
+
+    def save_entity(
+        self,
+        name: str,
+        category: str,
+        description: str,
+        disposition: str = "Neutral",
+        location: str = "Unknown",
+        notes: str = "",
+    ) -> None:
+        """Save or update an NPC, faction, or location."""
+        cleaned_name = name.strip()
+        cleaned_category = category.strip()
+        cleaned_description = description.strip()
+        if not cleaned_name:
+            raise ValueError("Entity name is required.")
+        if not cleaned_category:
+            raise ValueError("Entity category is required.")
+        if not cleaned_description:
+            raise ValueError("Entity description is required.")
+
+        with self._connect() as connection:
+            existing = connection.execute(
+                "SELECT affiliation, custom_stats_json FROM entities WHERE name = ? COLLATE NOCASE",
+                (cleaned_name,),
+            ).fetchone()
+            affiliation = "" if existing is None else str(existing["affiliation"] or "")
+            custom_stats_json = "{}" if existing is None else str(existing["custom_stats_json"] or "{}")
+            connection.execute(
+                """
+                INSERT INTO entities (
+                    name,
+                    category,
+                    description,
+                    disposition,
+                    location,
+                    notes,
+                    affiliation,
+                    custom_stats_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT DO UPDATE SET
+                    name = excluded.name,
+                    category = excluded.category,
+                    description = excluded.description,
+                    disposition = excluded.disposition,
+                    location = excluded.location,
+                    notes = excluded.notes,
+                    affiliation = excluded.affiliation,
+                    custom_stats_json = excluded.custom_stats_json
+                """,
+                (
+                    cleaned_name,
+                    cleaned_category,
+                    cleaned_description,
+                    disposition.strip() or "Neutral",
+                    location.strip() or "Unknown",
+                    notes.strip(),
+                    affiliation,
+                    custom_stats_json,
+                ),
+            )
+            connection.commit()
+
+    def get_entity(self, name: str) -> dict[str, Any] | None:
+        """Return an entity by name."""
+        cleaned_name = name.strip()
+        if not cleaned_name:
+            return None
+
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    id,
+                    name,
+                    category,
+                    description,
+                    disposition,
+                    location,
+                    notes,
+                    affiliation,
+                    custom_stats_json
+                FROM entities
+                WHERE name = ? COLLATE NOCASE
+                """,
+                (cleaned_name,),
+            ).fetchone()
+        return self._row_to_entity(row)
+
+    def search_entities(self, query: str) -> list[dict[str, Any]]:
+        """Search entities by name and descriptive fields."""
+        keyword = query.strip()
+        if not keyword:
+            return []
+
+        pattern = f"%{keyword}%"
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT
+                    id,
+                    name,
+                    category,
+                    description,
+                    disposition,
+                    location,
+                    notes,
+                    affiliation,
+                    custom_stats_json
+                FROM entities
+                WHERE
+                    name LIKE ? COLLATE NOCASE OR
+                    category LIKE ? COLLATE NOCASE OR
+                    description LIKE ? COLLATE NOCASE OR
+                    disposition LIKE ? COLLATE NOCASE OR
+                    location LIKE ? COLLATE NOCASE OR
+                    notes LIKE ? COLLATE NOCASE OR
+                    affiliation LIKE ? COLLATE NOCASE
+                ORDER BY
+                    CASE WHEN name = ? COLLATE NOCASE THEN 0 ELSE 1 END,
+                    name COLLATE NOCASE
+                LIMIT ?
+                """,
+                (
+                    pattern,
+                    pattern,
+                    pattern,
+                    pattern,
+                    pattern,
+                    pattern,
+                    pattern,
+                    keyword,
+                    SEARCH_RESULT_LIMIT,
+                ),
+            ).fetchall()
+        return [self._row_to_entity(row) for row in rows if row is not None]
+
+    def list_memories(self) -> list[dict[str, Any]]:
+        """List all saved memories, newest first."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT key, content, updated_at FROM memories ORDER BY updated_at DESC, key ASC"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    def _row_to_entity(row: sqlite3.Row | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        payload = dict(row)
+        raw_stats = str(payload.get("custom_stats_json") or "{}")
+        try:
+            payload["custom_stats_json"] = json.loads(raw_stats)
+        except json.JSONDecodeError:
+            payload["custom_stats_json"] = {}
+        return payload
+
+
+def get_campaign_database(path: Path | str | None = None) -> CampaignDatabase:
+    """Return a reusable database wrapper for the default campaign database."""
+    global _DEFAULT_DATABASE
+    if path is not None:
+        return CampaignDatabase(path)
+    if _DEFAULT_DATABASE is None or _DEFAULT_DATABASE.path != CAMPAIGN_DB_PATH:
+        _DEFAULT_DATABASE = CampaignDatabase(CAMPAIGN_DB_PATH)
+    return _DEFAULT_DATABASE
+
+
+def initialize_database(path: Path | str | None = None) -> Path:
+    """Compatibility wrapper that initializes the campaign database."""
+    return get_campaign_database(path).initialize()
+
+
+def save_memory(key: str, content: str) -> None:
+    get_campaign_database().save_memory(key=key, content=content)
+
+
+def load_memory(key: str) -> str | None:
+    return get_campaign_database().load_memory(key=key)
+
+
+def save_entity(
+    name: str,
+    category: str,
+    description: str,
+    disposition: str = "Neutral",
+    location: str = "Unknown",
+    notes: str = "",
+) -> None:
+    get_campaign_database().save_entity(
+        name=name,
+        category=category,
+        description=description,
+        disposition=disposition,
+        location=location,
+        notes=notes,
+    )
+
+
+def get_entity(name: str) -> dict[str, Any] | None:
+    return get_campaign_database().get_entity(name)
+
+
+def search_entities(query: str) -> list[dict[str, Any]]:
+    return get_campaign_database().search_entities(query)
+
+
+def list_memories() -> list[dict[str, Any]]:
+    return get_campaign_database().list_memories()
+
+
+def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
+    """Backward-compatible helper for storing NPC entities."""
+    cleaned_name = name.strip()
+    if not cleaned_name:
+        raise ValueError("NPC name is required.")
+    save_entity(
+        name=cleaned_name,
+        category="NPC",
+        description=description or "Unknown NPC",
+        notes=notes,
+    )
+    with get_campaign_database()._connect() as connection:
+        connection.execute(
+            "UPDATE entities SET affiliation = ? WHERE name = ? COLLATE NOCASE",
+            (affiliation.strip(), cleaned_name),
+        )
+        connection.commit()
+    return f"Saved NPC '{cleaned_name}'."
+
+
+def get_npc(name: str) -> dict[str, Any]:
+    """Backward-compatible NPC lookup."""
+    entity = get_entity(name)
+    if entity is None or str(entity.get("category", "")).casefold() != "npc":
         return {}
-
-    payload = dict(row)
-    raw_stats = payload.get("custom_stats_json")
-    payload["custom_stats_json"] = json.loads(raw_stats) if raw_stats else {}
-    return payload
+    return entity
 
 
 def log_event(summary: str, session: int = 1) -> str:
-    """Append a plot event to the persistent campaign log."""
+    """Backward-compatible plot log storage using the memories table."""
     cleaned_summary = summary.strip()
     if not cleaned_summary:
         raise ValueError("Event summary is required.")
     if session < 1:
         raise ValueError("Session number must be at least 1.")
-
-    timestamp = datetime.now(timezone.utc).isoformat()
-    with _connect() as connection:
-        connection.execute(
-            """
-            INSERT INTO plot_logs (session_number, event_summary, timestamp)
-            VALUES (?, ?, ?)
-            """,
-            (session, cleaned_summary, timestamp),
-        )
-        connection.commit()
+    timestamp = _utc_now()
+    save_memory(f"session_{session}_{timestamp}", cleaned_summary)
     return f"Logged campaign event for session {session}."
 
 
 def search_memory(query: str) -> list[dict[str, Any]]:
-    """Search NPCs, locations, and plot logs for matching campaign memory."""
+    """Backward-compatible memory search across entities and saved memories."""
     keyword = query.strip()
     if not keyword:
         return []
 
-    pattern = f"%{keyword}%"
-    with _connect() as connection:
-        remaining = SEARCH_RESULT_LIMIT
-        npc_rows = connection.execute(
-            """
-            SELECT
-                'npc' AS memory_type,
-                name,
-                affiliation,
-                archetype_or_role AS summary,
-                notes
-            FROM npcs
-            WHERE
-                name LIKE ? COLLATE NOCASE OR
-                affiliation LIKE ? COLLATE NOCASE OR
-                archetype_or_role LIKE ? COLLATE NOCASE OR
-                notes LIKE ? COLLATE NOCASE
-            ORDER BY name
-            LIMIT ?
-            """,
-            (pattern, pattern, pattern, pattern, remaining),
-        ).fetchall()
-        remaining -= len(npc_rows)
-
-        location_rows: list[sqlite3.Row] = []
-        if remaining > 0:
-            location_rows = connection.execute(
-                """
-                SELECT
-                    'location' AS memory_type,
-                    name,
-                    current_status AS affiliation,
-                    description AS summary,
-                    current_status AS notes
-                FROM locations
-                WHERE
-                    name LIKE ? COLLATE NOCASE OR
-                    description LIKE ? COLLATE NOCASE OR
-                    current_status LIKE ? COLLATE NOCASE
-                ORDER BY name
-                LIMIT ?
-                """,
-                (pattern, pattern, pattern, remaining),
-            ).fetchall()
-            remaining -= len(location_rows)
-
-        plot_rows: list[sqlite3.Row] = []
-        if remaining > 0:
-            plot_rows = connection.execute(
-                """
-                SELECT
-                    'plot_log' AS memory_type,
-                    ('Session ' || session_number) AS name,
-                    timestamp AS affiliation,
-                    event_summary AS summary,
-                    event_summary AS notes
-                FROM plot_logs
-                WHERE
-                    event_summary LIKE ? COLLATE NOCASE OR
-                    timestamp LIKE ? COLLATE NOCASE
-                ORDER BY id DESC
-                LIMIT ?
-                """,
-                (pattern, pattern, remaining),
-            ).fetchall()
-
-    return [dict(row) for row in [*npc_rows, *location_rows, *plot_rows]]
+    pattern = keyword.casefold()
+    entity_matches = [
+        {
+            "memory_type": "entity",
+            "name": entity["name"],
+            "affiliation": entity.get("category", ""),
+            "summary": entity.get("description", ""),
+            "notes": entity.get("notes", ""),
+        }
+        for entity in search_entities(keyword)
+    ]
+    memory_matches = [
+        {
+            "memory_type": "memory",
+            "name": entry["key"],
+            "affiliation": entry["updated_at"],
+            "summary": entry["content"],
+            "notes": entry["content"],
+        }
+        for entry in list_memories()
+        if pattern in str(entry["key"]).casefold() or pattern in str(entry["content"]).casefold()
+    ]
+    return [*entity_matches, *memory_matches][:SEARCH_RESULT_LIMIT]

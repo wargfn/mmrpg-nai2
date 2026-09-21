@@ -8,8 +8,9 @@ from marvel_mcp_narrator.mcp_servers import narrator_tools
 
 @pytest.fixture(autouse=True)
 def isolated_campaign_db(tmp_path, monkeypatch):
-    db_path = tmp_path / "campaign_memory.db"
+    db_path = tmp_path / "campaign.db"
     monkeypatch.setattr(campaign_db, "CAMPAIGN_DB_PATH", db_path)
+    monkeypatch.setattr(campaign_db, "_DEFAULT_DATABASE", None)
     yield db_path
 
 
@@ -26,243 +27,147 @@ def test_initialize_database_creates_expected_tables(isolated_campaign_db):
             if not row[0].startswith("sqlite_")
         }
 
-    assert {"npcs", "locations", "plot_logs"} <= table_names
+    assert {"memories", "entities"} <= table_names
 
 
-def test_initialize_database_migrates_existing_schema(isolated_campaign_db):
-    with sqlite3.connect(isolated_campaign_db) as connection:
-        connection.execute(
-            """
-            CREATE TABLE npcs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE
-            )
-            """
-        )
-        connection.commit()
+def test_campaign_database_saves_and_loads_memory():
+    database = campaign_db.CampaignDatabase()
 
-    campaign_db.initialize_database()
+    database.save_memory("session-1-summary", "The Avengers secured the artifact.")
 
-    with sqlite3.connect(isolated_campaign_db) as connection:
-        npc_columns = {
-            row[1] for row in connection.execute("PRAGMA table_info(npcs)")
-        }
-        table_names = {
-            row[0]
-            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
-            if not row[0].startswith("sqlite_")
-        }
-
-    assert {"archetype_or_role", "affiliation", "disposition", "location", "notes", "custom_stats_json"} <= npc_columns
-    assert {"locations", "plot_logs"} <= table_names
+    assert database.load_memory("session-1-summary") == "The Avengers secured the artifact."
 
 
-def test_initialize_database_merges_case_variant_duplicates_and_adds_index(isolated_campaign_db):
-    with sqlite3.connect(isolated_campaign_db) as connection:
-        connection.execute(
-            """
-            CREATE TABLE npcs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                affiliation TEXT,
-                notes TEXT
-            )
-            """
-        )
-        connection.execute(
-            "INSERT INTO npcs (name, affiliation, notes) VALUES (?, ?, ?)",
-            ("Nick Fury", "S.H.I.E.L.D.", "Original record."),
-        )
-        connection.execute(
-            "INSERT INTO npcs (name, affiliation, notes) VALUES (?, ?, ?)",
-            ("nick fury", "Avengers", "Most recent record."),
-        )
-        connection.commit()
+def test_list_memories_returns_saved_entries_including_timestamps():
+    database = campaign_db.CampaignDatabase()
+    database.save_memory("session-1", "Opened with a rooftop chase.")
+    database.save_memory("session-2", "Doctor Doom escaped.")
 
-    campaign_db.initialize_database()
+    memories = database.list_memories()
 
-    with sqlite3.connect(isolated_campaign_db) as connection:
-        rows = connection.execute("SELECT name, affiliation, notes FROM npcs").fetchall()
-        indexes = {
-            row[1]
-            for row in connection.execute("PRAGMA index_list(npcs)")
-        }
-
-    assert rows == [("nick fury", "Avengers", "Most recent record.")]
-    assert "idx_npcs_name_nocase" in indexes
+    assert [memory["key"] for memory in memories] == ["session-2", "session-1"]
+    assert all(memory["updated_at"] for memory in memories)
 
 
-def test_save_npc_and_get_npc_round_trip():
+def test_save_entity_and_get_entity_round_trip():
+    database = campaign_db.CampaignDatabase()
+
+    database.save_entity(
+        name="Wilson Fisk",
+        category="NPC",
+        description="Crime boss with political ambitions.",
+        disposition="Hostile",
+        location="Hell's Kitchen",
+        notes="Backs several shell companies.",
+    )
+
+    entity = database.get_entity("wilson fisk")
+
+    assert entity is not None
+    assert entity["name"] == "Wilson Fisk"
+    assert entity["category"] == "NPC"
+    assert entity["description"] == "Crime boss with political ambitions."
+    assert entity["disposition"] == "Hostile"
+    assert entity["location"] == "Hell's Kitchen"
+    assert entity["notes"] == "Backs several shell companies."
+    assert entity["custom_stats_json"] == {}
+
+
+def test_search_entities_matches_multiple_fields():
+    database = campaign_db.CampaignDatabase()
+    database.save_entity(
+        name="Latveria",
+        category="Location",
+        description="Sovereign nation ruled by Doctor Doom.",
+        disposition="Dangerous",
+        location="Eastern Europe",
+        notes="Heavy Doombot presence.",
+    )
+    database.save_entity(
+        name="Fantastic Four",
+        category="Faction",
+        description="Super hero family based in New York.",
+        disposition="Allied",
+        location="Baxter Building",
+        notes="Often clashes with Doom.",
+    )
+
+    matches = database.search_entities("doom")
+
+    assert [match["name"] for match in matches] == ["Fantastic Four", "Latveria"]
+
+
+def test_legacy_npc_helpers_still_work():
     message = campaign_db.save_npc(
         name="Nick Fury",
         affiliation="S.H.I.E.L.D.",
-        description="Spy master",
-        notes="Keeps tabs on emerging threats.",
-    )
-
-    npc = campaign_db.get_npc("nick fury")
-
-    assert message == "Saved NPC 'Nick Fury'."
-    assert npc["name"] == "Nick Fury"
-    assert npc["affiliation"] == "S.H.I.E.L.D."
-    assert npc["archetype_or_role"] == "Spy master"
-    assert npc["notes"] == "Keeps tabs on emerging threats."
-    assert npc["custom_stats_json"] == {}
-
-
-def test_save_npc_preserves_existing_location_and_disposition(isolated_campaign_db):
-    campaign_db.initialize_database()
-    with sqlite3.connect(isolated_campaign_db) as connection:
-        connection.execute(
-            """
-            INSERT INTO npcs (
-                name,
-                archetype_or_role,
-                affiliation,
-                disposition,
-                location,
-                notes,
-                custom_stats_json
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                "Black Cat",
-                "Thief",
-                "Independent",
-                "Wary",
-                "Midtown",
-                "Old notes.",
-                '{"speed": 4}',
-            ),
-        )
-        connection.commit()
-
-    campaign_db.save_npc(
-        name="Black Cat",
-        affiliation="Allies",
-        description="Cat burglar",
-        notes="Sometimes helps Spider-Man.",
-    )
-
-    npc = campaign_db.get_npc("Black Cat")
-
-    assert npc["disposition"] == "Wary"
-    assert npc["location"] == "Midtown"
-    assert npc["custom_stats_json"] == {"speed": 4}
-
-
-def test_save_npc_updates_existing_entry_case_insensitively():
-    campaign_db.save_npc(
-        name="Nick Fury",
-        affiliation="S.H.I.E.L.D.",
-        description="Director",
-        notes="Original record.",
-    )
-
-    campaign_db.save_npc(
-        name="nick fury",
-        affiliation="Avengers",
-        description="Spymaster",
-        notes="Updated record.",
+        description="Master spy.",
+        notes="Coordinates global responses.",
     )
 
     npc = campaign_db.get_npc("Nick Fury")
-    matches = campaign_db.search_memory("nick fury")
 
-    assert npc["name"] == "nick fury"
-    assert npc["affiliation"] == "Avengers"
-    assert npc["archetype_or_role"] == "Spymaster"
-    assert len([match for match in matches if match["memory_type"] == "npc"]) == 1
-
-
-def test_save_npc_preserves_existing_values_on_blank_update():
-    campaign_db.save_npc(
-        name="Jessica Jones",
-        affiliation="Alias Investigations",
-        description="Private investigator",
-        notes="Keeps her distance.",
-    )
-
-    campaign_db.save_npc(
-        name="Jessica Jones",
-        affiliation="",
-        description="",
-        notes="Updated notes.",
-    )
-
-    npc = campaign_db.get_npc("Jessica Jones")
-
-    assert npc["affiliation"] == "Alias Investigations"
-    assert npc["archetype_or_role"] == "Private investigator"
-    assert npc["notes"] == "Updated notes."
+    assert message == "Saved NPC 'Nick Fury'."
+    assert npc["category"] == "NPC"
+    assert npc["description"] == "Master spy."
+    assert npc["affiliation"] == "S.H.I.E.L.D."
 
 
-def test_log_event_persists_plot_entry(isolated_campaign_db):
-    message = campaign_db.log_event("Hydra stole the artifact.", session=3)
-
-    assert message == "Logged campaign event for session 3."
-
-    with sqlite3.connect(isolated_campaign_db) as connection:
-        row = connection.execute(
-            "SELECT session_number, event_summary, timestamp FROM plot_logs"
-        ).fetchone()
-
-    assert row[0] == 3
-    assert row[1] == "Hydra stole the artifact."
-    assert row[2]
-
-
-def test_search_memory_returns_saved_npc_and_plot_log():
-    campaign_db.save_npc(
+def test_search_memory_includes_entities_and_saved_memories():
+    campaign_db.save_entity(
         name="Maria Hill",
-        affiliation="S.H.I.E.L.D.",
-        description="Field commander",
-        notes="Coordinates rapid response teams.",
+        category="NPC",
+        description="S.H.I.E.L.D. commander.",
+        disposition="Allied",
+        location="Helicarrier",
+        notes="Coordinates the response team.",
     )
-    campaign_db.log_event("Maria Hill briefed the heroes on the Skrull incursion.", session=2)
+    campaign_db.save_memory("session-brief", "Maria Hill warned the team about Hydra.")
 
     matches = campaign_db.search_memory("Maria")
 
-    assert [match["memory_type"] for match in matches] == ["npc", "plot_log"]
+    assert [match["memory_type"] for match in matches] == ["entity", "memory"]
     assert matches[0]["name"] == "Maria Hill"
-    assert "briefed the heroes" in matches[1]["summary"]
+    assert "Hydra" in matches[1]["summary"]
 
 
-def test_narrator_tools_expose_campaign_memory_flow():
-    remembered = narrator_tools.remember_npc(
-        name="Wilson Fisk",
-        affiliation="Criminal Underworld",
-        description="Crime boss",
-        notes="Controls several fronts across Hell's Kitchen.",
+def test_narrator_tools_expose_campaign_memory_and_entity_flow():
+    save_message = narrator_tools.save_campaign_memory("session-3", "The team infiltrated Oscorp.")
+    load_message = narrator_tools.load_campaign_memory("session-3")
+    entity_message = narrator_tools.remember_entity(
+        name="Oscorp Tower",
+        category="Location",
+        description="Corporate tower full of experimental tech.",
+        disposition="Dangerous",
+        location="New York",
+        notes="Guard patrols every floor.",
     )
-    recalled = narrator_tools.recall_npc_or_location("Wilson Fisk")
-    logged = narrator_tools.log_campaign_event(
-        "Wilson Fisk put a bounty on the vigilantes.",
-        session=4,
+    recalled = narrator_tools.recall_entity("Oscorp Tower")
+
+    assert save_message == "Saved campaign memory 'session-3'."
+    assert load_message == "The team infiltrated Oscorp."
+    assert entity_message == "Saved Location 'Oscorp Tower'."
+    assert "Category: Location" in recalled
+    assert "Location: New York" in recalled
+
+
+def test_recall_entity_returns_search_results_and_missing_message():
+    narrator_tools.remember_entity(
+        name="Hydra",
+        category="Faction",
+        description="Secretive global terrorist network.",
+        disposition="Hostile",
+        location="Worldwide",
+        notes="Cells embedded across governments.",
     )
 
-    assert remembered["npc"]["name"] == "Wilson Fisk"
-    assert "Crime boss" in recalled
-    assert logged == "Logged campaign event for session 4."
+    search_result = narrator_tools.recall_entity("terrorist")
+    missing = narrator_tools.recall_entity("Xandar")
+
+    assert "Entity matches for 'terrorist':" in search_result
+    assert "[Faction] Hydra (Worldwide): Secretive global terrorist network." in search_result
+    assert missing == "No entity found for 'Xandar'."
 
 
-def test_recall_npc_or_location_formats_search_results_and_missing_message():
-    narrator_tools.log_campaign_event("The heroes regrouped in Avengers Tower.", session=2)
-
-    recalled = narrator_tools.recall_npc_or_location("Avengers Tower")
-    missing = narrator_tools.recall_npc_or_location("Latveria")
-
-    assert "Campaign memory matches for 'Avengers Tower':" in recalled
-    assert "[plot_log] Session 2 @" in recalled
-    assert missing == "No campaign memory found for 'Latveria'."
-
-
-def test_log_campaign_event_rejects_invalid_session():
-    with pytest.raises(ValueError, match="Session number must be at least 1"):
-        narrator_tools.log_campaign_event("This should fail.", session=0)
-
-
-def test_log_campaign_event_rejects_blank_summary():
-    with pytest.raises(ValueError, match="Event summary is required"):
-        narrator_tools.log_campaign_event("   ", session=1)
+def test_load_campaign_memory_returns_not_found_message_for_missing_key():
+    assert narrator_tools.load_campaign_memory("missing-key") == "No campaign memory found for 'missing-key'."
