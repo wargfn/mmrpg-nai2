@@ -270,6 +270,8 @@ class CampaignDatabase:
                     payload,
                 )
             elif str(existing["category"] or "").casefold() == "location":
+                migrated_location = payload[4]
+                migrated_notes = payload[5]
                 connection.execute(
                     """
                     UPDATE entities
@@ -284,8 +286,8 @@ class CampaignDatabase:
                     (
                         payload[0],
                         payload[2],
-                        payload[4],
-                        payload[5],
+                        migrated_location,
+                        migrated_notes,
                         existing["id"],
                     ),
                 )
@@ -702,6 +704,8 @@ class CampaignDatabase:
                 None,
             )
             if current_session is None:
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
                 return None
             return {
                 "campaign_id": int(plan_row["id"]),
@@ -779,6 +783,7 @@ class CampaignDatabase:
                 self._set_state(connection, "active_session_number", str(session_number + 1))
             else:
                 self._clear_state(connection, "active_session_number")
+                self._clear_state(connection, "active_campaign_id")
             connection.commit()
 
         return {
