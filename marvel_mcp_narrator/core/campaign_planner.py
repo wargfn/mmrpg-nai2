@@ -74,41 +74,65 @@ class CampaignPlanner:
     ) -> list[dict[str, Any]]:
         sessions: list[dict[str, Any]] = []
         team_label = ", ".join(hero_team)
+        theme_lower = theme.lower()
+
+        def session_payload(
+            *,
+            session_number: int,
+            title: str,
+            objectives: list[str],
+            locations: list[str],
+            milestone: str,
+        ) -> dict[str, Any]:
+            return {
+                "session_number": session_number,
+                "title": title,
+                "objectives": objectives,
+                "key_npcs": [villain, *hero_team[:2]],
+                "locations": locations,
+                "completion_milestone": milestone,
+            }
+
         for session_number in range(1, session_count + 1):
             if session_number == 1:
-                title = f"{theme} Sparks Fly"
-                objectives = [
-                    f"Introduce the {theme.lower()} threat facing {team_label}.",
-                    f"Reveal the first clue pointing to {villain}.",
-                ]
-                locations = [f"{theme} hotspot", "New York City"]
-                milestone = f"uncover {villain}'s opening move"
+                sessions.append(
+                    session_payload(
+                        session_number=session_number,
+                        title=f"{theme} Sparks Fly",
+                        objectives=[
+                            f"Introduce the {theme_lower} threat facing {team_label}.",
+                            f"Reveal the first clue pointing to {villain}.",
+                        ],
+                        locations=[f"{theme} hotspot", "New York City"],
+                        milestone=f"uncover {villain}'s opening move",
+                    )
+                )
             elif session_number == session_count:
-                title = f"Final Showdown with {villain}"
-                objectives = [
-                    f"Confront {villain} at the heart of the {theme.lower()} crisis.",
-                    "Resolve the heroes' biggest lingering complication.",
-                ]
-                locations = [f"{villain}'s stronghold", f"{theme} battleground"]
-                milestone = f"stop {villain} and resolve the {theme.lower()} crisis"
+                sessions.append(
+                    session_payload(
+                        session_number=session_number,
+                        title=f"Final Showdown with {villain}",
+                        objectives=[
+                            f"Confront {villain} at the heart of the {theme_lower} crisis.",
+                            "Resolve the heroes' biggest lingering complication.",
+                        ],
+                        locations=[f"{villain}'s stronghold", f"{theme} battleground"],
+                        milestone=f"stop {villain} and resolve the {theme_lower} crisis",
+                    )
+                )
             else:
-                title = f"{theme} Escalation {session_number}"
-                objectives = [
-                    f"Pressure one of {villain}'s lieutenants for answers.",
-                    f"Escalate the stakes of the {theme.lower()} campaign arc.",
-                ]
-                locations = [f"{theme} flashpoint {session_number}", f"{villain} safehouse"]
-                milestone = f"gain the edge needed for session {session_number + 1}"
-            sessions.append(
-                {
-                    "session_number": session_number,
-                    "title": title,
-                    "objectives": objectives,
-                    "key_npcs": [villain, *hero_team[:2]],
-                    "locations": locations,
-                    "completion_milestone": milestone,
-                }
-            )
+                sessions.append(
+                    session_payload(
+                        session_number=session_number,
+                        title=f"{theme} Escalation {session_number}",
+                        objectives=[
+                            f"Pressure one of {villain}'s lieutenants for answers.",
+                            f"Escalate the stakes of the {theme_lower} campaign arc.",
+                        ],
+                        locations=[f"{theme} flashpoint {session_number}", f"{villain} safehouse"],
+                        milestone=f"gain the edge needed for session {session_number + 1}",
+                    )
+                )
         return sessions
 
 

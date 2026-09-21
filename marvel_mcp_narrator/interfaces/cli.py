@@ -336,12 +336,16 @@ def build_startup_system_prompt(
     campaign_memory_context: str | None = None,
 ) -> str:
     """Build the initial system prompt with injected persistent campaign memory."""
+    resolved_rules_context = rules_context if rules_context is not None else get_rules_startup_context()
+    resolved_memory_context = (
+        campaign_memory_context if campaign_memory_context is not None else get_startup_context(database)
+    )
     return "\n\n".join(
         [
             SYSTEM_PROMPT,
-            rules_context or get_rules_startup_context(),
+            resolved_rules_context,
             get_active_character_context(),
-            campaign_memory_context or get_startup_context(database),
+            resolved_memory_context,
         ]
     )
 

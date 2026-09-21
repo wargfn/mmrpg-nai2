@@ -6,6 +6,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 
@@ -19,6 +20,7 @@ def _default_database_path() -> Path:
 
 CAMPAIGN_DB_PATH = _default_database_path()
 _DEFAULT_DATABASE: CampaignDatabase | None = None
+_DEFAULT_DATABASE_LOCK = Lock()
 
 
 def _utc_now() -> str:
@@ -1041,9 +1043,10 @@ def get_campaign_database(path: Path | str | None = None) -> CampaignDatabase:
     global _DEFAULT_DATABASE
     if path is not None:
         return CampaignDatabase(path)
-    if _DEFAULT_DATABASE is None or _DEFAULT_DATABASE.path != CAMPAIGN_DB_PATH:
-        _DEFAULT_DATABASE = CampaignDatabase(CAMPAIGN_DB_PATH)
-    return _DEFAULT_DATABASE
+    with _DEFAULT_DATABASE_LOCK:
+        if _DEFAULT_DATABASE is None or _DEFAULT_DATABASE.path != CAMPAIGN_DB_PATH:
+            _DEFAULT_DATABASE = CampaignDatabase(CAMPAIGN_DB_PATH)
+        return _DEFAULT_DATABASE
 
 
 def initialize_database(path: Path | str | None = None) -> Path:
