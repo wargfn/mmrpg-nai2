@@ -10,6 +10,7 @@ from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError
 from marvel_mcp_narrator.interfaces.cli import (
     CLI_COMMANDS_HELP,
     DEFAULT_MODEL,
+    STARTUP_MEMORY_LIMIT,
     STARTUP_CONTEXT_EMPTY_NOTE,
     STARTUP_CONTEXT_UNAVAILABLE_NOTE,
     _tool_injection,
@@ -551,6 +552,24 @@ class CLIStartupContextTests(unittest.TestCase):
 
         self.assertIn("[2026-09-21T09:00:00+00:00] session-2: Doctor Doom escaped with the artifact.", context)
         self.assertIn("[2026-09-20T09:00:00+00:00] session-1: The Fantastic Four reached Latveria.", context)
+
+    def test_get_startup_context_limits_injected_memories(self):
+        class MemoryDatabase:
+            def list_memories(self):
+                return [
+                    {
+                        "key": f"session-{index}",
+                        "content": f"Event {index}",
+                        "updated_at": "2026-09-21T09:00:00+00:00",
+                    }
+                    for index in range(STARTUP_MEMORY_LIMIT + 3)
+                ]
+
+        context = get_startup_context(MemoryDatabase())
+
+        self.assertIn("Additional memories omitted", context)
+        self.assertIn(f"({3} more)", context)
+        self.assertNotIn(f"session-{STARTUP_MEMORY_LIMIT + 2}", context)
 
     def test_get_startup_context_handles_database_errors_gracefully(self):
         class BrokenDatabase:
