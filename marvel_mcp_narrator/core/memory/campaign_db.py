@@ -641,7 +641,14 @@ class CampaignDatabase:
                 self._clear_state(connection, "active_session_number")
                 connection.commit()
                 return None
-        return self.get_campaign_plan(campaign_id)
+        plan = self.get_campaign_plan(campaign_id)
+        if plan is not None:
+            return plan
+        with self._connect() as connection:
+            self._clear_state(connection, "active_campaign_id")
+            self._clear_state(connection, "active_session_number")
+            connection.commit()
+        return None
 
     def get_campaign_plan(self, campaign_id: int) -> dict[str, Any] | None:
         """Return a campaign plan and all of its sessions by id."""

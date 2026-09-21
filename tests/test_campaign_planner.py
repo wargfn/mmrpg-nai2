@@ -252,3 +252,26 @@ def test_invalid_active_campaign_id_is_cleared():
         ).fetchall()
 
     assert rows == []
+
+
+def test_missing_active_campaign_plan_clears_campaign_state():
+    planner = campaign_planner.CampaignPlanner()
+    plan = planner.create_campaign_plan(
+        theme="Vanishing Front",
+        villain="Molecule Man",
+        hero_team=["Reed Richards"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute("DELETE FROM campaign_plans WHERE id = ?", (plan["campaign_id"],))
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []
