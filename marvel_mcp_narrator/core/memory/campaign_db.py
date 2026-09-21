@@ -30,6 +30,8 @@ def _configure_connection(connection: sqlite3.Connection) -> sqlite3.Connection:
 CAMPAIGN_DB_PATH = _default_database_path()
 _DEFAULT_DATABASE: CampaignDatabase | None = None
 _DEFAULT_DATABASE_LOCK = Lock()
+_INITIALIZED_DATABASE_PATHS: set[Path] = set()
+_DATABASE_LOCKS: dict[Path, RLock] = {}
 
 
 def _utc_now() -> str:
@@ -40,18 +42,30 @@ class CampaignDatabase:
     """Persistent key-value memory and named entity store for campaign state."""
 
     def __init__(self, path: Path | str | None = None) -> None:
-        self.path = Path(path) if path is not None else CAMPAIGN_DB_PATH
-        self._initialized = False
-        self._write_lock = RLock()
+        self._path = Path(path) if path is not None else CAMPAIGN_DB_PATH
+        self._write_lock = self._get_shared_lock(self._path)
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    @staticmethod
+    def _get_shared_lock(path: Path) -> RLock:
+        with _DEFAULT_DATABASE_LOCK:
+            lock = _DATABASE_LOCKS.get(path)
+            if lock is None:
+                lock = RLock()
+                _DATABASE_LOCKS[path] = lock
+            return lock
 
     def initialize(self) -> Path:
         """Create the database schema and perform lightweight legacy migrations."""
         with self._write_lock:
-            if self._initialized and self.path.exists():
-                return self.path
+            if self._path in _INITIALIZED_DATABASE_PATHS and self._path.exists():
+                return self._path
 
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with _configure_connection(sqlite3.connect(self.path, check_same_thread=False)) as connection:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            with _configure_connection(sqlite3.connect(self._path, check_same_thread=False)) as connection:
                 connection.execute(
                     """
                     CREATE TABLE IF NOT EXISTS memories (
@@ -149,12 +163,12 @@ class CampaignDatabase:
                 self._migrate_legacy_tables(connection)
                 connection.commit()
 
-            self._initialized = True
-            return self.path
+            _INITIALIZED_DATABASE_PATHS.add(self._path)
+            return self._path
 
     def _connect(self) -> sqlite3.Connection:
         self.initialize()
-        return _configure_connection(sqlite3.connect(self.path, check_same_thread=False))
+        return _configure_connection(sqlite3.connect(self._path, check_same_thread=False))
 
     def _migrate_legacy_tables(self, connection: sqlite3.Connection) -> None:
         tables = {
@@ -552,7 +566,7 @@ class CampaignDatabase:
                 (
                     exact_pattern,
                     prefix_pattern,
-                    fuzzy_pattern,
+                    prefix_pattern,
                     exact_pattern,
                     fuzzy_pattern,
                     fuzzy_pattern,
@@ -1109,14 +1123,8 @@ class CampaignDatabase:
 
 
 def get_campaign_database(path: Path | str | None = None) -> CampaignDatabase:
-    """Return a reusable database wrapper for the default campaign database."""
-    global _DEFAULT_DATABASE
-    if path is not None:
-        return CampaignDatabase(path)
-    with _DEFAULT_DATABASE_LOCK:
-        if _DEFAULT_DATABASE is None or _DEFAULT_DATABASE.path != CAMPAIGN_DB_PATH:
-            _DEFAULT_DATABASE = CampaignDatabase(CAMPAIGN_DB_PATH)
-        return _DEFAULT_DATABASE
+    """Return a database wrapper for the default campaign database path."""
+    return CampaignDatabase(path if path is not None else CAMPAIGN_DB_PATH)
 
 
 def initialize_database(path: Path | str | None = None) -> Path:

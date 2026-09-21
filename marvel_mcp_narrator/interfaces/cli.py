@@ -278,7 +278,7 @@ def get_rules_startup_context() -> str:
     """Return a concise core-rules block for startup prompt injection."""
     try:
         mechanics = load_rules_database().get("mechanics", {})
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError, ModuleNotFoundError):
         return "Core d616 Rules Context:\n- Rules database could not be loaded; use deterministic tool outputs for rules lookups."
 
     lines = ["Core d616 Rules Context:"]
@@ -495,6 +495,81 @@ def _extract_manual_roll(text: str) -> tuple[tuple[list[int], int] | None, str]:
     return manual_roll, remainder
 
 
+def _parse_roll_command(parts: list[str]) -> tuple[int, int, int | None]:
+    edges = 0
+    troubles = 0
+    tn = None
+    seen_edge = False
+    seen_trouble = False
+    seen_edges = False
+    seen_troubles = False
+    seen_tn = False
+    index = 1
+    while index < len(parts):
+        token = parts[index]
+        if token == "--edge":
+            if seen_edge or seen_edges:
+                raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
+            seen_edge = True
+            edges = 1
+            index += 1
+            continue
+        if token == "--trouble":
+            if seen_trouble or seen_troubles:
+                raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
+            seen_trouble = True
+            troubles = 1
+            index += 1
+            continue
+        if token == "--edges":
+            if seen_edge or seen_edges:
+                raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
+            seen_edges = True
+            if index + 1 >= len(parts):
+                raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
+            try:
+                edges = int(parts[index + 1])
+            except ValueError as exc:
+                raise ValueError("Edges must be a non-negative integer.") from exc
+            if edges < 0:
+                raise ValueError("Edges must be a non-negative integer.")
+            index += 2
+            continue
+        if token == "--troubles":
+            if seen_trouble or seen_troubles:
+                raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
+            seen_troubles = True
+            if index + 1 >= len(parts):
+                raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
+            try:
+                troubles = int(parts[index + 1])
+            except ValueError as exc:
+                raise ValueError("Troubles must be a non-negative integer.") from exc
+            if troubles < 0:
+                raise ValueError("Troubles must be a non-negative integer.")
+            index += 2
+            continue
+        if token == "--tn":
+            if seen_tn:
+                raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
+            seen_tn = True
+            if index + 1 >= len(parts):
+                raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
+            tn_value = parts[index + 1]
+            if tn_value.startswith("--"):
+                raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
+            try:
+                tn = int(tn_value)
+            except ValueError as exc:
+                raise ValueError("Target number for --tn must be a positive integer.") from exc
+            if tn <= 0:
+                raise ValueError("Target number for --tn must be a positive integer.")
+            index += 2
+            continue
+        raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
+    return edges, troubles, tn
+
+
 def _parse_attack_command(
     stripped: str, *, command_name: str
 ) -> tuple[str, str, str, tuple[list[int], int] | None, dict[str, int | str]]:
@@ -620,11 +695,9 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
 
     if command == "/roll":
         if any(token.startswith("--") for token in arguments):
-            tool_name, payload = _tool_injection(stripped)
-            if payload is None:
-                raise ValueError("Usage: /roll [edges] [troubles]")
-            return tool_name or "roll_d616", (
-                payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False, indent=2)
+            edges, troubles, target_number = _parse_roll_command(parts)
+            return "resolve_d616_roll", _format_router_roll_result(
+                resolve_d616_roll(edges=edges, troubles=troubles, target_number=target_number)
             )
 
         if len(arguments) > 2:
@@ -653,78 +726,8 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
     command = parts[0]
 
     if command == "/roll":
-        edges = 0
-        troubles = 0
-        tn = None
-        seen_edge = False
-        seen_trouble = False
-        seen_edges = False
-        seen_troubles = False
-        seen_tn = False
-        index = 1
-        while index < len(parts):
-            token = parts[index]
-            if token == "--edge":
-                if seen_edge or seen_edges:
-                    raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
-                seen_edge = True
-                edges = 1
-                index += 1
-                continue
-            if token == "--trouble":
-                if seen_trouble or seen_troubles:
-                    raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
-                seen_trouble = True
-                troubles = 1
-                index += 1
-                continue
-            if token == "--edges":
-                if seen_edge or seen_edges:
-                    raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
-                seen_edges = True
-                if index + 1 >= len(parts):
-                    raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
-                try:
-                    edges = int(parts[index + 1])
-                except ValueError as exc:
-                    raise ValueError("Edges must be a non-negative integer.") from exc
-                if edges < 0:
-                    raise ValueError("Edges must be a non-negative integer.")
-                index += 2
-                continue
-            if token == "--troubles":
-                if seen_trouble or seen_troubles:
-                    raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
-                seen_troubles = True
-                if index + 1 >= len(parts):
-                    raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
-                try:
-                    troubles = int(parts[index + 1])
-                except ValueError as exc:
-                    raise ValueError("Troubles must be a non-negative integer.") from exc
-                if troubles < 0:
-                    raise ValueError("Troubles must be a non-negative integer.")
-                index += 2
-                continue
-            if token == "--tn":
-                if seen_tn:
-                    raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
-                seen_tn = True
-                if index + 1 >= len(parts):
-                    raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
-                tn_value = parts[index + 1]
-                if tn_value.startswith("--"):
-                    raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
-                try:
-                    tn = int(tn_value)
-                except ValueError as exc:
-                    raise ValueError("Target number for --tn must be a positive integer.") from exc
-                if tn <= 0:
-                    raise ValueError("Target number for --tn must be a positive integer.")
-                index += 2
-                continue
-            raise ValueError("Usage: /roll [--edge|--trouble|--edges N|--troubles N] [--tn N]")
-        if seen_edges or seen_troubles or edges > 1 or troubles > 1:
+        edges, troubles, tn = _parse_roll_command(parts)
+        if "--edges" in parts or "--troubles" in parts or edges > 1 or troubles > 1:
             return "resolve_d616_roll", resolve_d616_roll(edges=edges, troubles=troubles, target_number=tn)
         return "roll_d616", roll_d616(edge=bool(edges), trouble=bool(troubles), target_number=tn)
 
