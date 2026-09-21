@@ -48,360 +48,2056 @@
   ],
   "origins": [
     {
-      "name": "Mutant",
-      "description": "Innate powers linked to mutation and superhuman genetics."
+      "name": "Alien",
+      "description": "Off-world heritage, biology, or cosmic lineage.",
+      "subcategories": [
+        "Atlantean",
+        "Deviant",
+        "Eternal",
+        "Inhuman",
+        "Skrull"
+      ]
     },
     {
-      "name": "High-Tech",
-      "description": "Abilities powered by advanced gear, armor, or inventions."
-    },
-    {
-      "name": "Science",
-      "description": "Extraordinary capabilities gained through experiments or accidents."
+      "name": "High Tech",
+      "description": "Abilities powered by advanced gear, armor, or inventions.",
+      "subcategories": [
+        "Android",
+        "Battle Suit",
+        "Cybernetics",
+        "Pym Particles"
+      ],
+      "aliases": [
+        "High-Tech"
+      ]
     },
     {
       "name": "Magic",
-      "description": "Mystic training, arcane pact, or supernatural spellcraft."
+      "description": "Mystic training, arcane pact, or supernatural spellcraft.",
+      "subcategories": [
+        "Chaos Magic",
+        "Demonic",
+        "Sorcery"
+      ]
+    },
+    {
+      "name": "Monstrous",
+      "description": "Monstrous or cursed physiology.",
+      "subcategories": [
+        "Vampire",
+        "Werewolf",
+        "Marvel Zombie"
+      ]
+    },
+    {
+      "name": "Mutant",
+      "description": "Innate powers linked to mutation and superhuman genetics.",
+      "subcategories": [
+        "Standard Mutant",
+        "Artificial Mutant"
+      ],
+      "aliases": [
+        "Mutation"
+      ]
     },
     {
       "name": "Mutation",
-      "description": "Altered physiology granting unusual powers and traits."
+      "description": "Backward-compatible mutant origin alias."
     },
     {
-      "name": "Alien",
-      "description": "Off-world heritage, biology, or cosmic lineage."
+      "name": "Mythic",
+      "description": "Divine or mythic lineage.",
+      "subcategories": [
+        "Asgardian",
+        "Olympian"
+      ]
+    },
+    {
+      "name": "Special Training",
+      "description": "Exceptional mortal training and discipline."
+    },
+    {
+      "name": "Spirit of Vengeance",
+      "description": "Bound to a vengeance spirit with supernatural judgment power."
+    },
+    {
+      "name": "Symbiote",
+      "description": "Symbiote-linked biology and mutable forms.",
+      "subcategories": [
+        "Standard Symbiote",
+        "Knull",
+        "Venom"
+      ]
+    },
+    {
+      "name": "Unknown",
+      "description": "Origin is uncertain, hidden, or unrevealed."
+    },
+    {
+      "name": "Weird Science",
+      "description": "Transformation or empowerment via unusual science.",
+      "subcategories": [
+        "Gamma Mutate",
+        "Power Cosmic"
+      ],
+      "aliases": [
+        "Science"
+      ]
+    },
+    {
+      "name": "Rank X Origins",
+      "description": "Godlike or multiversal existence.",
+      "subcategories": [
+        "Abstract Entity",
+        "Dominion",
+        "Primordial Being"
+      ]
     }
   ],
   "occupations": [
     {
-      "name": "Scientist",
-      "description": "Research-driven expert with technical and analytical training."
+      "name": "Adventurer",
+      "description": "Explores dangerous locations, hunts treasure, or travels the world/cosmos.",
+      "examples": [
+        "Star-Lord",
+        "Rocket Raccoon",
+        "Rogue"
+      ]
     },
     {
-      "name": "Cop",
-      "description": "Law-enforcement professional trained in investigation and tactics."
+      "name": "Assassin",
+      "description": "Specialized killer skilled in stealth, infiltration, and silent takedowns."
     },
     {
       "name": "Criminal",
-      "description": "Underworld operator with illicit contacts and survival instincts."
+      "description": "Background in illegal activity or organized crime.",
+      "examples": [
+        "Scott Lang",
+        "Gambit",
+        "Silver Samurai"
+      ]
+    },
+    {
+      "name": "Educator / Teacher",
+      "description": "Instructor, professor, or community organizer.",
+      "examples": [
+        "Professor X",
+        "Hank Pym"
+      ]
+    },
+    {
+      "name": "Engineer",
+      "description": "Designer and builder of advanced technology.",
+      "granted_traits": [
+        "Gearhead",
+        "Inventor"
+      ],
+      "examples": [
+        "Tony Stark",
+        "Robbie Reyes",
+        "Whiplash"
+      ]
+    },
+    {
+      "name": "Entertainer",
+      "description": "Performer, actor, musician, or public speaker.",
+      "granted_traits": [
+        "Famous",
+        "Presence",
+        "Public Speaking"
+      ],
+      "examples": [
+        "Dazzler",
+        "Echo",
+        "Mysterio",
+        "Wonder Man"
+      ]
+    },
+    {
+      "name": "Health Care Worker",
+      "description": "Doctor, nurse, therapist, or medical responder.",
+      "granted_traits": [
+        "Clinician",
+        "First Aid"
+      ],
+      "examples": [
+        "Doctor Strange",
+        "Doc Samson",
+        "Jane Foster",
+        "Night Nurse"
+      ]
+    },
+    {
+      "name": "Investigator",
+      "description": "Private detective or investigative law enforcement specialist.",
+      "granted_traits": [
+        "Connections (Specific Group)",
+        "Interrogation",
+        "Investigation"
+      ],
+      "granted_tags": [
+        "Connections: Police"
+      ],
+      "examples": [
+        "Jessica Jones",
+        "Misty Knight"
+      ]
+    },
+    {
+      "name": "Journalist",
+      "description": "Reporter, editor, or media publisher.",
+      "granted_traits": [
+        "Audience",
+        "Connections (Specific Group)",
+        "Pundit"
+      ],
+      "granted_tags": [
+        "Connections: Sources"
+      ],
+      "examples": [
+        "Peter Parker",
+        "Eddie Brock",
+        "Silk"
+      ]
+    },
+    {
+      "name": "Law Enforcer",
+      "description": "Police officer, marshal, or federal agent.",
+      "granted_traits": [
+        "Interrogation",
+        "Investigation"
+      ],
+      "granted_tags": [
+        "Authority",
+        "Backup"
+      ],
+      "examples": [
+        "Nick Fury Jr.",
+        "Maria Hill",
+        "Monica Rambeau"
+      ]
+    },
+    {
+      "name": "Lawyer",
+      "description": "Legal professional and courtroom advocate.",
+      "granted_traits": [
+        "Dealmaker",
+        "Legal Eagle",
+        "Public Speaking"
+      ],
+      "examples": [
+        "Matt Murdock",
+        "She-Hulk",
+        "Foggy Nelson"
+      ]
+    },
+    {
+      "name": "Leader",
+      "description": "Ruler, commander, or head of state.",
+      "granted_traits": [
+        "Presence"
+      ],
+      "granted_tags": [
+        "Authority",
+        "Powerful"
+      ],
+      "examples": [
+        "T'Challa",
+        "Black Bolt",
+        "Doctor Doom",
+        "Namor"
+      ]
+    },
+    {
+      "name": "Military",
+      "description": "Active-duty soldier or veteran.",
+      "granted_traits": [
+        "Battle Ready",
+        "Connections (Specific Group)",
+        "Situational Awareness"
+      ],
+      "granted_tags": [
+        "Obligation: Duty"
+      ],
+      "examples": [
+        "Steve Rogers",
+        "Carol Danvers",
+        "James Rhodes",
+        "Wolverine"
+      ]
+    },
+    {
+      "name": "Outsider",
+      "description": "Visitor from other planets, dimensions, or timelines.",
+      "granted_traits": [
+        "Fresh Eyes",
+        "Stranger",
+        "Connections (Specific Group)"
+      ],
+      "granted_tags": [
+        "Connections: Outsiders"
+      ],
+      "examples": [
+        "Thor Odinson",
+        "Groot",
+        "Rocket Raccoon"
+      ]
+    },
+    {
+      "name": "Pilot",
+      "description": "Aviator and specialist vehicle operator.",
+      "examples": [
+        "Christopher Summers / Corsair"
+      ]
+    },
+    {
+      "name": "Scientist",
+      "description": "Researcher and technical expert.",
+      "granted_traits": [
+        "Inventor",
+        "Scientific Expertise"
+      ],
+      "granted_tags": [
+        "Lab Access"
+      ],
+      "examples": [
+        "Bruce Banner",
+        "Mister Fantastic",
+        "Doctor Octopus",
+        "Moon Girl"
+      ]
+    },
+    {
+      "name": "Spy",
+      "description": "Espionage operative and covert specialist.",
+      "granted_traits": [
+        "Connections (Specific Group)",
+        "Leverage"
+      ],
+      "granted_tags": [
+        "Black Market Access",
+        "Connections: Espionage"
+      ],
+      "examples": [
+        "Natasha Romanoff",
+        "Peggy Carter",
+        "Bucky Barnes"
+      ]
+    },
+    {
+      "name": "Student",
+      "description": "Learner enrolled in school or formal instruction.",
+      "granted_traits": [
+        "Quick Learner"
+      ],
+      "granted_tags": [
+        "Mentor",
+        "Obligation: School"
+      ],
+      "examples": [
+        "Miles Morales",
+        "Kamala Khan",
+        "Moon Girl"
+      ]
+    },
+    {
+      "name": "Tycoon",
+      "description": "Wealthy executive and business magnate.",
+      "granted_traits": [
+        "Connections (Specific Group)",
+        "Famous"
+      ],
+      "granted_tags": [
+        "Rich",
+        "Connections: Celebrities"
+      ],
+      "examples": [
+        "Tony Stark",
+        "Sunspot",
+        "Janet Van Dyne",
+        "Obadiah Stane"
+      ]
     },
     {
       "name": "Athlete",
       "description": "Competitive performer with exceptional physical conditioning."
-    },
-    {
-      "name": "Military",
-      "description": "Service veteran trained in combat, discipline, and command structures."
     }
   ],
   "traits": [
     {
-      "name": "Brawler",
-      "description": "Instinctive close-quarters fighter who excels in scrappy combat."
+      "name": "Battle Ready",
+      "description": "Battle Ready trait."
     },
     {
-      "name": "Connections",
-      "description": "Strong personal network that can provide leads and support."
+      "name": "Berserker",
+      "description": "Berserker trait."
     },
     {
-      "name": "Icon",
-      "description": "A recognized public figure whose reputation opens doors."
+      "name": "Combat Expert",
+      "description": "Combat Expert trait."
     },
     {
-      "name": "Rich",
-      "description": "Significant resources and access to high-end equipment."
+      "name": "Combat Reflexes",
+      "description": "Combat Reflexes trait."
     },
     {
-      "name": "Signature Weapon",
-      "description": "Known for mastery of a specific hallmark weapon."
+      "name": "Free Running",
+      "description": "Free Running trait."
+    },
+    {
+      "name": "Situational Awareness",
+      "description": "Situational Awareness trait."
+    },
+    {
+      "name": "Sneaky",
+      "description": "Sneaky trait."
+    },
+    {
+      "name": "Surprising Power",
+      "description": "Surprising Power trait."
+    },
+    {
+      "name": "Beguiling",
+      "description": "Beguiling trait."
+    },
+    {
+      "name": "Connections (Specific Group)",
+      "description": "Connections (Specific Group) trait."
+    },
+    {
+      "name": "Dealmaker",
+      "description": "Dealmaker trait."
+    },
+    {
+      "name": "Determination",
+      "description": "Determination trait."
+    },
+    {
+      "name": "Eidetic Memory",
+      "description": "Eidetic Memory trait."
+    },
+    {
+      "name": "Famous",
+      "description": "Famous trait."
+    },
+    {
+      "name": "Fearless",
+      "description": "Fearless trait."
+    },
+    {
+      "name": "Font of Information",
+      "description": "Font of Information trait."
+    },
+    {
+      "name": "Fresh Eyes",
+      "description": "Fresh Eyes trait."
+    },
+    {
+      "name": "Glibness",
+      "description": "Glibness trait."
+    },
+    {
+      "name": "Interrogation",
+      "description": "Interrogation trait."
+    },
+    {
+      "name": "Investigation",
+      "description": "Investigation trait."
     },
     {
       "name": "Iron Will",
-      "description": "Exceptional mental resilience against fear, coercion, and stress."
+      "description": "Iron Will trait."
+    },
+    {
+      "name": "Presence",
+      "description": "Presence trait."
+    },
+    {
+      "name": "Public Speaking",
+      "description": "Public Speaking trait."
+    },
+    {
+      "name": "Quick Learner",
+      "description": "Quick Learner trait."
+    },
+    {
+      "name": "Big",
+      "description": "Big trait."
+    },
+    {
+      "name": "Clinician",
+      "description": "Clinician trait."
+    },
+    {
+      "name": "Enduring Constitution",
+      "description": "Enduring Constitution trait."
+    },
+    {
+      "name": "Enhanced Physique",
+      "description": "Enhanced Physique trait."
+    },
+    {
+      "name": "Extra Occupation",
+      "description": "Extra Occupation trait."
+    },
+    {
+      "name": "Extraordinary Origin",
+      "description": "Extraordinary Origin trait."
+    },
+    {
+      "name": "First Aid",
+      "description": "First Aid trait."
+    },
+    {
+      "name": "Gearhead",
+      "description": "Gearhead trait."
+    },
+    {
+      "name": "Inventor",
+      "description": "Inventor trait."
+    },
+    {
+      "name": "Scientific Expertise",
+      "description": "Scientific Expertise trait."
+    },
+    {
+      "name": "Small",
+      "description": "Small trait."
+    },
+    {
+      "name": "Tech Reliance",
+      "description": "Tech Reliance trait."
+    },
+    {
+      "name": "Unusual Size",
+      "description": "Unusual Size trait."
+    },
+    {
+      "name": "Anathema",
+      "description": "Anathema trait."
+    },
+    {
+      "name": "Bloodthirsty",
+      "description": "Bloodthirsty trait."
+    },
+    {
+      "name": "Breathe Different",
+      "description": "Breathe Different trait."
+    },
+    {
+      "name": "Clueless",
+      "description": "Clueless trait."
+    },
+    {
+      "name": "Loner",
+      "description": "Loner trait."
+    },
+    {
+      "name": "Monster",
+      "description": "Monster trait."
+    },
+    {
+      "name": "Weakness",
+      "description": "Weakness trait."
+    },
+    {
+      "name": "Weird",
+      "description": "Weird trait."
+    },
+    {
+      "name": "Authority",
+      "description": "Authority trait."
+    },
+    {
+      "name": "Audience",
+      "description": "Audience trait."
+    },
+    {
+      "name": "Legal Eagle",
+      "description": "Legal Eagle trait."
+    },
+    {
+      "name": "Pundit",
+      "description": "Pundit trait."
+    },
+    {
+      "name": "Leverage",
+      "description": "Leverage trait."
+    },
+    {
+      "name": "Brawler",
+      "description": "Brawler trait."
+    },
+    {
+      "name": "Connections",
+      "description": "Connections trait."
+    },
+    {
+      "name": "Icon",
+      "description": "Icon trait."
+    },
+    {
+      "name": "Rich",
+      "description": "Rich trait."
+    },
+    {
+      "name": "Signature Weapon",
+      "description": "Signature Weapon trait."
     }
   ],
   "tags": [
-    {"name": "Avenger", "description": "Affiliated with or recognized by the Avengers."},
-    {"name": "X-Men", "description": "Affiliated with or recognized by the X-Men."},
-    {"name": "Weapon", "description": "Defined by a notable signature weapon loadout."},
-    {"name": "Magic", "description": "Mystic or arcane capability focus."},
-    {"name": "Fire", "description": "Fire-based powers or combat profile."},
-    {"name": "Symbiote", "description": "Symbiote-linked biology or powers."},
-    {"name": "Tech", "description": "Technology-driven powers or equipment."}
+    {
+      "name": "A.I.",
+      "description": "A.I. tag."
+    },
+    {
+      "name": "Alien Heritage",
+      "description": "Alien Heritage tag."
+    },
+    {
+      "name": "Allspeak",
+      "description": "Allspeak tag."
+    },
+    {
+      "name": "Alternate Form",
+      "description": "Alternate Form tag."
+    },
+    {
+      "name": "Amphibious",
+      "description": "Amphibious tag."
+    },
+    {
+      "name": "Auditory Issues",
+      "description": "Auditory Issues tag."
+    },
+    {
+      "name": "Authority",
+      "description": "Authority tag."
+    },
+    {
+      "name": "Backup",
+      "description": "Backup tag."
+    },
+    {
+      "name": "Black Market Access",
+      "description": "Black Market Access tag."
+    },
+    {
+      "name": "Chaotic",
+      "description": "Chaotic tag."
+    },
+    {
+      "name": "Extreme Appearance",
+      "description": "Extreme Appearance tag."
+    },
+    {
+      "name": "Green Door",
+      "description": "Green Door tag."
+    },
+    {
+      "name": "Headquarters",
+      "description": "Headquarters tag."
+    },
+    {
+      "name": "Heroic",
+      "description": "Heroic tag."
+    },
+    {
+      "name": "Hounded",
+      "description": "Hounded tag."
+    },
+    {
+      "name": "Immunity",
+      "description": "Immunity tag."
+    },
+    {
+      "name": "Krakoan",
+      "description": "Krakoan tag."
+    },
+    {
+      "name": "Lab Access",
+      "description": "Lab Access tag."
+    },
+    {
+      "name": "Mentor",
+      "description": "Mentor tag."
+    },
+    {
+      "name": "Mysterious",
+      "description": "Mysterious tag."
+    },
+    {
+      "name": "Mute",
+      "description": "Mute tag."
+    },
+    {
+      "name": "Obligation",
+      "description": "Obligation tag."
+    },
+    {
+      "name": "Powerful",
+      "description": "Powerful tag."
+    },
+    {
+      "name": "Public Identity",
+      "description": "Public Identity tag."
+    },
+    {
+      "name": "Radioactive",
+      "description": "Radioactive tag."
+    },
+    {
+      "name": "Rich",
+      "description": "Rich tag."
+    },
+    {
+      "name": "Secret Identity",
+      "description": "Secret Identity tag."
+    },
+    {
+      "name": "Signature Weapon / Weapon",
+      "description": "Signature Weapon / Weapon tag."
+    },
+    {
+      "name": "Sorcerous / Supernatural",
+      "description": "Sorcerous / Supernatural tag."
+    },
+    {
+      "name": "Streetwise",
+      "description": "Streetwise tag."
+    },
+    {
+      "name": "Stranger",
+      "description": "Stranger tag."
+    },
+    {
+      "name": "Villainous",
+      "description": "Villainous tag."
+    },
+    {
+      "name": "Worshipped",
+      "description": "Worshipped tag."
+    },
+    {
+      "name": "X-Gene",
+      "description": "X-Gene tag."
+    },
+    {
+      "name": "Young",
+      "description": "Young tag."
+    },
+    {
+      "name": "Avenger",
+      "description": "Avenger tag."
+    },
+    {
+      "name": "X-Men",
+      "description": "X-Men tag."
+    },
+    {
+      "name": "Magic",
+      "description": "Magic tag."
+    },
+    {
+      "name": "Fire",
+      "description": "Fire tag."
+    },
+    {
+      "name": "Symbiote",
+      "description": "Symbiote tag."
+    },
+    {
+      "name": "Tech",
+      "description": "Tech tag."
+    },
+    {
+      "name": "Weapon",
+      "description": "Weapon tag."
+    },
+    {
+      "name": "Obligation: Duty",
+      "description": "Obligation: Duty tag."
+    },
+    {
+      "name": "Obligation: School",
+      "description": "Obligation: School tag."
+    },
+    {
+      "name": "Connections: Police",
+      "description": "Connections: Police tag."
+    },
+    {
+      "name": "Connections: Sources",
+      "description": "Connections: Sources tag."
+    },
+    {
+      "name": "Connections: Outsiders",
+      "description": "Connections: Outsiders tag."
+    },
+    {
+      "name": "Connections: Espionage",
+      "description": "Connections: Espionage tag."
+    },
+    {
+      "name": "Connections: Celebrities",
+      "description": "Connections: Celebrities tag."
+    }
   ],
   "power_sets": [
     {
       "name": "Basic Boosters",
       "type": "basic_booster_chain",
       "powers": [
-        {"name": "Accuracy 1", "rank_required": 1, "prerequisites": []},
-        {"name": "Accuracy 2", "rank_required": 2, "prerequisites": ["Accuracy 1"]},
-        {"name": "Accuracy 3", "rank_required": 3, "prerequisites": ["Accuracy 2"]},
-        {"name": "Accuracy 4", "rank_required": 4, "prerequisites": ["Accuracy 3"]},
-        {"name": "Brilliance 1", "rank_required": 1, "prerequisites": []},
-        {"name": "Brilliance 2", "rank_required": 2, "prerequisites": ["Brilliance 1"]},
-        {"name": "Brilliance 3", "rank_required": 3, "prerequisites": ["Brilliance 2"]},
-        {"name": "Brilliance 4", "rank_required": 4, "prerequisites": ["Brilliance 3"]},
-        {"name": "Discipline 1", "rank_required": 1, "prerequisites": []},
-        {"name": "Discipline 2", "rank_required": 2, "prerequisites": ["Discipline 1"]},
-        {"name": "Discipline 3", "rank_required": 3, "prerequisites": ["Discipline 2"]},
-        {"name": "Discipline 4", "rank_required": 4, "prerequisites": ["Discipline 3"]},
-        {"name": "Mighty 1", "rank_required": 1, "prerequisites": []},
-        {"name": "Mighty 2", "rank_required": 2, "prerequisites": ["Mighty 1"]},
-        {"name": "Mighty 3", "rank_required": 3, "prerequisites": ["Mighty 2"]},
-        {"name": "Mighty 4", "rank_required": 4, "prerequisites": ["Mighty 3"]},
-        {"name": "Sturdy 1", "rank_required": 1, "prerequisites": []},
-        {"name": "Sturdy 2", "rank_required": 2, "prerequisites": ["Sturdy 1"]},
-        {"name": "Sturdy 3", "rank_required": 3, "prerequisites": ["Sturdy 2"]},
-        {"name": "Sturdy 4", "rank_required": 4, "prerequisites": ["Sturdy 3"]},
-        {"name": "Uncanny 1", "rank_required": 1, "prerequisites": []},
-        {"name": "Uncanny 2", "rank_required": 2, "prerequisites": ["Uncanny 1"]},
-        {"name": "Uncanny 3", "rank_required": 3, "prerequisites": ["Uncanny 2"]},
-        {"name": "Uncanny 4", "rank_required": 4, "prerequisites": ["Uncanny 3"]}
+        {
+          "name": "Accuracy 1",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Accuracy 2",
+          "rank_required": 2,
+          "prerequisites": [
+            "Accuracy 1"
+          ]
+        },
+        {
+          "name": "Accuracy 3",
+          "rank_required": 3,
+          "prerequisites": [
+            "Accuracy 2"
+          ]
+        },
+        {
+          "name": "Accuracy 4",
+          "rank_required": 4,
+          "prerequisites": [
+            "Accuracy 3"
+          ]
+        },
+        {
+          "name": "Brilliance 1",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Brilliance 2",
+          "rank_required": 2,
+          "prerequisites": [
+            "Brilliance 1"
+          ]
+        },
+        {
+          "name": "Brilliance 3",
+          "rank_required": 3,
+          "prerequisites": [
+            "Brilliance 2"
+          ]
+        },
+        {
+          "name": "Brilliance 4",
+          "rank_required": 4,
+          "prerequisites": [
+            "Brilliance 3"
+          ]
+        },
+        {
+          "name": "Discipline 1",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Discipline 2",
+          "rank_required": 2,
+          "prerequisites": [
+            "Discipline 1"
+          ]
+        },
+        {
+          "name": "Discipline 3",
+          "rank_required": 3,
+          "prerequisites": [
+            "Discipline 2"
+          ]
+        },
+        {
+          "name": "Discipline 4",
+          "rank_required": 4,
+          "prerequisites": [
+            "Discipline 3"
+          ]
+        },
+        {
+          "name": "Mighty 1",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Mighty 2",
+          "rank_required": 2,
+          "prerequisites": [
+            "Mighty 1"
+          ]
+        },
+        {
+          "name": "Mighty 3",
+          "rank_required": 3,
+          "prerequisites": [
+            "Mighty 2"
+          ]
+        },
+        {
+          "name": "Mighty 4",
+          "rank_required": 4,
+          "prerequisites": [
+            "Mighty 3"
+          ]
+        },
+        {
+          "name": "Sturdy 1",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Sturdy 2",
+          "rank_required": 2,
+          "prerequisites": [
+            "Sturdy 1"
+          ]
+        },
+        {
+          "name": "Sturdy 3",
+          "rank_required": 3,
+          "prerequisites": [
+            "Sturdy 2"
+          ]
+        },
+        {
+          "name": "Sturdy 4",
+          "rank_required": 4,
+          "prerequisites": [
+            "Sturdy 3"
+          ]
+        },
+        {
+          "name": "Uncanny 1",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Uncanny 2",
+          "rank_required": 2,
+          "prerequisites": [
+            "Uncanny 1"
+          ]
+        },
+        {
+          "name": "Uncanny 3",
+          "rank_required": 3,
+          "prerequisites": [
+            "Uncanny 2"
+          ]
+        },
+        {
+          "name": "Uncanny 4",
+          "rank_required": 4,
+          "prerequisites": [
+            "Uncanny 3"
+          ]
+        }
       ]
     },
     {
       "name": "Basic Combat and Utility",
       "type": "basic_misc",
       "powers": [
-        {"name": "Anger", "rank_required": 4, "prerequisites": ["Mighty 3"]},
-        {"name": "Brawling", "rank_required": 1, "prerequisites": []},
-        {"name": "Evasion", "rank_required": 1, "prerequisites": []},
-        {"name": "Integrity", "rank_required": 1, "prerequisites": []},
-        {"name": "Wisecracker", "rank_required": 1, "prerequisites": []},
-        {"name": "Wisdom", "rank_required": 1, "prerequisites": []},
-        {"name": "Combat Trickery", "rank_required": 2, "prerequisites": []},
-        {"name": "Slow-Motion Dodge", "rank_required": 2, "prerequisites": []},
-        {"name": "Reinforced Skeleton", "rank_required": 1, "prerequisites": ["Sturdy 1"]},
-        {"name": "Healing Factor", "rank_required": 1, "prerequisites": []},
-        {"name": "Inspiration", "rank_required": 1, "prerequisites": []},
-        {"name": "Additional Limbs", "rank_required": 1, "prerequisites": []},
-        {"name": "Flight 1", "rank_required": 1, "prerequisites": []},
-        {"name": "Flight 2", "rank_required": 2, "prerequisites": ["Flight 1"]},
-        {"name": "Group Flight", "rank_required": 2, "prerequisites": ["Flight 1"]},
-        {"name": "Heightened Senses 1", "rank_required": 1, "prerequisites": []},
-        {"name": "Heightened Senses 2", "rank_required": 2, "prerequisites": ["Heightened Senses 1"]},
-        {"name": "Disguise", "rank_required": 1, "prerequisites": []},
-        {"name": "Shape-Shift", "rank_required": 3, "prerequisites": ["Disguise"]}
+        {
+          "name": "Anger",
+          "rank_required": 4,
+          "prerequisites": [
+            "Mighty 3"
+          ]
+        },
+        {
+          "name": "Brawling",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Evasion",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Integrity",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Wisecracker",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Wisdom",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Combat Trickery",
+          "rank_required": 2,
+          "prerequisites": []
+        },
+        {
+          "name": "Slow-Motion Dodge",
+          "rank_required": 2,
+          "prerequisites": []
+        },
+        {
+          "name": "Reinforced Skeleton",
+          "rank_required": 1,
+          "prerequisites": [
+            "Sturdy 1"
+          ]
+        },
+        {
+          "name": "Healing Factor",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Inspiration",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Additional Limbs",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Flight 1",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Flight 2",
+          "rank_required": 2,
+          "prerequisites": [
+            "Flight 1"
+          ]
+        },
+        {
+          "name": "Group Flight",
+          "rank_required": 2,
+          "prerequisites": [
+            "Flight 1"
+          ]
+        },
+        {
+          "name": "Heightened Senses 1",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Heightened Senses 2",
+          "rank_required": 2,
+          "prerequisites": [
+            "Heightened Senses 1"
+          ]
+        },
+        {
+          "name": "Disguise",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Shape-Shift",
+          "rank_required": 3,
+          "prerequisites": [
+            "Disguise"
+          ]
+        }
       ]
     },
     {
       "name": "Elemental Control",
       "type": "core",
       "independent_by_element": true,
-      "elements": ["Fire", "Ice", "Energy", "Electricity", "Air", "Earth", "Water", "Plants"],
+      "elements": [
+        "Fire",
+        "Ice",
+        "Energy",
+        "Electricity",
+        "Air",
+        "Earth",
+        "Water",
+        "Plants"
+      ],
       "powers": [
-        {"name": "Elemental Burst", "rank_required": 1, "prerequisites": [], "summary": "Base elemental discharge and manipulation control."},
-        {"name": "Elemental Blast", "rank_required": 2, "prerequisites": ["Elemental Burst"], "summary": "Focused ranged elemental attack."},
-        {"name": "Elemental Grab", "rank_required": 2, "prerequisites": ["Elemental Burst"], "summary": "Constrict or immobilize targets with elemental force."},
-        {"name": "Elemental Push", "rank_required": 3, "prerequisites": ["Elemental Grab"], "summary": "Forcefully shove targets and objects with elemental control."},
-        {"name": "Supernova", "rank_required": 4, "prerequisites": ["Elemental Blast"], "summary": "High-intensity elemental detonation."},
-        {"name": "Elemental Barrier", "rank_required": 1, "prerequisites": ["Elemental Burst"], "summary": "Construct a protective elemental shield."},
-        {"name": "Elemental Protection 1", "rank_required": 2, "prerequisites": ["Elemental Barrier"], "summary": "Improved elemental mitigation."},
-        {"name": "Elemental Protection 2", "rank_required": 3, "prerequisites": ["Elemental Protection 1"], "summary": "Advanced elemental mitigation."},
-        {"name": "Elemental Protection 3", "rank_required": 4, "prerequisites": ["Elemental Protection 2"], "summary": "Elite elemental mitigation."},
-        {"name": "Elemental Protection 4", "rank_required": 5, "prerequisites": ["Elemental Protection 3"], "summary": "Near-impervious elemental mitigation."},
-        {"name": "Plants", "rank_required": 2, "prerequisites": ["Elemental Burst"], "summary": "Plant control; Fantastic hits can apply grab/entangle effects."}
+        {
+          "name": "Elemental Burst",
+          "rank_required": 1,
+          "prerequisites": [],
+          "summary": "Base elemental discharge and manipulation control."
+        },
+        {
+          "name": "Elemental Blast",
+          "rank_required": 2,
+          "prerequisites": [
+            "Elemental Burst"
+          ],
+          "summary": "Focused ranged elemental attack."
+        },
+        {
+          "name": "Elemental Grab",
+          "rank_required": 2,
+          "prerequisites": [
+            "Elemental Burst"
+          ],
+          "summary": "Constrict or immobilize targets with elemental force."
+        },
+        {
+          "name": "Elemental Push",
+          "rank_required": 3,
+          "prerequisites": [
+            "Elemental Grab"
+          ],
+          "summary": "Forcefully shove targets and objects with elemental control."
+        },
+        {
+          "name": "Supernova",
+          "rank_required": 4,
+          "prerequisites": [
+            "Elemental Blast"
+          ],
+          "summary": "High-intensity elemental detonation."
+        },
+        {
+          "name": "Elemental Barrier",
+          "rank_required": 1,
+          "prerequisites": [
+            "Elemental Burst"
+          ],
+          "summary": "Construct a protective elemental shield."
+        },
+        {
+          "name": "Elemental Protection 1",
+          "rank_required": 2,
+          "prerequisites": [
+            "Elemental Barrier"
+          ],
+          "summary": "Improved elemental mitigation."
+        },
+        {
+          "name": "Elemental Protection 2",
+          "rank_required": 3,
+          "prerequisites": [
+            "Elemental Protection 1"
+          ],
+          "summary": "Advanced elemental mitigation."
+        },
+        {
+          "name": "Elemental Protection 3",
+          "rank_required": 4,
+          "prerequisites": [
+            "Elemental Protection 2"
+          ],
+          "summary": "Elite elemental mitigation."
+        },
+        {
+          "name": "Elemental Protection 4",
+          "rank_required": 5,
+          "prerequisites": [
+            "Elemental Protection 3"
+          ],
+          "summary": "Near-impervious elemental mitigation."
+        },
+        {
+          "name": "Plants",
+          "rank_required": 2,
+          "prerequisites": [
+            "Elemental Burst"
+          ],
+          "summary": "Plant control; Fantastic hits can apply grab/entangle effects."
+        }
       ]
     },
     {
       "name": "Martial Arts",
       "type": "core",
       "powers": [
-        {"name": "Attack Stance", "rank_required": 1, "prerequisites": []},
-        {"name": "Defense Stance", "rank_required": 1, "prerequisites": []},
-        {"name": "Fast Strikes", "rank_required": 1, "prerequisites": []},
-        {"name": "Banging Heads", "rank_required": 1, "prerequisites": []},
-        {"name": "Counterstrike Technique", "rank_required": 2, "prerequisites": ["Attack Stance", "Defense Stance"]},
-        {"name": "Untouchable Position", "rank_required": 3, "prerequisites": ["Counterstrike Technique"]},
-        {"name": "Chain Strikes", "rank_required": 2, "prerequisites": ["Fast Strikes"]},
-        {"name": "Focused Strike", "rank_required": 3, "prerequisites": ["Chain Strikes"]}
+        {
+          "name": "Attack Stance",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Defense Stance",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Fast Strikes",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Banging Heads",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Counterstrike Technique",
+          "rank_required": 2,
+          "prerequisites": [
+            "Attack Stance",
+            "Defense Stance"
+          ]
+        },
+        {
+          "name": "Untouchable Position",
+          "rank_required": 3,
+          "prerequisites": [
+            "Counterstrike Technique"
+          ]
+        },
+        {
+          "name": "Chain Strikes",
+          "rank_required": 2,
+          "prerequisites": [
+            "Fast Strikes"
+          ]
+        },
+        {
+          "name": "Focused Strike",
+          "rank_required": 3,
+          "prerequisites": [
+            "Chain Strikes"
+          ]
+        }
       ]
     },
     {
       "name": "Melee Weapons",
       "type": "core",
       "powers": [
-        {"name": "Fast Attacks", "rank_required": 1, "prerequisites": []},
-        {"name": "Whirling Frenzy", "rank_required": 2, "prerequisites": ["Fast Attacks"]},
-        {"name": "Furious Attacks", "rank_required": 3, "prerequisites": ["Whirling Frenzy"]},
-        {"name": "Vicious Attack", "rank_required": 1, "prerequisites": []},
-        {"name": "Exploit", "rank_required": 2, "prerequisites": ["Vicious Attack"]},
-        {"name": "Focused Fury", "rank_required": 3, "prerequisites": ["Exploit"]}
+        {
+          "name": "Fast Attacks",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Whirling Frenzy",
+          "rank_required": 2,
+          "prerequisites": [
+            "Fast Attacks"
+          ]
+        },
+        {
+          "name": "Furious Attacks",
+          "rank_required": 3,
+          "prerequisites": [
+            "Whirling Frenzy"
+          ]
+        },
+        {
+          "name": "Vicious Attack",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Exploit",
+          "rank_required": 2,
+          "prerequisites": [
+            "Vicious Attack"
+          ]
+        },
+        {
+          "name": "Focused Fury",
+          "rank_required": 3,
+          "prerequisites": [
+            "Exploit"
+          ]
+        }
       ]
     },
     {
       "name": "Spider-Powers",
       "type": "core",
       "fantastic_stunts": [
-        {"name": "Spider-Cuffs", "summary": "Bind target appendages with tactical web restraint."},
-        {"name": "Spider-Gag", "summary": "Seal target's mouth to impede communication and casting."},
-        {"name": "Spider-Pummel", "summary": "Rapid close-range combo while maintaining web control."},
-        {"name": "Spider-Zap", "summary": "Deliver a focused venom charge through contact."},
-        {"name": "Spider-Zap Chain", "summary": "Arc venom charge through multiple nearby targets."},
-        {"name": "Symbiote Slash", "summary": "Manifest symbiote edge for a cutting melee strike."},
-        {"name": "Venom Chain", "summary": "Link venom payloads across restrained foes."},
-        {"name": "Venom Stun", "summary": "Overload target's nervous system to force a stun check."},
-        {"name": "Web-Back-Atcha", "summary": "Deflect or redirect incoming projectile attacks with webbing."}
+        {
+          "name": "Spider-Cuffs",
+          "summary": "Bind target appendages with tactical web restraint."
+        },
+        {
+          "name": "Spider-Gag",
+          "summary": "Seal target's mouth to impede communication and casting."
+        },
+        {
+          "name": "Spider-Pummel",
+          "summary": "Rapid close-range combo while maintaining web control."
+        },
+        {
+          "name": "Spider-Zap",
+          "summary": "Deliver a focused venom charge through contact."
+        },
+        {
+          "name": "Spider-Zap Chain",
+          "summary": "Arc venom charge through multiple nearby targets."
+        },
+        {
+          "name": "Symbiote Slash",
+          "summary": "Manifest symbiote edge for a cutting melee strike."
+        },
+        {
+          "name": "Venom Chain",
+          "summary": "Link venom payloads across restrained foes."
+        },
+        {
+          "name": "Venom Stun",
+          "summary": "Overload target's nervous system to force a stun check."
+        },
+        {
+          "name": "Web-Back-Atcha",
+          "summary": "Deflect or redirect incoming projectile attacks with webbing."
+        }
       ],
       "powers": [
-        {"name": "Spider-Dodge", "rank_required": 1, "prerequisites": []},
-        {"name": "Spider-Sense", "rank_required": 1, "prerequisites": []},
-        {"name": "Spider-Strike", "rank_required": 1, "prerequisites": []},
-        {"name": "Spider-Pheromones", "rank_required": 1, "prerequisites": []},
-        {"name": "Wallcrawling", "rank_required": 1, "prerequisites": []},
-        {"name": "Webcasting", "rank_required": 1, "prerequisites": []},
-        {"name": "Razorwebs", "rank_required": 2, "prerequisites": ["Webcasting"], "summary": "Cutting web threads for slashing restraint attacks."},
-        {"name": "Venom Bash", "rank_required": 1, "prerequisites": [], "summary": "Fantastic hits deal double damage and can inflict stun."},
-        {"name": "Venom Burst", "rank_required": 2, "prerequisites": ["Venom Bash"], "summary": "Ground-pound venom burst in a 5-space area that can knock prone."},
-        {"name": "Venom Blast", "rank_required": 2, "prerequisites": ["Venom Bash"], "summary": "Ranged venom projection attack."},
-        {"name": "Venom Sword", "rank_required": 2, "prerequisites": ["Venom Blast"], "summary": "Requires Venom Blast; costs 5 Focus/round and grants +2 Melee damage multiplier."},
-        {"name": "Webslinging", "rank_required": 1, "prerequisites": ["Webcasting"]},
-        {"name": "Webgliding", "rank_required": 2, "prerequisites": ["Webslinging"]},
-        {"name": "Stick Around", "rank_required": 2, "prerequisites": ["Wallcrawling"], "summary": "Adhesive restraint effect; TN 16 Melee to break free (10 Focus)."},
-        {"name": "Repulse", "rank_required": 3, "prerequisites": ["Stick Around"]}
+        {
+          "name": "Spider-Dodge",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Spider-Sense",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Spider-Strike",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Spider-Pheromones",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Wallcrawling",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Webcasting",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Razorwebs",
+          "rank_required": 2,
+          "prerequisites": [
+            "Webcasting"
+          ],
+          "summary": "Cutting web threads for slashing restraint attacks."
+        },
+        {
+          "name": "Venom Bash",
+          "rank_required": 1,
+          "prerequisites": [],
+          "summary": "Fantastic hits deal double damage and can inflict stun."
+        },
+        {
+          "name": "Venom Burst",
+          "rank_required": 2,
+          "prerequisites": [
+            "Venom Bash"
+          ],
+          "summary": "Ground-pound venom burst in a 5-space area that can knock prone."
+        },
+        {
+          "name": "Venom Blast",
+          "rank_required": 2,
+          "prerequisites": [
+            "Venom Bash"
+          ],
+          "summary": "Ranged venom projection attack."
+        },
+        {
+          "name": "Venom Sword",
+          "rank_required": 2,
+          "prerequisites": [
+            "Venom Blast"
+          ],
+          "summary": "Requires Venom Blast; costs 5 Focus/round and grants +2 Melee damage multiplier."
+        },
+        {
+          "name": "Webslinging",
+          "rank_required": 1,
+          "prerequisites": [
+            "Webcasting"
+          ]
+        },
+        {
+          "name": "Webgliding",
+          "rank_required": 2,
+          "prerequisites": [
+            "Webslinging"
+          ]
+        },
+        {
+          "name": "Stick Around",
+          "rank_required": 2,
+          "prerequisites": [
+            "Wallcrawling"
+          ],
+          "summary": "Adhesive restraint effect; TN 16 Melee to break free (10 Focus)."
+        },
+        {
+          "name": "Repulse",
+          "rank_required": 3,
+          "prerequisites": [
+            "Stick Around"
+          ]
+        }
       ]
     },
     {
       "name": "Super-Speed",
       "type": "core",
       "powers": [
-        {"name": "Speed Run 1", "rank_required": 1, "prerequisites": []},
-        {"name": "Speed Run 2", "rank_required": 2, "prerequisites": ["Speed Run 1"]},
-        {"name": "Speed Run 3", "rank_required": 3, "prerequisites": ["Speed Run 2"]},
-        {"name": "Fast Run", "rank_required": 1, "prerequisites": ["Speed Run 1"]},
-        {"name": "Speed Dodge", "rank_required": 1, "prerequisites": ["Speed Run 1"]},
-        {"name": "Catch Projectiles", "rank_required": 2, "prerequisites": ["Speed Run 2"]},
-        {"name": "Speed Strike", "rank_required": 2, "prerequisites": ["Speed Run 2"]},
-        {"name": "Molecular Destabilization", "rank_required": 4, "prerequisites": ["Speed Run 3"]}
+        {
+          "name": "Speed Run 1",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Speed Run 2",
+          "rank_required": 2,
+          "prerequisites": [
+            "Speed Run 1"
+          ]
+        },
+        {
+          "name": "Speed Run 3",
+          "rank_required": 3,
+          "prerequisites": [
+            "Speed Run 2"
+          ]
+        },
+        {
+          "name": "Fast Run",
+          "rank_required": 1,
+          "prerequisites": [
+            "Speed Run 1"
+          ]
+        },
+        {
+          "name": "Speed Dodge",
+          "rank_required": 1,
+          "prerequisites": [
+            "Speed Run 1"
+          ]
+        },
+        {
+          "name": "Catch Projectiles",
+          "rank_required": 2,
+          "prerequisites": [
+            "Speed Run 2"
+          ]
+        },
+        {
+          "name": "Speed Strike",
+          "rank_required": 2,
+          "prerequisites": [
+            "Speed Run 2"
+          ]
+        },
+        {
+          "name": "Molecular Destabilization",
+          "rank_required": 4,
+          "prerequisites": [
+            "Speed Run 3"
+          ]
+        }
       ]
     },
     {
       "name": "Super-Strength",
       "type": "core",
       "powers": [
-        {"name": "Clobber", "rank_required": 1, "prerequisites": []},
-        {"name": "Immovable", "rank_required": 1, "prerequisites": []},
-        {"name": "Smash", "rank_required": 1, "prerequisites": []},
-        {"name": "Ground Shake", "rank_required": 3, "prerequisites": ["Smash"]},
-        {"name": "Thunderclap", "rank_required": 3, "prerequisites": ["Smash"]}
+        {
+          "name": "Clobber",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Immovable",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Smash",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Ground Shake",
+          "rank_required": 3,
+          "prerequisites": [
+            "Smash"
+          ]
+        },
+        {
+          "name": "Thunderclap",
+          "rank_required": 3,
+          "prerequisites": [
+            "Smash"
+          ]
+        }
       ]
     },
     {
       "name": "Telekinesis",
       "type": "core",
       "powers": [
-        {"name": "Telekinetic Attack", "rank_required": 1, "prerequisites": []},
-        {"name": "Levitation", "rank_required": 1, "prerequisites": []},
-        {"name": "Telekinetic Grab", "rank_required": 2, "prerequisites": ["Telekinetic Attack"]},
-        {"name": "Telekinetic Crush", "rank_required": 3, "prerequisites": ["Telekinetic Grab"]}
+        {
+          "name": "Telekinetic Attack",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Levitation",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Telekinetic Grab",
+          "rank_required": 2,
+          "prerequisites": [
+            "Telekinetic Attack"
+          ]
+        },
+        {
+          "name": "Telekinetic Crush",
+          "rank_required": 3,
+          "prerequisites": [
+            "Telekinetic Grab"
+          ]
+        }
       ]
     },
     {
       "name": "Telepathy",
       "type": "core",
       "powers": [
-        {"name": "Telepathic Link", "rank_required": 1, "prerequisites": []},
-        {"name": "Cloak", "rank_required": 1, "prerequisites": []},
-        {"name": "Sense Emotion", "rank_required": 1, "prerequisites": []},
-        {"name": "Mind Reading", "rank_required": 2, "prerequisites": ["Telepathic Link"]},
-        {"name": "Edit Memory", "rank_required": 3, "prerequisites": ["Mind Reading"]},
-        {"name": "Sway Emotion", "rank_required": 2, "prerequisites": ["Sense Emotion"], "summary": "Influence emotional state of one target."},
-        {"name": "Control Emotion", "rank_required": 3, "prerequisites": ["Sway Emotion"], "summary": "Force emotional response on one target."},
-        {"name": "Group Control Emotion", "rank_required": 4, "prerequisites": ["Control Emotion"], "summary": "Apply emotional control across a group."}
+        {
+          "name": "Telepathic Link",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Cloak",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Sense Emotion",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Mind Reading",
+          "rank_required": 2,
+          "prerequisites": [
+            "Telepathic Link"
+          ]
+        },
+        {
+          "name": "Edit Memory",
+          "rank_required": 3,
+          "prerequisites": [
+            "Mind Reading"
+          ]
+        },
+        {
+          "name": "Sway Emotion",
+          "rank_required": 2,
+          "prerequisites": [
+            "Sense Emotion"
+          ],
+          "summary": "Influence emotional state of one target."
+        },
+        {
+          "name": "Control Emotion",
+          "rank_required": 3,
+          "prerequisites": [
+            "Sway Emotion"
+          ],
+          "summary": "Force emotional response on one target."
+        },
+        {
+          "name": "Group Control Emotion",
+          "rank_required": 4,
+          "prerequisites": [
+            "Control Emotion"
+          ],
+          "summary": "Apply emotional control across a group."
+        }
       ]
     },
     {
       "name": "Teleportation",
       "type": "core",
       "powers": [
-        {"name": "Blink", "rank_required": 1, "prerequisites": []},
-        {"name": "Teleport 1", "rank_required": 2, "prerequisites": ["Blink"]},
-        {"name": "Teleport Other", "rank_required": 3, "prerequisites": ["Teleport 1"]},
-        {"name": "Teleport Together", "rank_required": 3, "prerequisites": ["Teleport 1"]},
-        {"name": "Teleportal", "rank_required": 4, "prerequisites": ["Teleport Other", "Teleport Together"]},
-        {"name": "Warp Portal", "rank_required": 4, "prerequisites": ["Teleport Other", "Teleport Together"]},
-        {"name": "Telespot", "rank_required": 3, "prerequisites": ["Teleport 1"], "summary": "Spend 5 Focus to place tactical portals for defense and attacks."}
+        {
+          "name": "Blink",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Teleport 1",
+          "rank_required": 2,
+          "prerequisites": [
+            "Blink"
+          ]
+        },
+        {
+          "name": "Teleport Other",
+          "rank_required": 3,
+          "prerequisites": [
+            "Teleport 1"
+          ]
+        },
+        {
+          "name": "Teleport Together",
+          "rank_required": 3,
+          "prerequisites": [
+            "Teleport 1"
+          ]
+        },
+        {
+          "name": "Teleportal",
+          "rank_required": 4,
+          "prerequisites": [
+            "Teleport Other",
+            "Teleport Together"
+          ]
+        },
+        {
+          "name": "Warp Portal",
+          "rank_required": 4,
+          "prerequisites": [
+            "Teleport Other",
+            "Teleport Together"
+          ]
+        },
+        {
+          "name": "Telespot",
+          "rank_required": 3,
+          "prerequisites": [
+            "Teleport 1"
+          ],
+          "summary": "Spend 5 Focus to place tactical portals for defense and attacks."
+        }
       ]
     },
     {
       "name": "Healing",
       "type": "expansion",
       "powers": [
-        {"name": "Soothing Touch", "rank_required": 1, "prerequisites": [], "summary": "Spend 10+ Focus to restore 1 Focus per Focus spent."},
-        {"name": "Healing Hands", "rank_required": 2, "prerequisites": ["Soothing Touch"], "summary": "Spend 10+ Focus to restore 1 HP per Focus spent."},
-        {"name": "Let's Go", "rank_required": 2, "prerequisites": ["Soothing Touch"], "summary": "Rally an ally to immediately recover from setbacks."},
-        {"name": "Never Surrender", "rank_required": 3, "prerequisites": ["Let's Go"], "summary": "Bolster ally survivability and resistance under pressure."},
-        {"name": "Cure-All", "rank_required": 3, "prerequisites": ["Healing Hands"], "summary": "Remove multiple adverse conditions while restoring health."},
-        {"name": "Restore", "rank_required": 4, "prerequisites": ["Cure-All"], "summary": "Major restoration of health and capability."},
-        {"name": "Resurrect", "rank_required": 5, "prerequisites": ["Restore"], "summary": "Return a recently fallen ally to active status."}
+        {
+          "name": "Soothing Touch",
+          "rank_required": 1,
+          "prerequisites": [],
+          "summary": "Spend 10+ Focus to restore 1 Focus per Focus spent."
+        },
+        {
+          "name": "Healing Hands",
+          "rank_required": 2,
+          "prerequisites": [
+            "Soothing Touch"
+          ],
+          "summary": "Spend 10+ Focus to restore 1 HP per Focus spent."
+        },
+        {
+          "name": "Let's Go",
+          "rank_required": 2,
+          "prerequisites": [
+            "Soothing Touch"
+          ],
+          "summary": "Rally an ally to immediately recover from setbacks."
+        },
+        {
+          "name": "Never Surrender",
+          "rank_required": 3,
+          "prerequisites": [
+            "Let's Go"
+          ],
+          "summary": "Bolster ally survivability and resistance under pressure."
+        },
+        {
+          "name": "Cure-All",
+          "rank_required": 3,
+          "prerequisites": [
+            "Healing Hands"
+          ],
+          "summary": "Remove multiple adverse conditions while restoring health."
+        },
+        {
+          "name": "Restore",
+          "rank_required": 4,
+          "prerequisites": [
+            "Cure-All"
+          ],
+          "summary": "Major restoration of health and capability."
+        },
+        {
+          "name": "Resurrect",
+          "rank_required": 5,
+          "prerequisites": [
+            "Restore"
+          ],
+          "summary": "Return a recently fallen ally to active status."
+        }
       ]
     },
     {
       "name": "Luck",
       "type": "expansion",
       "powers": [
-        {"name": "Lucky You", "rank_required": 1, "prerequisites": [], "summary": "Grant a short-lived good-luck boon to one target."},
-        {"name": "Lucky Me", "rank_required": 2, "prerequisites": ["Lucky You"], "summary": "Self-focused luck boost."},
-        {"name": "Lucky Us", "rank_required": 3, "prerequisites": ["Lucky Me"], "summary": "Share luck boosts with nearby allies."},
-        {"name": "Wish You Luck", "rank_required": 3, "prerequisites": ["Lucky Us"], "summary": "Prime allies with a high-impact luck surge."},
-        {"name": "Charmed Life", "rank_required": 4, "prerequisites": ["Lucky Us"], "summary": "Sustained defensive luck against incoming threats."},
-        {"name": "Jinx You", "rank_required": 1, "prerequisites": [], "summary": "Touch attack, 5 Focus/turn; Fantastic hits can deal double damage."},
-        {"name": "Jinx You All", "rank_required": 2, "prerequisites": ["Jinx You"], "summary": "Area jinx effect, 10 Focus/turn."},
-        {"name": "Evil Eye", "rank_required": 2, "prerequisites": ["Jinx You"], "summary": "5 Focus/turn; imposes Trouble on target actions."},
-        {"name": "Real Jinx", "rank_required": 3, "prerequisites": ["Evil Eye"], "summary": "Powerful destabilizing curse escalation."}
+        {
+          "name": "Lucky You",
+          "rank_required": 1,
+          "prerequisites": [],
+          "summary": "Grant a short-lived good-luck boon to one target."
+        },
+        {
+          "name": "Lucky Me",
+          "rank_required": 2,
+          "prerequisites": [
+            "Lucky You"
+          ],
+          "summary": "Self-focused luck boost."
+        },
+        {
+          "name": "Lucky Us",
+          "rank_required": 3,
+          "prerequisites": [
+            "Lucky Me"
+          ],
+          "summary": "Share luck boosts with nearby allies."
+        },
+        {
+          "name": "Wish You Luck",
+          "rank_required": 3,
+          "prerequisites": [
+            "Lucky Us"
+          ],
+          "summary": "Prime allies with a high-impact luck surge."
+        },
+        {
+          "name": "Charmed Life",
+          "rank_required": 4,
+          "prerequisites": [
+            "Lucky Us"
+          ],
+          "summary": "Sustained defensive luck against incoming threats."
+        },
+        {
+          "name": "Jinx You",
+          "rank_required": 1,
+          "prerequisites": [],
+          "summary": "Touch attack, 5 Focus/turn; Fantastic hits can deal double damage."
+        },
+        {
+          "name": "Jinx You All",
+          "rank_required": 2,
+          "prerequisites": [
+            "Jinx You"
+          ],
+          "summary": "Area jinx effect, 10 Focus/turn."
+        },
+        {
+          "name": "Evil Eye",
+          "rank_required": 2,
+          "prerequisites": [
+            "Jinx You"
+          ],
+          "summary": "5 Focus/turn; imposes Trouble on target actions."
+        },
+        {
+          "name": "Real Jinx",
+          "rank_required": 3,
+          "prerequisites": [
+            "Evil Eye"
+          ],
+          "summary": "Powerful destabilizing curse escalation."
+        }
       ]
     },
     {
       "name": "Sixth Sense",
       "type": "expansion",
       "powers": [
-        {"name": "Danger Sense", "rank_required": 1, "prerequisites": [], "summary": "Can grant a bonus initiative round in ambush scenarios."},
-        {"name": "Detect Supers", "rank_required": 2, "prerequisites": ["Danger Sense"], "summary": "Detect superhuman signatures out to roughly 5-25 miles."},
-        {"name": "Cosmic Awareness", "rank_required": 4, "prerequisites": ["Detect Supers"], "summary": "Broad, high-tier cosmic-scale sensory awareness."},
-        {"name": "Intuition", "rank_required": 1, "prerequisites": [], "summary": "Spend 5 Focus for Narrator guidance cues."},
-        {"name": "Microscopic Awareness", "rank_required": 2, "prerequisites": ["Intuition"], "summary": "Perceive tiny details beyond normal senses."},
-        {"name": "Precognition 1", "rank_required": 2, "prerequisites": ["Intuition"], "summary": "Limited predictive foresight."},
-        {"name": "Precognition 2", "rank_required": 3, "prerequisites": ["Precognition 1"], "summary": "Improved predictive foresight."},
-        {"name": "Precognition 3", "rank_required": 4, "prerequisites": ["Precognition 2"], "summary": "Advanced predictive foresight."},
-        {"name": "Precognition 4", "rank_required": 5, "prerequisites": ["Precognition 3"], "summary": "Near-complete tactical foresight."},
-        {"name": "Postcognition 1", "rank_required": 2, "prerequisites": ["Intuition"], "summary": "Read recent echoes of past events."},
-        {"name": "Postcognition 2", "rank_required": 3, "prerequisites": ["Postcognition 1"], "summary": "Deeper retrospective reconstruction."},
-        {"name": "Postcognition 3", "rank_required": 4, "prerequisites": ["Postcognition 2"], "summary": "High-fidelity retrospective reconstruction."},
-        {"name": "Postcognition 4", "rank_required": 5, "prerequisites": ["Postcognition 3"], "summary": "Near-complete scene history reconstruction."}
+        {
+          "name": "Danger Sense",
+          "rank_required": 1,
+          "prerequisites": [],
+          "summary": "Can grant a bonus initiative round in ambush scenarios."
+        },
+        {
+          "name": "Detect Supers",
+          "rank_required": 2,
+          "prerequisites": [
+            "Danger Sense"
+          ],
+          "summary": "Detect superhuman signatures out to roughly 5-25 miles."
+        },
+        {
+          "name": "Cosmic Awareness",
+          "rank_required": 4,
+          "prerequisites": [
+            "Detect Supers"
+          ],
+          "summary": "Broad, high-tier cosmic-scale sensory awareness."
+        },
+        {
+          "name": "Intuition",
+          "rank_required": 1,
+          "prerequisites": [],
+          "summary": "Spend 5 Focus for Narrator guidance cues."
+        },
+        {
+          "name": "Microscopic Awareness",
+          "rank_required": 2,
+          "prerequisites": [
+            "Intuition"
+          ],
+          "summary": "Perceive tiny details beyond normal senses."
+        },
+        {
+          "name": "Precognition 1",
+          "rank_required": 2,
+          "prerequisites": [
+            "Intuition"
+          ],
+          "summary": "Limited predictive foresight."
+        },
+        {
+          "name": "Precognition 2",
+          "rank_required": 3,
+          "prerequisites": [
+            "Precognition 1"
+          ],
+          "summary": "Improved predictive foresight."
+        },
+        {
+          "name": "Precognition 3",
+          "rank_required": 4,
+          "prerequisites": [
+            "Precognition 2"
+          ],
+          "summary": "Advanced predictive foresight."
+        },
+        {
+          "name": "Precognition 4",
+          "rank_required": 5,
+          "prerequisites": [
+            "Precognition 3"
+          ],
+          "summary": "Near-complete tactical foresight."
+        },
+        {
+          "name": "Postcognition 1",
+          "rank_required": 2,
+          "prerequisites": [
+            "Intuition"
+          ],
+          "summary": "Read recent echoes of past events."
+        },
+        {
+          "name": "Postcognition 2",
+          "rank_required": 3,
+          "prerequisites": [
+            "Postcognition 1"
+          ],
+          "summary": "Deeper retrospective reconstruction."
+        },
+        {
+          "name": "Postcognition 3",
+          "rank_required": 4,
+          "prerequisites": [
+            "Postcognition 2"
+          ],
+          "summary": "High-fidelity retrospective reconstruction."
+        },
+        {
+          "name": "Postcognition 4",
+          "rank_required": 5,
+          "prerequisites": [
+            "Postcognition 3"
+          ],
+          "summary": "Near-complete scene history reconstruction."
+        }
       ]
     },
     {
       "name": "Translation",
       "type": "expansion",
       "powers": [
-        {"name": "Understand Spoken Language", "rank_required": 1, "prerequisites": [], "summary": "Comprehend spoken languages without prior study."},
-        {"name": "Understand Written Language", "rank_required": 1, "prerequisites": [], "summary": "Comprehend written languages without prior study."},
-        {"name": "Understand Body Language", "rank_required": 2, "prerequisites": ["Understand Spoken Language"], "summary": "Read nuanced physical communication intent."},
-        {"name": "Understand Unusual Communication", "rank_required": 3, "prerequisites": ["Understand Spoken Language", "Understand Written Language"], "summary": "Decode alien, symbolic, or nonstandard communication modes."},
-        {"name": "Indecipherable", "rank_required": 3, "prerequisites": ["Understand Body Language"], "summary": "Telepathic mind-reading and interpretation immunity."}
+        {
+          "name": "Understand Spoken Language",
+          "rank_required": 1,
+          "prerequisites": [],
+          "summary": "Comprehend spoken languages without prior study."
+        },
+        {
+          "name": "Understand Written Language",
+          "rank_required": 1,
+          "prerequisites": [],
+          "summary": "Comprehend written languages without prior study."
+        },
+        {
+          "name": "Understand Body Language",
+          "rank_required": 2,
+          "prerequisites": [
+            "Understand Spoken Language"
+          ],
+          "summary": "Read nuanced physical communication intent."
+        },
+        {
+          "name": "Understand Unusual Communication",
+          "rank_required": 3,
+          "prerequisites": [
+            "Understand Spoken Language",
+            "Understand Written Language"
+          ],
+          "summary": "Decode alien, symbolic, or nonstandard communication modes."
+        },
+        {
+          "name": "Indecipherable",
+          "rank_required": 3,
+          "prerequisites": [
+            "Understand Body Language"
+          ],
+          "summary": "Telepathic mind-reading and interpretation immunity."
+        }
       ]
     },
     {
       "name": "Power Control",
       "type": "expansion",
       "powers": [
-        {"name": "Power Slider", "rank_required": 3, "prerequisites": [], "summary": "Shift power intensity allocation between effects in real time."}
+        {
+          "name": "Power Slider",
+          "rank_required": 3,
+          "prerequisites": [],
+          "summary": "Shift power intensity allocation between effects in real time."
+        }
       ]
     },
     {
       "name": "Omniversal Travel",
       "type": "expansion",
       "powers": [
-        {"name": "Enter Dreamtime", "rank_required": 3, "prerequisites": [], "summary": "Dreamtime sub-set gateway; costs 15 Focus."},
-        {"name": "Enter Dreamtime Together", "rank_required": 4, "prerequisites": ["Enter Dreamtime"], "summary": "Bring companions into Dreamtime; costs 10 Focus."}
+        {
+          "name": "Enter Dreamtime",
+          "rank_required": 3,
+          "prerequisites": [],
+          "summary": "Dreamtime sub-set gateway; costs 15 Focus."
+        },
+        {
+          "name": "Enter Dreamtime Together",
+          "rank_required": 4,
+          "prerequisites": [
+            "Enter Dreamtime"
+          ],
+          "summary": "Bring companions into Dreamtime; costs 10 Focus."
+        }
       ]
     },
     {
       "name": "Magic",
       "type": "meta",
       "independent_by_subcategory": true,
-      "subcategories": ["Arcane", "Sorcery", "Divine", "Chaos"]
+      "subcategories": [
+        "Arcane",
+        "Sorcery",
+        "Divine",
+        "Chaos"
+      ]
+    },
+    {
+      "name": "Emotion Powers",
+      "type": "expansion_sub_set",
+      "parent_set": "Telepathy",
+      "powers": [
+        {
+          "name": "Sense Emotion",
+          "rank_required": 1,
+          "prerequisites": []
+        },
+        {
+          "name": "Sway Emotion",
+          "rank_required": 2,
+          "prerequisites": [
+            "Sense Emotion"
+          ]
+        },
+        {
+          "name": "Control Emotion",
+          "rank_required": 3,
+          "prerequisites": [
+            "Sway Emotion"
+          ]
+        },
+        {
+          "name": "Group Control Emotion",
+          "rank_required": 4,
+          "prerequisites": [
+            "Control Emotion"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Iconic Item",
+      "type": "expansion_sub_set",
+      "powers": [
+        {
+          "name": "Iconic Item",
+          "rank_required": 1,
+          "prerequisites": [],
+          "summary": "Bond with a signature artifact that scales with rank."
+        }
+      ]
+    },
+    {
+      "name": "Dreamtime Sub-Set",
+      "type": "expansion_sub_set",
+      "parent_set": "Omniversal Travel",
+      "powers": [
+        {
+          "name": "Enter Dreamtime",
+          "rank_required": 3,
+          "prerequisites": [],
+          "summary": "Dreamtime sub-set gateway; costs 15 Focus."
+        },
+        {
+          "name": "Enter Dreamtime Together",
+          "rank_required": 4,
+          "prerequisites": [
+            "Enter Dreamtime"
+          ],
+          "summary": "Bring companions into Dreamtime; costs 10 Focus."
+        }
+      ]
     }
-  ]
+  ],
+  "occupation_rules": {
+    "default_count": 1,
+    "extra_occupation_trait": "Extra Occupation",
+    "campaign_advancement": "Occupations can change during campaign advancement."
+  }
 }

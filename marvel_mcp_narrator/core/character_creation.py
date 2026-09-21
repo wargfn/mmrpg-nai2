@@ -151,8 +151,19 @@ def _build_named_lookup(key: str) -> dict[str, str]:
     lookup: dict[str, str] = {}
     for entry in entries:
         name = str(entry.get("name", "")).strip()
-        if name:
-            lookup[name.casefold()] = name
+        if not name:
+            continue
+        lookup[name.casefold()] = name
+        for alias in entry.get("aliases", []):
+            alias_name = str(alias).strip()
+            if alias_name:
+                lookup[alias_name.casefold()] = name
+        for subcategory in entry.get("subcategories", []):
+            sub_name = str(subcategory).strip()
+            if not sub_name:
+                continue
+            lookup[sub_name.casefold()] = sub_name
+            lookup[f"{name}: {sub_name}".casefold()] = sub_name
     return lookup
 
 

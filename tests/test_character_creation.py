@@ -62,6 +62,18 @@ def test_generate_character_from_template_validates_origin_and_traits():
     assert character.traits == ["Iron Will"]
 
 
+def test_generate_character_from_template_accepts_hierarchical_origin_subcategory():
+    character = generate_character_from_template(
+        name="Talos",
+        archetype="Polymath",
+        rank=3,
+        origin="Skrull",
+        occupation="Outsider",
+    )
+    assert character.origin == "Skrull"
+    assert character.occupation == "Outsider"
+
+
 def test_validate_character_build_rejects_power_below_required_rank():
     result = validate_character_build(
         name="Nightcrawler",
@@ -211,6 +223,20 @@ def test_validate_character_build_accepts_default_sentinels_case_insensitively()
         occupation="none",
     )
     assert result["valid"] is True
+
+
+def test_validate_character_build_accepts_origin_parent_subcategory_notation():
+    result = validate_character_build(
+        name="Namor",
+        archetype="Brawler",
+        rank=2,
+        abilities=ARCHETYPE_TEMPLATES["Brawler"]["ranks"][2],
+        powers=["Blast"],
+        origin="Alien: Atlantean",
+        occupation="Leader",
+    )
+    assert result["valid"] is True
+    assert result["origin"] == "Atlantean"
 
 
 def test_validate_character_build_uses_input_rank_for_unknown_power():
@@ -384,7 +410,9 @@ def test_list_available_archetypes_returns_supported_entries():
 
 def test_list_traits_and_tags_include_common_entries():
     assert "Iron Will" in list_traits()
+    assert "Extra Occupation" in list_traits()
     assert "X-Men" in list_tags()
+    assert "A.I." in list_tags()
 
 
 def test_list_available_origins_and_occupations():
