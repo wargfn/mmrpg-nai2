@@ -447,10 +447,68 @@ class CampaignDatabase:
         if not keyword:
             return []
 
-        pattern = f"%{keyword}%"
+        exact_pattern = keyword
+        prefix_pattern = f"{keyword}%"
+        fuzzy_pattern = f"%{keyword}%"
         with self._connect() as connection:
             rows = connection.execute(
                 """
+                WITH ranked_matches AS (
+                    SELECT
+                        id,
+                        name,
+                        category,
+                        description,
+                        disposition,
+                        location,
+                        notes,
+                        affiliation,
+                        custom_stats_json,
+                        0 AS match_priority
+                    FROM entities
+                    WHERE name = ? COLLATE NOCASE
+
+                    UNION ALL
+
+                    SELECT
+                        id,
+                        name,
+                        category,
+                        description,
+                        disposition,
+                        location,
+                        notes,
+                        affiliation,
+                        custom_stats_json,
+                        1 AS match_priority
+                    FROM entities
+                    WHERE (
+                        name LIKE ? COLLATE NOCASE OR
+                        category LIKE ? COLLATE NOCASE
+                    )
+                    AND name != ? COLLATE NOCASE
+
+                    UNION ALL
+
+                    SELECT
+                        id,
+                        name,
+                        category,
+                        description,
+                        disposition,
+                        location,
+                        notes,
+                        affiliation,
+                        custom_stats_json,
+                        2 AS match_priority
+                    FROM entities
+                    WHERE
+                        description LIKE ? COLLATE NOCASE OR
+                        disposition LIKE ? COLLATE NOCASE OR
+                        location LIKE ? COLLATE NOCASE OR
+                        notes LIKE ? COLLATE NOCASE OR
+                        affiliation LIKE ? COLLATE NOCASE
+                )
                 SELECT
                     id,
                     name,
@@ -461,29 +519,21 @@ class CampaignDatabase:
                     notes,
                     affiliation,
                     custom_stats_json
-                FROM entities
-                WHERE
-                    name LIKE ? COLLATE NOCASE OR
-                    category LIKE ? COLLATE NOCASE OR
-                    description LIKE ? COLLATE NOCASE OR
-                    disposition LIKE ? COLLATE NOCASE OR
-                    location LIKE ? COLLATE NOCASE OR
-                    notes LIKE ? COLLATE NOCASE OR
-                    affiliation LIKE ? COLLATE NOCASE
-                ORDER BY
-                    CASE WHEN name = ? COLLATE NOCASE THEN 0 ELSE 1 END,
-                    name COLLATE NOCASE
+                FROM ranked_matches
+                GROUP BY id, name, category, description, disposition, location, notes, affiliation, custom_stats_json
+                ORDER BY MIN(match_priority), name COLLATE NOCASE
                 LIMIT ?
                 """,
                 (
-                    pattern,
-                    pattern,
-                    pattern,
-                    pattern,
-                    pattern,
-                    pattern,
-                    pattern,
-                    keyword,
+                    exact_pattern,
+                    prefix_pattern,
+                    prefix_pattern,
+                    exact_pattern,
+                    fuzzy_pattern,
+                    fuzzy_pattern,
+                    fuzzy_pattern,
+                    fuzzy_pattern,
+                    fuzzy_pattern,
                     SEARCH_RESULT_LIMIT,
                 ),
             ).fetchall()

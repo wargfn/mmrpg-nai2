@@ -58,6 +58,7 @@ STARTUP_CONTEXT_UNAVAILABLE_NOTE = (
     "SQLite campaign memory could not be loaded at startup. "
     "Continue narrating with the live session context only."
 )
+_RULES_STARTUP_CONTEXT: str | None = None
 
 
 def normalize_open_webui_host(host: str) -> str:
@@ -246,6 +247,9 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
 
 def get_rules_startup_context() -> str:
     """Return a concise core-rules block for startup prompt injection."""
+    global _RULES_STARTUP_CONTEXT
+    if _RULES_STARTUP_CONTEXT is not None:
+        return _RULES_STARTUP_CONTEXT
     try:
         mechanics = load_rules_database().get("mechanics", {})
     except (OSError, ValueError, TypeError):
@@ -268,7 +272,8 @@ def get_rules_startup_context() -> str:
         lines.append(line)
     if len(lines) == 1:
         lines.append("- Core mechanics were not found in the rules database.")
-    return "\n".join(lines)
+    _RULES_STARTUP_CONTEXT = "\n".join(lines)
+    return _RULES_STARTUP_CONTEXT
 
 
 def get_active_character_context() -> str:
@@ -322,14 +327,19 @@ def get_active_character_context() -> str:
     )
 
 
-def build_startup_system_prompt(database: CampaignDatabase | None = None) -> str:
+def build_startup_system_prompt(
+    database: CampaignDatabase | None = None,
+    *,
+    rules_context: str | None = None,
+    campaign_memory_context: str | None = None,
+) -> str:
     """Build the initial system prompt with injected persistent campaign memory."""
     return "\n\n".join(
         [
             SYSTEM_PROMPT,
-            get_rules_startup_context(),
+            rules_context or get_rules_startup_context(),
             get_active_character_context(),
-            get_startup_context(database),
+            campaign_memory_context or get_startup_context(database),
         ]
     )
 
@@ -412,7 +422,18 @@ def run_cli(
     print("Marvel MCP Narrator CLI")
     print("Type '/help' for commands and 'exit' to quit.\n")
 
-    messages: list[dict[str, str]] = [{"role": "system", "content": build_startup_system_prompt(database)}]
+    rules_context = get_rules_startup_context()
+    campaign_memory_context = get_startup_context(database)
+    messages: list[dict[str, str]] = [
+        {
+            "role": "system",
+            "content": build_startup_system_prompt(
+                database,
+                rules_context=rules_context,
+                campaign_memory_context=campaign_memory_context,
+            ),
+        }
+    ]
 
     while True:
         try:
@@ -451,7 +472,11 @@ def run_cli(
             continue
 
         try:
-            messages[0]["content"] = build_startup_system_prompt(database)
+            messages[0]["content"] = build_startup_system_prompt(
+                database,
+                rules_context=rules_context,
+                campaign_memory_context=campaign_memory_context,
+            )
             final_content = request_open_webui_chat(
                 host=host,
                 base_url=base_url or host,
