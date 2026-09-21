@@ -270,6 +270,8 @@ class CampaignDatabase:
                     payload,
                 )
             elif str(existing["category"] or "").casefold() == "location":
+                migrated_name = payload[0]
+                migrated_description = payload[2]
                 migrated_location = payload[4]
                 migrated_notes = payload[5]
                 connection.execute(
@@ -284,8 +286,8 @@ class CampaignDatabase:
                     WHERE id = ?
                     """,
                     (
-                        payload[0],
-                        payload[2],
+                        migrated_name,
+                        migrated_description,
                         migrated_location,
                         migrated_notes,
                         existing["id"],
@@ -652,6 +654,7 @@ class CampaignDatabase:
                 (active_campaign_id,),
             ).fetchall()
             payload = dict(plan_row)
+            payload["campaign_id"] = int(payload["id"])
             payload["hero_team"] = json.loads(payload.pop("hero_team_json"))
             payload["sessions"] = [self._row_to_campaign_session(row) for row in session_rows]
             return payload

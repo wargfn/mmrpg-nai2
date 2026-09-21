@@ -49,7 +49,7 @@ class CampaignPlanner:
         current = self.database.get_active_campaign_plan()
         if current is None:
             raise RuntimeError("Campaign plan was created but could not be reloaded.")
-        if current["id"] != campaign_id:
+        if current["campaign_id"] != campaign_id:
             raise RuntimeError("Reloaded campaign plan does not match the created campaign.")
         return current
 
