@@ -261,3 +261,8 @@ def test_recall_npc_or_location_formats_search_results_and_missing_message():
 def test_log_campaign_event_rejects_invalid_session():
     with pytest.raises(ValueError, match="Session number must be at least 1"):
         narrator_tools.log_campaign_event("This should fail.", session=0)
+
+
+def test_log_campaign_event_rejects_blank_summary():
+    with pytest.raises(ValueError, match="Event summary is required"):
+        narrator_tools.log_campaign_event("   ", session=1)

@@ -132,6 +132,26 @@ def _rebuild_npcs_table_without_case_sensitive_unique(connection: sqlite3.Connec
     if table_sql is None or "UNIQUE" not in str(table_sql[0]).upper():
         return
 
+    existing_columns = _existing_columns(connection, "npcs")
+    optional_columns = [
+        "archetype_or_role",
+        "affiliation",
+        "disposition",
+        "location",
+        "notes",
+        "custom_stats_json",
+    ]
+    select_list = [
+        "id",
+        "name",
+        *[
+            _quote_identifier(column_name)
+            if column_name in existing_columns
+            else f"NULL AS {_quote_identifier(column_name)}"
+            for column_name in optional_columns
+        ],
+    ]
+
     connection.execute(
         """
         CREATE TABLE npcs_rebuilt (
@@ -159,15 +179,10 @@ def _rebuild_npcs_table_without_case_sensitive_unique(connection: sqlite3.Connec
             custom_stats_json
         )
         SELECT
-            id,
-            name,
-            archetype_or_role,
-            affiliation,
-            disposition,
-            location,
-            notes,
-            custom_stats_json
-        FROM npcs
+            """
+        + ", ".join(select_list)
+        + """
+        FROM "npcs"
         """
     )
     connection.execute("DROP TABLE npcs")
@@ -194,6 +209,7 @@ def initialize_database(path: Path | str | None = None) -> Path:
             )
             """
         )
+        _rebuild_npcs_table_without_case_sensitive_unique(connection)
         _ensure_columns(
             connection,
             "npcs",
@@ -206,7 +222,6 @@ def initialize_database(path: Path | str | None = None) -> Path:
                 "custom_stats_json": "TEXT",
             },
         )
-        _rebuild_npcs_table_without_case_sensitive_unique(connection)
         _merge_case_insensitive_npc_duplicates(connection)
         connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_npcs_name_nocase ON npcs (name COLLATE NOCASE)"
@@ -370,6 +385,7 @@ def search_memory(query: str) -> list[dict[str, Any]]:
 
     pattern = f"%{keyword}%"
     with _connect() as connection:
+        remaining = SEARCH_RESULT_LIMIT
         npc_rows = connection.execute(
             """
             SELECT
@@ -387,42 +403,50 @@ def search_memory(query: str) -> list[dict[str, Any]]:
             ORDER BY name
             LIMIT ?
             """,
-            (pattern, pattern, pattern, pattern, SEARCH_RESULT_LIMIT),
+            (pattern, pattern, pattern, pattern, remaining),
         ).fetchall()
-        location_rows = connection.execute(
-            """
-            SELECT
-                'location' AS memory_type,
-                name,
-                current_status AS affiliation,
-                description AS summary,
-                current_status AS notes
-            FROM locations
-            WHERE
-                name LIKE ? COLLATE NOCASE OR
-                description LIKE ? COLLATE NOCASE OR
-                current_status LIKE ? COLLATE NOCASE
-            ORDER BY name
-            LIMIT ?
-            """,
-            (pattern, pattern, pattern, SEARCH_RESULT_LIMIT),
-        ).fetchall()
-        plot_rows = connection.execute(
-            """
-            SELECT
-                'plot_log' AS memory_type,
-                ('Session ' || session_number) AS name,
-                timestamp AS affiliation,
-                event_summary AS summary,
-                event_summary AS notes
-            FROM plot_logs
-            WHERE
-                event_summary LIKE ? COLLATE NOCASE OR
-                timestamp LIKE ? COLLATE NOCASE
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (pattern, pattern, SEARCH_RESULT_LIMIT),
-        ).fetchall()
+        remaining -= len(npc_rows)
 
-    return [dict(row) for row in [*npc_rows, *location_rows, *plot_rows][:SEARCH_RESULT_LIMIT]]
+        location_rows: list[sqlite3.Row] = []
+        if remaining > 0:
+            location_rows = connection.execute(
+                """
+                SELECT
+                    'location' AS memory_type,
+                    name,
+                    current_status AS affiliation,
+                    description AS summary,
+                    current_status AS notes
+                FROM locations
+                WHERE
+                    name LIKE ? COLLATE NOCASE OR
+                    description LIKE ? COLLATE NOCASE OR
+                    current_status LIKE ? COLLATE NOCASE
+                ORDER BY name
+                LIMIT ?
+                """,
+                (pattern, pattern, pattern, remaining),
+            ).fetchall()
+            remaining -= len(location_rows)
+
+        plot_rows: list[sqlite3.Row] = []
+        if remaining > 0:
+            plot_rows = connection.execute(
+                """
+                SELECT
+                    'plot_log' AS memory_type,
+                    ('Session ' || session_number) AS name,
+                    timestamp AS affiliation,
+                    event_summary AS summary,
+                    event_summary AS notes
+                FROM plot_logs
+                WHERE
+                    event_summary LIKE ? COLLATE NOCASE OR
+                    timestamp LIKE ? COLLATE NOCASE
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (pattern, pattern, remaining),
+            ).fetchall()
+
+    return [dict(row) for row in [*npc_rows, *location_rows, *plot_rows]]
