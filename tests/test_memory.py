@@ -98,7 +98,7 @@ def test_save_npc_preserves_existing_location_and_disposition(isolated_campaign_
                 "Wary",
                 "Midtown",
                 "Old notes.",
-                "{}",
+                '{"speed": 4}',
             ),
         )
         connection.commit()
@@ -114,6 +114,7 @@ def test_save_npc_preserves_existing_location_and_disposition(isolated_campaign_
 
     assert npc["disposition"] == "Wary"
     assert npc["location"] == "Midtown"
+    assert npc["custom_stats_json"] == {"speed": 4}
 
 
 def test_log_event_persists_plot_entry(isolated_campaign_db):

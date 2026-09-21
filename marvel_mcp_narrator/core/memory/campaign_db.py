@@ -25,6 +25,11 @@ def _ensure_columns(connection: sqlite3.Connection, table_name: str, column_defi
     existing_columns = _existing_columns(connection, table_name)
     for column_name, column_definition in column_definitions.items():
         if column_name not in existing_columns:
+            normalized_definition = column_definition.upper()
+            if "NOT NULL" in normalized_definition and "DEFAULT" not in normalized_definition:
+                raise ValueError(
+                    f"SQLite migration for {table_name}.{column_name} requires a DEFAULT value for NOT NULL columns."
+                )
             connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
 
 
@@ -124,7 +129,7 @@ def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
                 disposition = npcs.disposition,
                 location = npcs.location,
                 notes = excluded.notes,
-                custom_stats_json = excluded.custom_stats_json
+                custom_stats_json = COALESCE(npcs.custom_stats_json, excluded.custom_stats_json)
             """,
             (
                 cleaned_name,
