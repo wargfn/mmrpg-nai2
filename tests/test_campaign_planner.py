@@ -301,3 +301,29 @@ def test_active_campaign_plan_requires_active_session_entry():
         ).fetchall()
 
     assert rows == []
+
+
+def test_partial_active_campaign_state_is_cleared():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Phantom Signal",
+        villain="The Hood",
+        hero_team=["Moon Knight"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "DELETE FROM campaign_state WHERE key = 'active_session_number'"
+        )
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+    assert database.get_current_session_context() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []

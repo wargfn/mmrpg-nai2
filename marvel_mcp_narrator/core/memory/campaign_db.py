@@ -627,6 +627,9 @@ class CampaignDatabase:
             active_campaign_id = self._get_state(connection, "active_campaign_id")
             active_session_value = self._get_state(connection, "active_session_number")
             if active_campaign_id is None or active_session_value is None:
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
                 return None
             try:
                 campaign_id = int(active_campaign_id)
@@ -698,6 +701,9 @@ class CampaignDatabase:
             active_campaign_id = self._get_state(connection, "active_campaign_id")
             active_session_value = self._get_state(connection, "active_session_number")
             if active_campaign_id is None or active_session_value is None:
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
                 return None
             try:
                 campaign_id = int(active_campaign_id)
