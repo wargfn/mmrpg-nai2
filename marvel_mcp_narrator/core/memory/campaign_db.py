@@ -615,7 +615,8 @@ class CampaignDatabase:
         """Return the current active campaign and all of its sessions."""
         with self._connect() as connection:
             active_campaign_id = self._get_state(connection, "active_campaign_id")
-            if active_campaign_id is None:
+            active_session_value = self._get_state(connection, "active_session_number")
+            if active_campaign_id is None or active_session_value is None:
                 return None
             plan_row = connection.execute(
                 """
@@ -776,7 +777,7 @@ class CampaignDatabase:
             for index, event in enumerate(significant_events, start=1):
                 self._save_memory_with_connection(
                     connection,
-                    key=f"session_{session_number}_event_{index}",
+                    key=f"campaign_{context['campaign_id']}_session_{session_number}_event_{index}",
                     content=event,
                 )
             if next_session is not None:
@@ -867,8 +868,9 @@ class CampaignDatabase:
     def _build_player_recap(session: dict[str, Any], raw_session_log: str) -> str:
         first_sentence = raw_session_log.split(".")[0].strip()
         opening = first_sentence if first_sentence else raw_session_log
+        opening_suffix = "" if opening.endswith(("!", "?", ".")) else "."
         return (
-            f"Session {session['session_number']} - {session['title']}: {opening}. "
+            f"Session {session['session_number']} - {session['title']}: {opening}{opening_suffix} "
             f"The heroes advanced toward {session['completion_milestone']}."
         )
 
