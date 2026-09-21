@@ -175,3 +175,28 @@ def test_malformed_active_session_state_is_ignored():
 
     with pytest.raises(ValueError, match="No active campaign plan is available"):
         planner.get_current_session_context()
+
+
+def test_non_positive_active_session_state_is_cleared():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Broken Timeline",
+        villain="Ultron",
+        hero_team=["Vision"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "UPDATE campaign_state SET value = '0' WHERE key = 'active_session_number'"
+        )
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []

@@ -636,6 +636,9 @@ class CampaignDatabase:
                 connection.commit()
                 return None
             if active_session_number < 1:
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
                 return None
         return self.get_campaign_plan(int(active_campaign_id))
 
@@ -693,6 +696,9 @@ class CampaignDatabase:
                 connection.commit()
                 return None
             if active_session_number < 1:
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
                 return None
             plan_row = connection.execute(
                 """

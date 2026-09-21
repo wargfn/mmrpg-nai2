@@ -253,7 +253,7 @@ def run_cli(
             return
         if not user_input:
             continue
-        if user_input == "/help":
+        if user_input.lower() == "/help":
             print(CLI_COMMANDS_HELP)
             continue
         if _is_exit_command(user_input):

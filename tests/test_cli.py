@@ -89,7 +89,7 @@ class CLIToolInjectionTests(unittest.TestCase):
 
 class CLIRunLoopTests(unittest.TestCase):
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
-    @patch('builtins.input', side_effect=['/help', 'exit'])
+    @patch('builtins.input', side_effect=[' /HELP ', 'exit'])
     def test_help_command_does_not_call_chat_backend(self, _mock_input, mock_request_chat):
         run_cli(model='fake-model')
         mock_request_chat.assert_not_called()
