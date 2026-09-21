@@ -130,6 +130,7 @@ def initialize_database(path: Path | str | None = None) -> Path:
     db_path = Path(path) if path is not None else CAMPAIGN_DB_PATH
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS npcs (
@@ -276,7 +277,7 @@ def get_npc(name: str) -> dict[str, Any]:
                 notes,
                 custom_stats_json
             FROM npcs
-            WHERE lower(name) = lower(?)
+            WHERE name = ? COLLATE NOCASE
             """,
             (cleaned_name,),
         ).fetchone()
