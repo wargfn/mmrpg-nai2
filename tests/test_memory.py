@@ -130,9 +130,9 @@ def test_search_memory_includes_entities_and_saved_memories():
 
     matches = campaign_db.search_memory("Maria")
 
-    assert [match["memory_type"] for match in matches] == ["entity", "memory"]
-    assert matches[0]["name"] == "Maria Hill"
-    assert "Hydra" in matches[1]["summary"]
+    assert {match["memory_type"] for match in matches} == {"entity", "memory"}
+    assert any(match["name"] == "Maria Hill" for match in matches)
+    assert any("Hydra" in match["summary"] for match in matches if match["memory_type"] == "memory")
 
 
 def test_narrator_tools_expose_campaign_memory_and_entity_flow():
@@ -202,3 +202,21 @@ def test_search_memory_combines_memories_and_plot_logs_with_shared_limit():
     assert len(matches) == campaign_db.SEARCH_RESULT_LIMIT
     assert matches[0]["memory_type"] == "plot_log"
     assert any(match["memory_type"] == "memory" for match in matches)
+
+
+def test_search_memory_prioritizes_legacy_matches_over_fuzzy_entity_overflow():
+    for index in range(10):
+        campaign_db.save_entity(
+            name=f"Hydra Agent {index}",
+            category="NPC",
+            description="Field operative.",
+            disposition="Hostile",
+            location="Unknown",
+            notes="Hydra cell member.",
+        )
+    campaign_db.log_event("Hydra command issued a retreat order.", session=5)
+
+    matches = campaign_db.search_memory("Hydra")
+
+    assert len(matches) == campaign_db.SEARCH_RESULT_LIMIT
+    assert any(match["memory_type"] == "plot_log" for match in matches)

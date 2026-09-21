@@ -96,10 +96,12 @@ class CampaignDatabase:
         }
         if "npcs" in tables:
             self._migrate_legacy_npcs(connection)
-            connection.execute("ALTER TABLE npcs RENAME TO npcs_legacy_backup")
+            if "npcs_legacy_backup" not in tables:
+                connection.execute("ALTER TABLE npcs RENAME TO npcs_legacy_backup")
         if "locations" in tables:
             self._migrate_legacy_locations(connection)
-            connection.execute("ALTER TABLE locations RENAME TO locations_legacy_backup")
+            if "locations_legacy_backup" not in tables:
+                connection.execute("ALTER TABLE locations RENAME TO locations_legacy_backup")
 
     def _migrate_legacy_npcs(self, connection: sqlite3.Connection) -> None:
         rows = connection.execute(
@@ -587,6 +589,7 @@ def get_npc(name: str) -> dict[str, Any] | None:
     entity = get_entity(name)
     if entity is None or str(entity.get("category", "")).casefold() != "npc":
         return None
+    entity["archetype_or_role"] = entity.get("custom_stats_json", {}).get("legacy_role") or entity.get("description")
     return entity
 
 
@@ -601,6 +604,7 @@ def search_memory(query: str) -> list[dict[str, Any]]:
     keyword = query.strip()
     if not keyword:
         return []
+
     entity_matches = [
         {
             "memory_type": "entity",
@@ -608,11 +612,25 @@ def search_memory(query: str) -> list[dict[str, Any]]:
             "affiliation": entity.get("category", ""),
             "summary": entity.get("description", ""),
             "notes": entity.get("notes", ""),
+            "_priority": 0 if str(entity.get("name", "")).casefold() == keyword.casefold() else 2,
         }
         for entity in search_entities(keyword)
     ]
-    legacy_matches = get_campaign_database().search_memory_records(
-        keyword,
-        limit=max(SEARCH_RESULT_LIMIT - len(entity_matches), 0),
-    )
-    return [*entity_matches, *legacy_matches][:SEARCH_RESULT_LIMIT]
+    legacy_matches = [
+        {
+            **match,
+            "_priority": 1,
+        }
+        for match in get_campaign_database().search_memory_records(
+            keyword,
+            limit=SEARCH_RESULT_LIMIT,
+        )
+    ]
+    combined_matches = [*entity_matches, *legacy_matches]
+    combined_matches.sort(key=lambda item: item["_priority"])
+    ordered_matches = []
+    for match in combined_matches:
+        cleaned = dict(match)
+        cleaned.pop("_priority", None)
+        ordered_matches.append(cleaned)
+    return ordered_matches[:SEARCH_RESULT_LIMIT]
