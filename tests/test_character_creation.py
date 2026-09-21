@@ -334,6 +334,17 @@ def test_validate_power_selection_requires_rank_threshold():
     assert "requires rank 4" in reason
 
 
+def test_validate_power_selection_honors_rank_override():
+    valid, reason = validate_power_selection(
+        character_rank=2,
+        owned_powers=["Teleport 1", "Teleport Other", "Teleport Together"],
+        target_power="Teleportal",
+        rank_required_override=5,
+    )
+    assert valid is False
+    assert "requires rank 5" in reason
+
+
 def test_validate_power_selection_requires_new_expansion_prerequisite():
     valid, reason = validate_power_selection(character_rank=2, owned_powers=["Venom Bash"], target_power="Venom Sword")
     assert valid is False

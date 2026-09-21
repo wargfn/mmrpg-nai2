@@ -178,6 +178,21 @@ def _build_named_lookup(key: str) -> dict[str, str]:
     return lookup
 
 
+def _list_catalog_names(key: str, *, include_subcategories: bool = False) -> list[str]:
+    entries = load_rules_database().get(key, [])
+    values: list[str] = []
+    for entry in entries:
+        name = str(entry.get("name", "")).strip()
+        if include_subcategories:
+            subcategories = [str(item).strip() for item in entry.get("subcategories", []) if str(item).strip()]
+            if subcategories:
+                values.extend(subcategories)
+                continue
+        if name:
+            values.append(name)
+    return sorted(set(values))
+
+
 def _get_origins_lookup() -> dict[str, str]:
     global _ORIGINS_CACHE
     if _ORIGINS_CACHE is None:
@@ -222,22 +237,27 @@ def list_archetypes() -> list[dict[str, str]]:
 
 
 def list_origins() -> list[str]:
-    return sorted(set(_get_origins_lookup().values()))
+    return _list_catalog_names("origins", include_subcategories=True)
 
 
 def list_occupations() -> list[str]:
-    return sorted(set(_get_occupations_lookup().values()))
+    return _list_catalog_names("occupations")
 
 
 def list_traits() -> list[str]:
-    return sorted(set(_get_traits_lookup().values()))
+    return _list_catalog_names("traits")
 
 
 def list_tags() -> list[str]:
-    return sorted(set(_get_tags_lookup().values()))
+    return _list_catalog_names("tags")
 
 
-def validate_power_selection(character_rank: int, owned_powers: list[str], target_power: str) -> tuple[bool, str]:
+def validate_power_selection(
+    character_rank: int,
+    owned_powers: list[str],
+    target_power: str,
+    rank_required_override: int | None = None,
+) -> tuple[bool, str]:
     normalized_target = str(target_power).strip()
     if not normalized_target:
         return False, "Power name is required."
@@ -247,7 +267,7 @@ def validate_power_selection(character_rank: int, owned_powers: list[str], targe
     if target_data is None:
         return False, f"Unsupported power '{normalized_target}'."
 
-    required_rank = target_data.get("rank_required")
+    required_rank = rank_required_override if rank_required_override is not None else target_data.get("rank_required")
     if required_rank is None:
         return False, f"Power '{target_data['name']}' has an invalid rank requirement."
     if character_rank < required_rank:
@@ -292,6 +312,7 @@ def validate_character_powers(rank: int, powers_list: list) -> dict[str, Any]:
                 character_rank=rank,
                 owned_powers=owned_so_far,
                 target_power=power_name,
+                rank_required_override=rank_required_from_input,
             )
             if not valid_selection:
                 errors.append(selection_message)
