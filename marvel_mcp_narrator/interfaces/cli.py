@@ -488,31 +488,32 @@ def _parse_attack_command(
     manual_roll, remainder = _extract_manual_roll(remainder)
     options: dict[str, int | str] = {"edges": 0, "troubles": 0, "target_resource": "health"}
     tokens = remainder.split()
-    positional_tokens = list(tokens)
-    while positional_tokens:
-        token = positional_tokens[-1]
+    positional_tokens: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
         if token == "--focus":
             options["target_resource"] = "focus"
-            positional_tokens.pop()
+            index += 1
             continue
         if token == "--health":
             options["target_resource"] = "health"
-            positional_tokens.pop()
+            index += 1
             continue
         if token in {"--edges", "--troubles"}:
-            raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
-        if len(positional_tokens) >= 2 and positional_tokens[-2] in {"--edges", "--troubles"}:
-            option_name = positional_tokens[-2]
+            if index + 1 >= len(tokens):
+                raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
             try:
-                value = int(token)
+                value = int(tokens[index + 1])
             except ValueError as exc:
                 raise ValueError("Edges and troubles must be non-negative integers.") from exc
             if value < 0:
                 raise ValueError("Edges and troubles must be non-negative integers.")
-            options["edges" if option_name == "--edges" else "troubles"] = value
-            positional_tokens = positional_tokens[:-2]
+            options["edges" if token == "--edges" else "troubles"] = value
+            index += 2
             continue
-        break
+        positional_tokens.append(token)
+        index += 1
     remainder = " ".join(positional_tokens).strip()
     if "|" in remainder:
         fields = [segment.strip() for segment in remainder.split("|")]
@@ -738,16 +739,18 @@ def run_cli(
     print("Type '/help' for commands and 'exit' to quit.\n")
 
     rules_context = get_rules_startup_context()
+    campaign_memory_context = get_startup_context(database)
     messages: list[dict[str, str]] = [
         {
             "role": "system",
             "content": build_startup_system_prompt(
                 database,
                 rules_context=rules_context,
-                campaign_memory_context=get_startup_context(database),
+                campaign_memory_context=campaign_memory_context,
             ),
         }
     ]
+    prompt_context_dirty = False
 
     while True:
         try:
@@ -780,6 +783,8 @@ def run_cli(
                         "content": f"Deterministic router output ({tool_name}): {formatted_output}",
                     }
                 )
+                if tool_name in {"resolve_player_attack", "resolve_npc_action", "combat_state"}:
+                    prompt_context_dirty = True
                 continue
             tool_name, tool_output = _tool_injection(user_input)
             if tool_name and tool_output is not None:
@@ -798,12 +803,14 @@ def run_cli(
             continue
 
         try:
-            campaign_memory_context = get_startup_context(database)
-            messages[0]["content"] = build_startup_system_prompt(
-                database,
-                rules_context=rules_context,
-                campaign_memory_context=campaign_memory_context,
-            )
+            if prompt_context_dirty:
+                campaign_memory_context = get_startup_context(database)
+                messages[0]["content"] = build_startup_system_prompt(
+                    database,
+                    rules_context=rules_context,
+                    campaign_memory_context=campaign_memory_context,
+                )
+                prompt_context_dirty = False
             final_content = request_open_webui_chat(
                 host=host,
                 base_url=base_url or host,
