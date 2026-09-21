@@ -190,3 +190,15 @@ def test_log_campaign_event_is_searchable_via_legacy_memory_flow():
 def test_log_event_rejects_invalid_session_number():
     with pytest.raises(ValueError, match="Session number must be at least 1"):
         campaign_db.log_event("This should fail.", session=0)
+
+
+def test_search_memory_combines_memories_and_plot_logs_with_shared_limit():
+    for index in range(10):
+        campaign_db.save_memory(f"summary-{index}", f"Hydra report {index}")
+    campaign_db.log_event("Hydra launched a final assault.", session=9)
+
+    matches = campaign_db.search_memory("Hydra")
+
+    assert len(matches) == campaign_db.SEARCH_RESULT_LIMIT
+    assert matches[0]["memory_type"] == "plot_log"
+    assert any(match["memory_type"] == "memory" for match in matches)

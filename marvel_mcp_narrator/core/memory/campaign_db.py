@@ -96,10 +96,10 @@ class CampaignDatabase:
         }
         if "npcs" in tables:
             self._migrate_legacy_npcs(connection)
-            connection.execute("DROP TABLE npcs")
+            connection.execute("ALTER TABLE npcs RENAME TO npcs_legacy_backup")
         if "locations" in tables:
             self._migrate_legacy_locations(connection)
-            connection.execute("DROP TABLE locations")
+            connection.execute("ALTER TABLE locations RENAME TO locations_legacy_backup")
 
     def _migrate_legacy_npcs(self, connection: sqlite3.Connection) -> None:
         rows = connection.execute(
@@ -454,8 +454,7 @@ class CampaignDatabase:
                     (f"%{keyword}%", f"%{keyword}%", limit),
                 ).fetchall()
             ]
-            remaining = max(limit - len(memory_matches), 0)
-            plot_log_matches = [] if remaining == 0 else [
+            plot_log_matches = [
                 {
                     "memory_type": "plot_log",
                     "name": f"Session {row['session_number']}",
@@ -471,10 +470,12 @@ class CampaignDatabase:
                     ORDER BY id DESC
                     LIMIT ?
                     """,
-                    (f"%{keyword}%", remaining),
+                    (f"%{keyword}%", limit),
                 ).fetchall()
             ]
-        return [*memory_matches, *plot_log_matches]
+        combined_matches = [*memory_matches, *plot_log_matches]
+        combined_matches.sort(key=lambda item: str(item.get("affiliation", "")), reverse=True)
+        return combined_matches[:limit]
 
     def add_plot_log(self, summary: str, session: int = 1) -> None:
         """Persist a legacy-style plot log entry."""
