@@ -156,6 +156,12 @@ class Character:
         is_fantastic: bool = False,
         bonus_multiplier: int = 0,
     ) -> dict:
+        """Calculate deterministic MMRPG damage as rank × effective Marvel die.
+
+        The `ability` and `is_fantastic` inputs are preserved so callers can identify
+        which attack profile generated the damage and narrate Fantastic outcomes, but
+        the core damage formula is driven by rank and the effective Marvel die value.
+        """
         if ability not in _ABILITY_FIELDS:
             raise ValueError(f"Unknown ability '{ability}'.")
         if marvel_die < 0:
@@ -171,6 +177,7 @@ class Character:
             "ability": ability,
             "marvel_die": marvel_die,
             "effective_marvel_die": effective_marvel_die,
+            "damage_formula": "rank * effective_marvel_die",
             "damage_multiplier": multiplier,
             "ability_score": getattr(self, ability),
             "is_fantastic": is_fantastic,

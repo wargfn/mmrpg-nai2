@@ -123,7 +123,7 @@ class CombatTracker:
                 "marvel_die": marvel_die,
                 "standard_2": standards[1],
             },
-            "dice_values": list(dice_values),
+            "dice_values": [standards[0], marvel_die, standards[1]],
             "marvel_index": marvel_index,
             "ability_modifier": ability_modifier,
             "total_score": total_score,
@@ -253,4 +253,3 @@ class CombatTracker:
 
 
 combat_tracker = CombatTracker()
-

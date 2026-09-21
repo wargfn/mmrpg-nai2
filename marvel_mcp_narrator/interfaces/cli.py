@@ -783,8 +783,7 @@ def run_cli(
                         "content": f"Deterministic router output ({tool_name}): {formatted_output}",
                     }
                 )
-                if tool_name in {"resolve_player_attack", "resolve_npc_action", "combat_state"}:
-                    prompt_context_dirty = True
+                prompt_context_dirty = True
                 continue
             tool_name, tool_output = _tool_injection(user_input)
             if tool_name and tool_output is not None:
@@ -796,6 +795,7 @@ def run_cli(
                         "content": f"Tool output ({tool_name}): {payload}",
                     }
                 )
+                prompt_context_dirty = True
             else:
                 messages.append({"role": "user", "content": user_input})
         except (ValueError, D616ConfigurationError, RulesLookupError, OSError) as exc:

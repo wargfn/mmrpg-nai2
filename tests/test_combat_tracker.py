@@ -42,6 +42,7 @@ class CombatTrackerTests(unittest.TestCase):
             target_number=15,
         )
 
+        self.assertEqual(payload["dice_values"], [4, 1, 5])
         self.assertEqual(payload["total_score"], 18)
         self.assertTrue(payload["is_fantastic"])
         self.assertTrue(payload["success"])
