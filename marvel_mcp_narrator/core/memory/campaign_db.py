@@ -125,6 +125,55 @@ def _merge_case_insensitive_npc_duplicates(connection: sqlite3.Connection) -> No
         )
 
 
+def _rebuild_npcs_table_without_case_sensitive_unique(connection: sqlite3.Connection) -> None:
+    table_sql = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'npcs'"
+    ).fetchone()
+    if table_sql is None or "UNIQUE" not in str(table_sql[0]).upper():
+        return
+
+    connection.execute(
+        """
+        CREATE TABLE npcs_rebuilt (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            archetype_or_role TEXT,
+            affiliation TEXT,
+            disposition TEXT,
+            location TEXT,
+            notes TEXT,
+            custom_stats_json TEXT
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO npcs_rebuilt (
+            id,
+            name,
+            archetype_or_role,
+            affiliation,
+            disposition,
+            location,
+            notes,
+            custom_stats_json
+        )
+        SELECT
+            id,
+            name,
+            archetype_or_role,
+            affiliation,
+            disposition,
+            location,
+            notes,
+            custom_stats_json
+        FROM npcs
+        """
+    )
+    connection.execute("DROP TABLE npcs")
+    connection.execute("ALTER TABLE npcs_rebuilt RENAME TO npcs")
+
+
 def initialize_database(path: Path | str | None = None) -> Path:
     """Create the campaign memory database and schema if needed."""
     db_path = Path(path) if path is not None else CAMPAIGN_DB_PATH
@@ -135,7 +184,7 @@ def initialize_database(path: Path | str | None = None) -> Path:
             """
             CREATE TABLE IF NOT EXISTS npcs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
                 archetype_or_role TEXT,
                 affiliation TEXT,
                 disposition TEXT,
@@ -157,6 +206,7 @@ def initialize_database(path: Path | str | None = None) -> Path:
                 "custom_stats_json": "TEXT",
             },
         )
+        _rebuild_npcs_table_without_case_sensitive_unique(connection)
         _merge_case_insensitive_npc_duplicates(connection)
         connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_npcs_name_nocase ON npcs (name COLLATE NOCASE)"
@@ -375,4 +425,4 @@ def search_memory(query: str) -> list[dict[str, Any]]:
             (pattern, pattern, SEARCH_RESULT_LIMIT),
         ).fetchall()
 
-    return [dict(row) for row in [*npc_rows, *location_rows, *plot_rows]]
+    return [dict(row) for row in [*npc_rows, *location_rows, *plot_rows][:SEARCH_RESULT_LIMIT]]
