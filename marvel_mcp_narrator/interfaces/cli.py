@@ -219,18 +219,10 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
             shorter_line = f"- {omitted_count} more memories omitted."
             if current_length + 1 + len(shorter_line) <= STARTUP_CONTEXT_CHAR_BUDGET:
                 lines.append(shorter_line)
-            elif rendered_count == 0:
-                first_memory = memories[0]
-                key = str(first_memory.get("key", "")).strip() or "memory"
-                content = str(first_memory.get("content", "")).strip()
-                updated_at = str(first_memory.get("updated_at", "")).strip()
-                first_entry = f"- [{updated_at}] {key}: {content}" if updated_at else f"- {key}: {content}"
-                available_length = STARTUP_CONTEXT_CHAR_BUDGET - current_length - 1
-                if available_length > 1:
-                    truncated_entry = first_entry[: available_length - 1].rstrip() + "…"
-                    lines.append(truncated_entry)
-                elif available_length >= 1:
-                    lines.append("…")
+            else:
+                minimal_line = f"- +{omitted_count}"
+                if current_length + 1 + len(minimal_line) <= STARTUP_CONTEXT_CHAR_BUDGET:
+                    lines.append(minimal_line)
     return "\n".join(lines)
 
 

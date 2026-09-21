@@ -606,6 +606,7 @@ class CLIStartupContextTests(unittest.TestCase):
 
         self.assertTrue(context.startswith("Campaign Memory Context:"))
         self.assertGreater(len(context.splitlines()), 1)
+        self.assertIn("+1", context)
         self.assertLessEqual(len(context), 40)
 
     def test_get_startup_context_handles_database_errors_gracefully(self):
