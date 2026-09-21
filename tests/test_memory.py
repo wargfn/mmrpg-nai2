@@ -97,6 +97,30 @@ def test_search_entities_matches_multiple_fields():
     assert [match["name"] for match in matches] == ["Fantastic Four", "Latveria"]
 
 
+def test_search_entities_keeps_exact_match_and_fuzzy_matches():
+    database = campaign_db.CampaignDatabase()
+    database.save_entity(
+        name="Hydra",
+        category="Faction",
+        description="Secret world-spanning organization.",
+        disposition="Hostile",
+        location="Global",
+        notes="Exact name match.",
+    )
+    database.save_entity(
+        name="Baron Strucker",
+        category="NPC",
+        description="Hydra commander.",
+        disposition="Hostile",
+        location="Unknown",
+        notes="Fuzzy description match.",
+    )
+
+    matches = database.search_entities("Hydra")
+
+    assert [match["name"] for match in matches] == ["Hydra", "Baron Strucker"]
+
+
 def test_legacy_npc_helpers_still_work():
     message = campaign_db.save_npc(
         name="Nick Fury",

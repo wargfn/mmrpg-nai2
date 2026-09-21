@@ -590,6 +590,24 @@ class CLIStartupContextTests(unittest.TestCase):
         self.assertIn(f"({STARTUP_MEMORY_LIMIT + 4} more)", context)
         self.assertLessEqual(len(context), 120)
 
+    def test_get_startup_context_remains_informative_when_budget_is_tiny(self):
+        class MemoryDatabase:
+            def list_memories(self):
+                return [
+                    {
+                        "key": "session-1",
+                        "content": "A" * 200,
+                        "updated_at": "2026-09-21T09:00:00+00:00",
+                    }
+                ]
+
+        with patch('marvel_mcp_narrator.interfaces.cli.STARTUP_CONTEXT_CHAR_BUDGET', 40):
+            context = get_startup_context(MemoryDatabase())
+
+        self.assertTrue(context.startswith("Campaign Memory Context:"))
+        self.assertGreater(len(context.splitlines()), 1)
+        self.assertLessEqual(len(context), 40)
+
     def test_get_startup_context_handles_database_errors_gracefully(self):
         class BrokenDatabase:
             def list_memories(self):

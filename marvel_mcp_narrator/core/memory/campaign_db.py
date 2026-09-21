@@ -447,10 +447,6 @@ class CampaignDatabase:
         if not keyword:
             return []
 
-        exact_match = self.get_entity(keyword)
-        if exact_match is not None:
-            return [exact_match]
-
         pattern = f"%{keyword}%"
         with self._connect() as connection:
             rows = connection.execute(
