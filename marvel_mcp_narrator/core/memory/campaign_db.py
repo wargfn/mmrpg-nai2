@@ -96,8 +96,10 @@ class CampaignDatabase:
         }
         if "npcs" in tables:
             self._migrate_legacy_npcs(connection)
+            connection.execute("DROP TABLE npcs")
         if "locations" in tables:
             self._migrate_legacy_locations(connection)
+            connection.execute("DROP TABLE locations")
 
     def _migrate_legacy_npcs(self, connection: sqlite3.Connection) -> None:
         rows = connection.execute(
@@ -521,7 +523,7 @@ def get_npc(name: str) -> dict[str, Any] | None:
 
 
 def log_event(summary: str, session: int = 1) -> str:
-    """Backward-compatible plot log storage using the memories table."""
+    """Backward-compatible plot log storage using the plot_logs table."""
     cleaned_summary = summary.strip()
     if not cleaned_summary:
         raise ValueError("Event summary is required.")
@@ -557,18 +559,26 @@ def search_memory(query: str) -> list[dict[str, Any]]:
         }
         for entity in search_entities(keyword)
     ]
-    memory_matches = [
-        {
-            "memory_type": "memory",
-            "name": entry["key"],
-            "affiliation": entry["updated_at"],
-            "summary": entry["content"],
-            "notes": entry["content"],
-        }
-        for entry in list_memories()
-        if pattern in str(entry["key"]).casefold() or pattern in str(entry["content"]).casefold()
-    ]
     with get_campaign_database()._connect() as connection:
+        memory_matches = [
+            {
+                "memory_type": "memory",
+                "name": row["key"],
+                "affiliation": row["updated_at"],
+                "summary": row["content"],
+                "notes": row["content"],
+            }
+            for row in connection.execute(
+                """
+                SELECT key, content, updated_at
+                FROM memories
+                WHERE key LIKE ? COLLATE NOCASE OR content LIKE ? COLLATE NOCASE
+                ORDER BY updated_at DESC, key ASC
+                LIMIT ?
+                """,
+                (f"%{keyword}%", f"%{keyword}%", SEARCH_RESULT_LIMIT),
+            ).fetchall()
+        ]
         plot_log_matches = [
             {
                 "memory_type": "plot_log",
