@@ -185,3 +185,8 @@ def test_log_campaign_event_is_searchable_via_legacy_memory_flow():
     assert message == "Logged campaign event for session 7."
     assert any(match["memory_type"] == "plot_log" for match in matches)
     assert "[plot_log] Session 7 @" in recalled
+
+
+def test_log_event_rejects_invalid_session_number():
+    with pytest.raises(ValueError, match="Session number must be at least 1"):
+        campaign_db.log_event("This should fail.", session=0)

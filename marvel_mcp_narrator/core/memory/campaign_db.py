@@ -522,8 +522,9 @@ def initialize_database(path: Path | str | None = None) -> Path:
     return get_campaign_database(path).initialize()
 
 
-def save_memory(key: str, content: str) -> None:
+def save_memory(key: str, content: str) -> str:
     get_campaign_database().save_memory(key=key, content=content)
+    return f"Saved campaign memory '{key.strip()}'."
 
 
 def load_memory(key: str) -> str | None:

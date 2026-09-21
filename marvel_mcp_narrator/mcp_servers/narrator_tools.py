@@ -318,8 +318,7 @@ def remember_npc(name: str, affiliation: str = "", description: str = "", notes:
 @mcp.tool()
 def save_campaign_memory(key: str, content: str) -> str:
     """Persist a named campaign memory entry."""
-    save_memory(key=key, content=content)
-    return f"Saved campaign memory '{key.strip()}'."
+    return save_memory(key=key, content=content)
 
 
 @mcp.tool()
