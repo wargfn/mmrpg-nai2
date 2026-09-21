@@ -77,6 +77,10 @@ class CLIToolInjectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must be a die value"):
             _parse_manual_roll_text("[4 hp, 5 focus, 1]")
 
+    def test_parse_manual_roll_text_requires_explicit_marvel_marker(self):
+        with self.assertRaisesRegex(ValueError, "explicitly mark"):
+            _parse_manual_roll_text("[4, 5, 1]")
+
     @patch('marvel_mcp_narrator.interfaces.cli.resolve_manual_d616_roll', return_value={
         "dice_values": [4, 5, 1],
         "total_score": 15,

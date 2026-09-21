@@ -86,11 +86,22 @@ class CombatTracker:
 
     def get_combat_state(self) -> dict[str, Any]:
         with self._lock:
-            tracked = list(self._combatants.values())
-        combatants = [
-            self._build_combatant_snapshot(entry["name"], side=entry["side"])
-            for entry in sorted(tracked, key=lambda item: (item["side"], item["name"].casefold()))
-        ]
+            tracked = sorted(self._combatants.values(), key=lambda item: (item["side"], item["name"].casefold()))
+        sheets = self._roster.get_sheets([entry["name"] for entry in tracked])
+        combatants = []
+        for entry, sheet in zip(tracked, sheets, strict=True):
+            combatants.append(
+                {
+                    "name": sheet["name"],
+                    "side": entry["side"],
+                    "rank": sheet["rank"],
+                    "current_health": sheet["current_health"],
+                    "max_health": sheet["max_health"],
+                    "current_focus": sheet["current_focus"],
+                    "max_focus": sheet["max_focus"],
+                    "conditions": list(sheet.get("conditions", [])),
+                }
+            )
         return {"combatants": combatants}
 
     def resolve_manual_roll(

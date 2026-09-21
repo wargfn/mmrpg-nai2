@@ -164,8 +164,8 @@ class Character:
         """
         if ability not in _ABILITY_FIELDS:
             raise ValueError(f"Unknown ability '{ability}'.")
-        if marvel_die < 0:
-            raise ValueError("Marvel die must be non-negative.")
+        if not 1 <= marvel_die <= 6:
+            raise ValueError("Marvel die must be between 1 and 6.")
 
         multiplier = self.damage_multiplier(bonus_multiplier=bonus_multiplier)
         effective_marvel_die = 6 if marvel_die == 1 else marvel_die
@@ -421,6 +421,17 @@ class CharacterRoster:
                 return self._copy_character(self._characters[key]).to_dict()
             except KeyError as error:
                 raise KeyError(f"Character '{name}' was not found.") from error
+
+    def get_sheets(self, names: list[str]) -> list[dict]:
+        with self._lock:
+            sheets: list[dict] = []
+            for name in names:
+                key = self._normalize(name)
+                try:
+                    sheets.append(self._copy_character(self._characters[key]).to_dict())
+                except KeyError as error:
+                    raise KeyError(f"Character '{name}' was not found.") from error
+            return sheets
 
     def get_active_sheet(self) -> dict | None:
         with self._lock:

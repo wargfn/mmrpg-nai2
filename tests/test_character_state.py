@@ -171,6 +171,22 @@ def test_attack_damage_rejects_negative_bonus_multiplier():
         character.calculate_attack_damage(ability="ego", marvel_die=6, bonus_multiplier=-1)
 
 
+def test_attack_damage_rejects_invalid_marvel_die_value():
+    character = Character(
+        name="Captain Marvel",
+        archetype="Blaster",
+        rank=4,
+        melee=3,
+        agility=3,
+        resilience=4,
+        vigilance=4,
+        ego=5,
+        logic=3,
+    )
+    with pytest.raises(ValueError, match="between 1 and 6"):
+        character.calculate_attack_damage(ability="ego", marvel_die=0)
+
+
 def test_tools_character_management_and_damage_response():
     create_payload = narrator_tools.create_or_load_character(
         name="Storm",

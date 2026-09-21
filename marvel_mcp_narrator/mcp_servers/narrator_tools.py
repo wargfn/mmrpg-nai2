@@ -44,6 +44,8 @@ from marvel_mcp_narrator.core.rules_database import lookup_rule_reference
 
 
 mcp = FastMCP("mmrpg-narrator")
+
+
 def clear_combat_state() -> None:
     combat_tracker.clear()
 

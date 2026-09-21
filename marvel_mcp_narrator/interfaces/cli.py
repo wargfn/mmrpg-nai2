@@ -467,7 +467,9 @@ def _parse_manual_roll_text(text: str) -> tuple[list[int], int] | None:
             if marvel_index is not None:
                 raise ValueError("Manual d616 rolls may only mark one die as the Marvel die.")
             marvel_index = index
-    return dice_values, (1 if marvel_index is None else marvel_index)
+    if marvel_index is None:
+        raise ValueError("Manual d616 rolls must explicitly mark which die is the Marvel die.")
+    return dice_values, marvel_index
 
 
 def _extract_manual_roll(text: str) -> tuple[tuple[list[int], int] | None, str]:
