@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1013,6 +1014,7 @@ class CampaignDatabase:
             "rescue",
             "rescued",
             "uncover",
+            "uncovered",
             "discovered",
             "discover",
             "escape",
@@ -1027,7 +1029,11 @@ class CampaignDatabase:
             "captured",
         )
         sentences = CampaignDatabase._split_sentences(raw_session_log)
-        events = [sentence for sentence in sentences if any(keyword in sentence.casefold() for keyword in keywords)]
+        events = [
+            sentence
+            for sentence in sentences
+            if any(re.search(rf"\b{re.escape(keyword)}\b", sentence, flags=re.IGNORECASE) for keyword in keywords)
+        ]
         return events or sentences[:2]
 
     @staticmethod

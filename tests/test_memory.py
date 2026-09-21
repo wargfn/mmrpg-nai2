@@ -278,6 +278,14 @@ def test_search_memory_prioritizes_legacy_matches_over_fuzzy_entity_overflow():
     assert any(match["memory_type"] == "plot_log" for match in matches)
 
 
+def test_extract_significant_events_matches_whole_words_only():
+    events = campaign_db.CampaignDatabase._extract_significant_events(
+        "The team reviewed an unsaved draft. They rescued civilians from the train."
+    )
+
+    assert events == ["They rescued civilians from the train"]
+
+
 def test_search_memory_prioritizes_exact_entity_name_over_legacy_matches():
     campaign_db.save_entity(
         name="Hydra",

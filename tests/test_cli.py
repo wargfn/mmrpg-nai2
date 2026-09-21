@@ -73,6 +73,10 @@ class CLIToolInjectionTests(unittest.TestCase):
         self.assertEqual(dice_values, [4, 5, 1])
         self.assertEqual(marvel_index, 2)
 
+    def test_parse_manual_roll_text_rejects_non_die_bracket_content(self):
+        with self.assertRaisesRegex(ValueError, "must be a die value"):
+            _parse_manual_roll_text("[4 hp, 5 focus, 1]")
+
     @patch('marvel_mcp_narrator.interfaces.cli.resolve_manual_d616_roll', return_value={
         "dice_values": [4, 5, 1],
         "total_score": 15,

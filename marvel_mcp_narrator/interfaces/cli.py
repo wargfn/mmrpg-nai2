@@ -78,6 +78,7 @@ STARTUP_CONTEXT_UNAVAILABLE_NOTE = (
     "Continue narrating with the live session context only."
 )
 MANUAL_D616_ROLL_PATTERN = re.compile(r"\[(?P<body>[^\]]+)\]")
+MANUAL_D616_ENTRY_PATTERN = re.compile(r"^(?P<value>[1-6])(?:\s*\(\s*marvel\s*\)|\s+marvel)?$", re.IGNORECASE)
 
 
 def normalize_open_webui_host(host: str) -> str:
@@ -453,13 +454,13 @@ def _parse_manual_roll_text(text: str) -> tuple[list[int], int] | None:
     dice_values: list[int] = []
     marvel_index: int | None = None
     for index, entry in enumerate(entries):
+        entry_match = MANUAL_D616_ENTRY_PATTERN.fullmatch(entry)
+        if entry_match is None:
+            raise ValueError(
+                "Each manual d616 die entry must be a die value from 1-6 with an optional Marvel marker."
+            )
         marvel_marked = "marvel" in entry.casefold()
-        number_match = re.search(r"\d+", entry)
-        if number_match is None:
-            raise ValueError("Each manual d616 die entry must include a numeric value.")
-        value = int(number_match.group(0))
-        if not 1 <= value <= 6:
-            raise ValueError("Each manual d616 die value must be between 1 and 6.")
+        value = int(entry_match.group("value"))
         dice_values.append(value)
         if marvel_marked:
             if marvel_index is not None:
