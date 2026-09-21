@@ -428,6 +428,24 @@ class CampaignDatabase:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def add_plot_log(self, summary: str, session: int = 1) -> None:
+        """Persist a legacy-style plot log entry."""
+        cleaned_summary = summary.strip()
+        if not cleaned_summary:
+            raise ValueError("Event summary is required.")
+        if session < 1:
+            raise ValueError("Session number must be at least 1.")
+
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO plot_logs (session_number, event_summary, timestamp)
+                VALUES (?, ?, ?)
+                """,
+                (session, cleaned_summary, _utc_now()),
+            )
+            connection.commit()
+
     @staticmethod
     def _row_to_entity(row: sqlite3.Row | None) -> dict[str, Any] | None:
         if row is None:
@@ -499,7 +517,7 @@ def list_memories() -> list[dict[str, Any]]:
     return get_campaign_database().list_memories()
 
 
-def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
+def save_npc(name: str, affiliation: str = "", description: str = "", notes: str = "") -> str:
     """Backward-compatible helper for storing NPC entities."""
     cleaned_name = name.strip()
     if not cleaned_name:
@@ -524,21 +542,7 @@ def get_npc(name: str) -> dict[str, Any] | None:
 
 def log_event(summary: str, session: int = 1) -> str:
     """Backward-compatible plot log storage using the plot_logs table."""
-    cleaned_summary = summary.strip()
-    if not cleaned_summary:
-        raise ValueError("Event summary is required.")
-    if session < 1:
-        raise ValueError("Session number must be at least 1.")
-    timestamp = _utc_now()
-    with get_campaign_database()._connect() as connection:
-        connection.execute(
-            """
-            INSERT INTO plot_logs (session_number, event_summary, timestamp)
-            VALUES (?, ?, ?)
-            """,
-            (session, cleaned_summary, timestamp),
-        )
-        connection.commit()
+    get_campaign_database().add_plot_log(summary=summary, session=session)
     return f"Logged campaign event for session {session}."
 
 
@@ -547,8 +551,6 @@ def search_memory(query: str) -> list[dict[str, Any]]:
     keyword = query.strip()
     if not keyword:
         return []
-
-    pattern = keyword.casefold()
     entity_matches = [
         {
             "memory_type": "entity",
