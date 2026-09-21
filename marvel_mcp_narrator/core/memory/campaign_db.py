@@ -296,6 +296,9 @@ class CampaignDatabase:
         disposition: str = "Neutral",
         location: str = "Unknown",
         notes: str = "",
+        *,
+        affiliation: str = "",
+        custom_stats_json: dict[str, Any] | None = None,
     ) -> None:
         """Save or update an NPC, faction, or location."""
         cleaned_name = name.strip()
@@ -310,45 +313,54 @@ class CampaignDatabase:
 
         with self._connect() as connection:
             existing = connection.execute(
-                "SELECT affiliation, custom_stats_json FROM entities WHERE name = ? COLLATE NOCASE",
+                "SELECT id FROM entities WHERE name = ? COLLATE NOCASE",
                 (cleaned_name,),
             ).fetchone()
-            affiliation = "" if existing is None else str(existing["affiliation"] or "")
-            custom_stats_json = "{}" if existing is None else str(existing["custom_stats_json"] or "{}")
-            connection.execute(
-                """
-                INSERT INTO entities (
-                    name,
-                    category,
-                    description,
-                    disposition,
-                    location,
-                    notes,
-                    affiliation,
-                    custom_stats_json
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT DO UPDATE SET
-                    name = excluded.name,
-                    category = excluded.category,
-                    description = excluded.description,
-                    disposition = excluded.disposition,
-                    location = excluded.location,
-                    notes = excluded.notes,
-                    affiliation = excluded.affiliation,
-                    custom_stats_json = excluded.custom_stats_json
-                """,
-                (
-                    cleaned_name,
-                    cleaned_category,
-                    cleaned_description,
-                    disposition.strip() or "Neutral",
-                    location.strip() or "Unknown",
-                    notes.strip(),
-                    affiliation,
-                    custom_stats_json,
-                ),
+            serialized_stats = json.dumps(custom_stats_json or {})
+            payload = (
+                cleaned_name,
+                cleaned_category,
+                cleaned_description,
+                disposition.strip() or "Neutral",
+                location.strip() or "Unknown",
+                notes.strip(),
+                affiliation.strip(),
+                serialized_stats,
             )
+            if existing is None:
+                connection.execute(
+                    """
+                    INSERT INTO entities (
+                        name,
+                        category,
+                        description,
+                        disposition,
+                        location,
+                        notes,
+                        affiliation,
+                        custom_stats_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    payload,
+                )
+            else:
+                connection.execute(
+                    """
+                    UPDATE entities
+                    SET
+                        name = ?,
+                        category = ?,
+                        description = ?,
+                        disposition = ?,
+                        location = ?,
+                        notes = ?,
+                        affiliation = ?,
+                        custom_stats_json = ?
+                    WHERE id = ?
+                    """,
+                    (*payload, existing["id"]),
+                )
             connection.commit()
 
     def get_entity(self, name: str) -> dict[str, Any] | None:
@@ -382,6 +394,10 @@ class CampaignDatabase:
         keyword = query.strip()
         if not keyword:
             return []
+
+        exact_match = self.get_entity(keyword)
+        if exact_match is not None:
+            return [exact_match]
 
         pattern = f"%{keyword}%"
         with self._connect() as connection:
@@ -476,6 +492,9 @@ def save_entity(
     disposition: str = "Neutral",
     location: str = "Unknown",
     notes: str = "",
+    *,
+    affiliation: str = "",
+    custom_stats_json: dict[str, Any] | None = None,
 ) -> None:
     get_campaign_database().save_entity(
         name=name,
@@ -484,6 +503,8 @@ def save_entity(
         disposition=disposition,
         location=location,
         notes=notes,
+        affiliation=affiliation,
+        custom_stats_json=custom_stats_json,
     )
 
 
@@ -509,13 +530,8 @@ def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
         category="NPC",
         description=description or "Unknown NPC",
         notes=notes,
+        affiliation=affiliation,
     )
-    with get_campaign_database()._connect() as connection:
-        connection.execute(
-            "UPDATE entities SET affiliation = ? WHERE name = ? COLLATE NOCASE",
-            (affiliation.strip(), cleaned_name),
-        )
-        connection.commit()
     return f"Saved NPC '{cleaned_name}'."
 
 
