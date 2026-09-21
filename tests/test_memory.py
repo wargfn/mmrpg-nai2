@@ -3,6 +3,7 @@ import sqlite3
 import pytest
 
 from marvel_mcp_narrator.core.memory import campaign_db
+from marvel_mcp_narrator.mcp_servers import narrator_tools
 
 
 @pytest.fixture(autouse=True)
@@ -75,3 +76,18 @@ def test_search_memory_returns_saved_npc_and_plot_log():
     assert [match["memory_type"] for match in matches] == ["npc", "plot_log"]
     assert matches[0]["name"] == "Maria Hill"
     assert "briefed the heroes" in matches[1]["summary"]
+
+
+def test_narrator_tools_expose_campaign_memory_flow():
+    remembered = narrator_tools.remember_npc(
+        name="Wilson Fisk",
+        affiliation="Criminal Underworld",
+        description="Crime boss",
+        notes="Controls several fronts across Hell's Kitchen.",
+    )
+    recalled = narrator_tools.recall_npc_or_location("Wilson Fisk")
+    logged = narrator_tools.log_campaign_event("Wilson Fisk put a bounty on the vigilantes.")
+
+    assert remembered["npc"]["name"] == "Wilson Fisk"
+    assert "Crime boss" in recalled
+    assert logged == "Logged campaign event for session 1."
