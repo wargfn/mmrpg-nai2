@@ -651,8 +651,10 @@ class CampaignDatabase:
         if plan is None:
             return None
         active_session_number = int(
-            self._state_value("active_session_number") or "1"
+            self._state_value("active_session_number") or "0"
         )
+        if active_session_number < 1:
+            return None
         current_session = next(
             (session for session in plan["sessions"] if session["session_number"] == active_session_number),
             None,
@@ -735,8 +737,10 @@ class CampaignDatabase:
                     key=f"session_{session_number}_event_{index}",
                     content=event,
                 )
-            next_session_number = session_number + 1 if next_session is not None else session_number
-            self._set_state(connection, "active_session_number", str(next_session_number))
+            if next_session is not None:
+                self._set_state(connection, "active_session_number", str(session_number + 1))
+            else:
+                self._clear_state(connection, "active_session_number")
             connection.commit()
 
         return {
@@ -798,6 +802,10 @@ class CampaignDatabase:
             """,
             (key, value, _utc_now()),
         )
+
+    @staticmethod
+    def _clear_state(connection: sqlite3.Connection, key: str) -> None:
+        connection.execute("DELETE FROM campaign_state WHERE key = ?", (key,))
 
     @staticmethod
     def _save_memory_with_connection(connection: sqlite3.Connection, key: str, content: str) -> None:
@@ -973,17 +981,21 @@ def search_memory(query: str) -> list[dict[str, Any]]:
         {
             **match,
             "_priority": 1,
+            "_order": index,
         }
-        for match in get_campaign_database().search_memory_records(
+        for index, match in enumerate(get_campaign_database().search_memory_records(
             keyword,
             limit=SEARCH_RESULT_LIMIT,
-        )
+        ))
     ]
+    for index, match in enumerate(entity_matches):
+        match["_order"] = index
     combined_matches = [*entity_matches, *legacy_matches]
-    combined_matches.sort(key=lambda item: item["_priority"])
+    combined_matches.sort(key=lambda item: (item["_priority"], item["_order"]))
     ordered_matches = []
     for match in combined_matches:
         cleaned = dict(match)
         cleaned.pop("_priority", None)
+        cleaned.pop("_order", None)
         ordered_matches.append(cleaned)
     return ordered_matches[:SEARCH_RESULT_LIMIT]

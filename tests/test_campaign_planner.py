@@ -102,6 +102,25 @@ def test_wrap_up_current_session_tool_advances_campaign():
     assert "Session 2:" in briefing
 
 
+def test_final_session_wrap_up_clears_active_session():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Annihilation Wave",
+        villain="Annihilus",
+        hero_team=["Nova", "Quasar"],
+        desired_session_count=1,
+    )
+
+    result = planner.conclude_session(
+        1,
+        "Nova saved the refugees and defeated Annihilus in the Negative Zone.",
+    )
+
+    assert "Nova saved the refugees" in result["player_recap"]
+    with pytest.raises(ValueError, match="No active campaign plan is available"):
+        planner.get_current_session_context()
+
+
 def test_create_campaign_plan_tool_returns_summary():
     summary = narrator_tools.create_campaign_plan("Gamma Panic", "Leader", 2)
 
