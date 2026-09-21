@@ -59,7 +59,7 @@ class RulesDatabase:
             rule_key = name.lower().replace(" ", "_")
             aliases = {name.lower(), rule_key}
             for alias in aliases:
-                index[alias] = {"entry_type": "power", "rule_key": rule_key, **payload}
+                index.setdefault(alias, {"entry_type": "power", "rule_key": rule_key, **payload})
 
         return index
 
@@ -90,7 +90,12 @@ class RulesDatabase:
                 ref_key = ref_name.casefold()
                 if ref_key in source_by_name:
                     referenced_entry = dict(source_by_name[ref_key])
-                    referenced_entry["category"] = set_name
+                    referenced_entry["referenced_by_subset"] = set_name
+                    base_description = str(referenced_entry.get("description", "")).strip()
+                    if set_name not in base_description:
+                        referenced_entry["description"] = (
+                            f"{base_description} Referenced by {set_name}."
+                        ).strip()
                     referenced_entry["referenced_from"] = True
                     entries.append(referenced_entry)
                     continue

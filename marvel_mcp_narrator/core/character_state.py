@@ -291,7 +291,7 @@ class CharacterRoster:
         if field_name in {"origin", "occupation"}:
             return str(value).strip().casefold()
         if field_name in {"traits", "tags"}:
-            return [str(item).strip().casefold() for item in value if str(item).strip()]  # type: ignore[arg-type]
+            return sorted({str(item).strip().casefold() for item in value if str(item).strip()})  # type: ignore[arg-type]
         if field_name == "power_sets":
             comparable: list[str] = []
             for item in value:  # type: ignore[arg-type]

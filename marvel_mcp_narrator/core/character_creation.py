@@ -211,7 +211,7 @@ def _list_catalog_names(key: str, *, include_subcategories: bool = False) -> lis
                 continue
         if name:
             values.append(name)
-    return sorted(set(values))
+    return list(dict.fromkeys(values))
 
 
 def _get_origins_lookup() -> dict[str, str]:
