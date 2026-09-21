@@ -8,6 +8,11 @@ from tempfile import gettempdir
 
 from fastmcp import FastMCP
 
+from marvel_mcp_narrator.core.campaign_planner import (
+    conclude_session as conclude_session_core,
+    create_campaign_plan as create_campaign_plan_core,
+    get_current_session_context as get_current_session_context_core,
+)
 from marvel_mcp_narrator.core.memory.campaign_db import (
     get_entity,
     get_npc,
@@ -328,6 +333,59 @@ def load_campaign_memory(key: str) -> str:
     if content is None:
         return f"No campaign memory found for '{key}'."
     return content
+
+
+@mcp.tool()
+def create_campaign_plan(theme: str, villain: str, session_count: int) -> str:
+    """Create and persist a structured campaign plan."""
+    plan = create_campaign_plan_core(
+        theme=theme,
+        villain=villain,
+        hero_team=["Marvel heroes"],
+        desired_session_count=session_count,
+    )
+    titles = ", ".join(session["title"] for session in plan["sessions"])
+    return (
+        f"Created {plan['session_count']}-session campaign against {plan['villain']} "
+        f"with sessions: {titles}."
+    )
+
+
+@mcp.tool()
+def get_next_session_briefing() -> str:
+    """Return the active session briefing for the current campaign."""
+    context = get_current_session_context_core()
+    session = context["session"]
+    return "\n".join(
+        [
+            f"Session {session['session_number']}: {session['title']}",
+            f"Theme: {context['theme']}",
+            f"Villain: {context['villain']}",
+            f"Objectives: {', '.join(session['objectives'])}",
+            f"Key NPCs: {', '.join(session['key_npcs'])}",
+            f"Locations: {', '.join(session['locations'])}",
+            f"Milestone: {session['completion_milestone']}",
+        ]
+    )
+
+
+@mcp.tool()
+def wrap_up_current_session(session_log_summary: str) -> str:
+    """Generate recap data and advance the active campaign session."""
+    context = get_current_session_context_core()
+    session = context["session"]
+    wrap_up = conclude_session_core(
+        session_number=session["session_number"],
+        raw_session_log=session_log_summary,
+    )
+    highlight_names = ", ".join(wrap_up["hero_highlights"].keys())
+    return "\n".join(
+        [
+            wrap_up["player_recap"],
+            f"Bridge Prompt: {wrap_up['narrator_bridge_prompt']}",
+            f"Hero Highlights: {highlight_names}",
+        ]
+    )
 
 
 @mcp.tool()

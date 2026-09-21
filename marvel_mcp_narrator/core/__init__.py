@@ -16,6 +16,12 @@ from .character_creation import (
     validate_power_selection,
     validate_character_powers,
 )
+from .campaign_planner import (
+    CampaignPlanner,
+    conclude_session,
+    create_campaign_plan,
+    get_current_session_context,
+)
 from .rules_database import (
     RulesDatabase,
     RulesLookupError,
@@ -37,6 +43,10 @@ __all__ = [
     "generate_character_from_template",
     "export_character_json",
     "load_character_json",
+    "CampaignPlanner",
+    "create_campaign_plan",
+    "get_current_session_context",
+    "conclude_session",
     "list_archetypes",
     "list_origins",
     "list_occupations",

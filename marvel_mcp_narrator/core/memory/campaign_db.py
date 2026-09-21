@@ -77,6 +77,49 @@ class CampaignDatabase:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS campaign_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    theme TEXT NOT NULL,
+                    villain TEXT NOT NULL,
+                    hero_team_json TEXT NOT NULL,
+                    session_count INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS campaign_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    campaign_id INTEGER NOT NULL,
+                    session_number INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    objectives_json TEXT NOT NULL,
+                    key_npcs_json TEXT NOT NULL,
+                    locations_json TEXT NOT NULL,
+                    completion_milestone TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'planned',
+                    recap TEXT NOT NULL DEFAULT '',
+                    narrator_bridge_prompt TEXT NOT NULL DEFAULT '',
+                    hero_highlights_json TEXT NOT NULL DEFAULT '{}',
+                    raw_session_log TEXT NOT NULL DEFAULT '',
+                    FOREIGN KEY (campaign_id) REFERENCES campaign_plans(id),
+                    UNIQUE (campaign_id, session_number)
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS campaign_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
             self._migrate_legacy_tables(connection)
             connection.commit()
 
@@ -497,6 +540,207 @@ class CampaignDatabase:
             )
             connection.commit()
 
+    def create_campaign_plan(
+        self,
+        *,
+        theme: str,
+        villain: str,
+        hero_team: list[str],
+        sessions: list[dict[str, Any]],
+    ) -> int:
+        """Persist a structured campaign plan and mark it active."""
+        cleaned_theme = theme.strip()
+        cleaned_villain = villain.strip()
+        if not cleaned_theme:
+            raise ValueError("Campaign theme is required.")
+        if not cleaned_villain:
+            raise ValueError("Campaign villain is required.")
+        if not sessions:
+            raise ValueError("At least one campaign session is required.")
+
+        now = _utc_now()
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO campaign_plans (theme, villain, hero_team_json, session_count, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    cleaned_theme,
+                    cleaned_villain,
+                    json.dumps(hero_team),
+                    len(sessions),
+                    now,
+                    now,
+                ),
+            )
+            campaign_id = int(cursor.lastrowid)
+            for session in sessions:
+                connection.execute(
+                    """
+                    INSERT INTO campaign_sessions (
+                        campaign_id,
+                        session_number,
+                        title,
+                        objectives_json,
+                        key_npcs_json,
+                        locations_json,
+                        completion_milestone
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        campaign_id,
+                        int(session["session_number"]),
+                        str(session["title"]),
+                        json.dumps(session["objectives"]),
+                        json.dumps(session["key_npcs"]),
+                        json.dumps(session["locations"]),
+                        str(session["completion_milestone"]),
+                    ),
+                )
+            self._set_state(connection, "active_campaign_id", str(campaign_id))
+            self._set_state(connection, "active_session_number", "1")
+            connection.commit()
+        return campaign_id
+
+    def get_active_campaign_plan(self) -> dict[str, Any] | None:
+        """Return the current active campaign and all of its sessions."""
+        with self._connect() as connection:
+            active_campaign_id = self._get_state(connection, "active_campaign_id")
+            if active_campaign_id is None:
+                return None
+            plan_row = connection.execute(
+                """
+                SELECT id, theme, villain, hero_team_json, session_count, created_at, updated_at
+                FROM campaign_plans
+                WHERE id = ?
+                """,
+                (active_campaign_id,),
+            ).fetchone()
+            if plan_row is None:
+                return None
+            session_rows = connection.execute(
+                """
+                SELECT
+                    session_number,
+                    title,
+                    objectives_json,
+                    key_npcs_json,
+                    locations_json,
+                    completion_milestone,
+                    status,
+                    recap,
+                    narrator_bridge_prompt,
+                    hero_highlights_json,
+                    raw_session_log
+                FROM campaign_sessions
+                WHERE campaign_id = ?
+                ORDER BY session_number ASC
+                """,
+                (active_campaign_id,),
+            ).fetchall()
+        payload = dict(plan_row)
+        payload["hero_team"] = json.loads(payload.pop("hero_team_json"))
+        payload["sessions"] = [self._row_to_campaign_session(row) for row in session_rows]
+        return payload
+
+    def get_current_session_context(self) -> dict[str, Any] | None:
+        """Return the active session roadmap entry for the current campaign."""
+        plan = self.get_active_campaign_plan()
+        if plan is None:
+            return None
+        active_session_number = int(
+            self._state_value("active_session_number") or "1"
+        )
+        current_session = next(
+            (session for session in plan["sessions"] if session["session_number"] == active_session_number),
+            None,
+        )
+        if current_session is None:
+            return None
+        return {
+            "campaign_id": plan["id"],
+            "theme": plan["theme"],
+            "villain": plan["villain"],
+            "hero_team": plan["hero_team"],
+            "session_count": plan["session_count"],
+            "active_session_number": active_session_number,
+            "session": current_session,
+        }
+
+    def conclude_session(self, session_number: int, raw_session_log: str) -> dict[str, Any]:
+        """Store recap/highlights for a session, log significant events, and advance progress."""
+        cleaned_log = raw_session_log.strip()
+        if session_number < 1:
+            raise ValueError("Session number must be at least 1.")
+        if not cleaned_log:
+            raise ValueError("Session log is required.")
+
+        context = self.get_current_session_context()
+        if context is None:
+            raise ValueError("No active campaign plan is available.")
+        plan = self.get_active_campaign_plan()
+        assert plan is not None
+        session = next(
+            (entry for entry in plan["sessions"] if entry["session_number"] == session_number),
+            None,
+        )
+        if session is None:
+            raise ValueError(f"Session {session_number} is not part of the active campaign.")
+
+        player_recap = self._build_player_recap(session, cleaned_log)
+        hero_highlights = self._extract_hero_highlights(plan["hero_team"], cleaned_log)
+        significant_events = self._extract_significant_events(cleaned_log)
+        next_session = next(
+            (entry for entry in plan["sessions"] if entry["session_number"] == session_number + 1),
+            None,
+        )
+        narrator_bridge_prompt = self._build_narrator_bridge_prompt(
+            session=session,
+            next_session=next_session,
+            player_recap=player_recap,
+            significant_events=significant_events,
+        )
+
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE campaign_sessions
+                SET
+                    status = 'completed',
+                    recap = ?,
+                    narrator_bridge_prompt = ?,
+                    hero_highlights_json = ?,
+                    raw_session_log = ?
+                WHERE campaign_id = ? AND session_number = ?
+                """,
+                (
+                    player_recap,
+                    narrator_bridge_prompt,
+                    json.dumps(hero_highlights),
+                    cleaned_log,
+                    context["campaign_id"],
+                    session_number,
+                ),
+            )
+            for index, event in enumerate(significant_events, start=1):
+                self._save_memory_with_connection(
+                    connection,
+                    key=f"session_{session_number}_event_{index}",
+                    content=event,
+                )
+            next_session_number = session_number + 1 if next_session is not None else session_number
+            self._set_state(connection, "active_session_number", str(next_session_number))
+            connection.commit()
+
+        return {
+            "player_recap": player_recap,
+            "narrator_bridge_prompt": narrator_bridge_prompt,
+            "hero_highlights": hero_highlights,
+            "significant_events": significant_events,
+        }
+
     @staticmethod
     def _row_to_entity(row: sqlite3.Row | None) -> dict[str, Any] | None:
         if row is None:
@@ -508,6 +752,110 @@ class CampaignDatabase:
         except json.JSONDecodeError:
             payload["custom_stats_json"] = {}
         return payload
+
+    @staticmethod
+    def _row_to_campaign_session(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "session_number": int(row["session_number"]),
+            "title": str(row["title"]),
+            "objectives": json.loads(str(row["objectives_json"])),
+            "key_npcs": json.loads(str(row["key_npcs_json"])),
+            "locations": json.loads(str(row["locations_json"])),
+            "completion_milestone": str(row["completion_milestone"]),
+            "status": str(row["status"]),
+            "recap": str(row["recap"]),
+            "narrator_bridge_prompt": str(row["narrator_bridge_prompt"]),
+            "hero_highlights": json.loads(str(row["hero_highlights_json"])),
+            "raw_session_log": str(row["raw_session_log"]),
+        }
+
+    def _state_value(self, key: str) -> str | None:
+        with self._connect() as connection:
+            return self._get_state(connection, key)
+
+    @staticmethod
+    def _get_state(connection: sqlite3.Connection, key: str) -> str | None:
+        row = connection.execute(
+            "SELECT value FROM campaign_state WHERE key = ?",
+            (key,),
+        ).fetchone()
+        return None if row is None else str(row["value"])
+
+    @staticmethod
+    def _set_state(connection: sqlite3.Connection, key: str, value: str) -> None:
+        connection.execute(
+            """
+            INSERT INTO campaign_state (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+            """,
+            (key, value, _utc_now()),
+        )
+
+    @staticmethod
+    def _save_memory_with_connection(connection: sqlite3.Connection, key: str, content: str) -> None:
+        connection.execute(
+            """
+            INSERT INTO memories (key, content, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+                content = excluded.content,
+                updated_at = excluded.updated_at
+            """,
+            (key, content, _utc_now()),
+        )
+
+    @staticmethod
+    def _build_player_recap(session: dict[str, Any], raw_session_log: str) -> str:
+        first_sentence = raw_session_log.split(".")[0].strip()
+        opening = first_sentence if first_sentence else raw_session_log
+        return (
+            f"Session {session['session_number']} - {session['title']}: {opening}. "
+            f"The heroes advanced toward {session['completion_milestone']}."
+        )
+
+    @staticmethod
+    def _extract_hero_highlights(hero_team: list[str], raw_session_log: str) -> dict[str, list[str]]:
+        highlights: dict[str, list[str]] = {}
+        sentences = [part.strip() for part in raw_session_log.replace("\n", " ").split(".") if part.strip()]
+        for hero in hero_team:
+            hero_key = str(hero).strip()
+            if not hero_key:
+                continue
+            matched = [sentence for sentence in sentences if hero_key.casefold() in sentence.casefold()]
+            if matched:
+                highlights[hero_key] = matched
+        if not highlights:
+            highlights["Team"] = sentences[:2] or [raw_session_log.strip()]
+        return highlights
+
+    @staticmethod
+    def _extract_significant_events(raw_session_log: str) -> list[str]:
+        keywords = ("defeat", "resc", "uncover", "discover", "escape", "save", "destroy", "steal", "capture")
+        sentences = [part.strip() for part in raw_session_log.replace("\n", " ").split(".") if part.strip()]
+        events = [sentence for sentence in sentences if any(keyword in sentence.casefold() for keyword in keywords)]
+        return events or sentences[:2]
+
+    @staticmethod
+    def _build_narrator_bridge_prompt(
+        *,
+        session: dict[str, Any],
+        next_session: dict[str, Any] | None,
+        player_recap: str,
+        significant_events: list[str],
+    ) -> str:
+        if next_session is None:
+            return (
+                f"Continue from the fallout of session {session['session_number']}. "
+                f"Use the recap '{player_recap}' and close lingering threads: {'; '.join(significant_events)}."
+            )
+        return (
+            f"Open session {next_session['session_number']} titled '{next_session['title']}'. "
+            f"Carry forward these developments: {'; '.join(significant_events)}. "
+            f"Guide the heroes toward {next_session['completion_milestone']}."
+        )
 
 
 def get_campaign_database(path: Path | str | None = None) -> CampaignDatabase:
