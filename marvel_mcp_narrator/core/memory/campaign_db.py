@@ -137,14 +137,12 @@ class CampaignDatabase:
             row["name"]
             for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
         }
-        if "npcs" in tables:
+        if "npcs" in tables and "npcs_legacy_backup" not in tables:
             self._migrate_legacy_npcs(connection)
-            if "npcs_legacy_backup" not in tables:
-                connection.execute("ALTER TABLE npcs RENAME TO npcs_legacy_backup")
-        if "locations" in tables:
+            connection.execute("ALTER TABLE npcs RENAME TO npcs_legacy_backup")
+        if "locations" in tables and "locations_legacy_backup" not in tables:
             self._migrate_legacy_locations(connection)
-            if "locations_legacy_backup" not in tables:
-                connection.execute("ALTER TABLE locations RENAME TO locations_legacy_backup")
+            connection.execute("ALTER TABLE locations RENAME TO locations_legacy_backup")
 
     def _migrate_legacy_npcs(self, connection: sqlite3.Connection) -> None:
         rows = connection.execute(
@@ -487,6 +485,7 @@ class CampaignDatabase:
                     "affiliation": row["updated_at"],
                     "summary": row["content"],
                     "notes": row["content"],
+                    "sort_timestamp": row["updated_at"],
                 }
                 for row in connection.execute(
                     """
@@ -506,6 +505,7 @@ class CampaignDatabase:
                     "affiliation": row["timestamp"],
                     "summary": row["event_summary"],
                     "notes": row["event_summary"],
+                    "sort_timestamp": row["timestamp"],
                 }
                 for row in connection.execute(
                     """
@@ -519,8 +519,13 @@ class CampaignDatabase:
                 ).fetchall()
             ]
         combined_matches = [*memory_matches, *plot_log_matches]
-        combined_matches.sort(key=lambda item: str(item.get("affiliation", "")), reverse=True)
-        return combined_matches[:limit]
+        combined_matches.sort(key=lambda item: str(item.get("sort_timestamp", "")), reverse=True)
+        trimmed_matches = []
+        for match in combined_matches[:limit]:
+            cleaned = dict(match)
+            cleaned.pop("sort_timestamp", None)
+            trimmed_matches.append(cleaned)
+        return trimmed_matches
 
     def add_plot_log(self, summary: str, session: int = 1) -> None:
         """Persist a legacy-style plot log entry."""
@@ -650,29 +655,64 @@ class CampaignDatabase:
 
     def get_current_session_context(self) -> dict[str, Any] | None:
         """Return the active session roadmap entry for the current campaign."""
-        plan = self.get_active_campaign_plan()
-        if plan is None:
-            return None
-        active_session_number = int(
-            self._state_value("active_session_number") or "0"
-        )
-        if active_session_number < 1:
-            return None
-        current_session = next(
-            (session for session in plan["sessions"] if session["session_number"] == active_session_number),
-            None,
-        )
-        if current_session is None:
-            return None
-        return {
-            "campaign_id": plan["id"],
-            "theme": plan["theme"],
-            "villain": plan["villain"],
-            "hero_team": plan["hero_team"],
-            "session_count": plan["session_count"],
-            "active_session_number": active_session_number,
-            "session": current_session,
-        }
+        with self._connect() as connection:
+            active_campaign_id = self._get_state(connection, "active_campaign_id")
+            active_session_value = self._get_state(connection, "active_session_number")
+            if active_campaign_id is None or active_session_value is None:
+                return None
+            active_session_number = int(active_session_value)
+            if active_session_number < 1:
+                return None
+            plan_row = connection.execute(
+                """
+                SELECT id, theme, villain, hero_team_json, session_count, created_at, updated_at
+                FROM campaign_plans
+                WHERE id = ?
+                """,
+                (active_campaign_id,),
+            ).fetchone()
+            if plan_row is None:
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
+                return None
+            session_rows = connection.execute(
+                """
+                SELECT
+                    session_number,
+                    title,
+                    objectives_json,
+                    key_npcs_json,
+                    locations_json,
+                    completion_milestone,
+                    status,
+                    recap,
+                    narrator_bridge_prompt,
+                    hero_highlights_json,
+                    raw_session_log
+                FROM campaign_sessions
+                WHERE campaign_id = ?
+                ORDER BY session_number ASC
+                """,
+                (active_campaign_id,),
+            ).fetchall()
+            sessions = [self._row_to_campaign_session(row) for row in session_rows]
+            current_session = next(
+                (session for session in sessions if session["session_number"] == active_session_number),
+                None,
+            )
+            if current_session is None:
+                return None
+            return {
+                "campaign_id": int(plan_row["id"]),
+                "theme": str(plan_row["theme"]),
+                "villain": str(plan_row["villain"]),
+                "hero_team": json.loads(str(plan_row["hero_team_json"])),
+                "session_count": int(plan_row["session_count"]),
+                "active_session_number": active_session_number,
+                "session": current_session,
+                "sessions": sessions,
+            }
 
     def conclude_session(self, session_number: int, raw_session_log: str) -> dict[str, Any]:
         """Store recap/highlights for a session, log significant events, and advance progress."""
@@ -690,20 +730,15 @@ class CampaignDatabase:
                 f"Session {session_number} cannot be concluded while session "
                 f"{context['active_session_number']} is active."
             )
-        plan = self.get_active_campaign_plan()
-        assert plan is not None
-        session = next(
-            (entry for entry in plan["sessions"] if entry["session_number"] == session_number),
-            None,
-        )
+        session = context["session"]
         if session is None:
             raise ValueError(f"Session {session_number} is not part of the active campaign.")
 
         player_recap = self._build_player_recap(session, cleaned_log)
-        hero_highlights = self._extract_hero_highlights(plan["hero_team"], cleaned_log)
+        hero_highlights = self._extract_hero_highlights(context["hero_team"], cleaned_log)
         significant_events = self._extract_significant_events(cleaned_log)
         next_session = next(
-            (entry for entry in plan["sessions"] if entry["session_number"] == session_number + 1),
+            (entry for entry in context["sessions"] if entry["session_number"] == session_number + 1),
             None,
         )
         narrator_bridge_prompt = self._build_narrator_bridge_prompt(
@@ -735,10 +770,9 @@ class CampaignDatabase:
                 ),
             )
             for index, event in enumerate(significant_events, start=1):
-                event_key_timestamp = _utc_now()
                 self._save_memory_with_connection(
                     connection,
-                    key=f"session_{session_number}_event_{index}_{event_key_timestamp}",
+                    key=f"session_{session_number}_event_{index}",
                     content=event,
                 )
             if next_session is not None:
