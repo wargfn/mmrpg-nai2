@@ -15,6 +15,7 @@ def _default_database_path() -> Path:
 
 
 CAMPAIGN_DB_PATH = _default_database_path()
+SEARCH_RESULT_LIMIT = 10
 _ALLOWED_IDENTIFIERS = {
     "npcs": {
         "archetype_or_role",
@@ -90,29 +91,38 @@ def _merge_case_insensitive_npc_duplicates(connection: sqlite3.Connection) -> No
             """,
             (primary_id,),
         ).fetchone()
+        merged_name = row["name"] or primary_row["name"]
+        merged_role = row["archetype_or_role"] or primary_row["archetype_or_role"]
+        merged_affiliation = row["affiliation"] or primary_row["affiliation"]
+        merged_disposition = row["disposition"] or primary_row["disposition"]
+        merged_location = row["location"] or primary_row["location"]
+        merged_notes = row["notes"] or primary_row["notes"]
+        merged_custom_stats = row["custom_stats_json"] or primary_row["custom_stats_json"]
+        connection.execute("DELETE FROM npcs WHERE id = ?", (row["id"],))
         connection.execute(
             """
             UPDATE npcs
             SET
-                archetype_or_role = COALESCE(archetype_or_role, ?),
-                affiliation = COALESCE(affiliation, ?),
-                disposition = COALESCE(disposition, ?),
-                location = COALESCE(location, ?),
-                notes = COALESCE(notes, ?),
-                custom_stats_json = COALESCE(custom_stats_json, ?)
+                name = ?,
+                archetype_or_role = ?,
+                affiliation = ?,
+                disposition = ?,
+                location = ?,
+                notes = ?,
+                custom_stats_json = ?
             WHERE id = ?
             """,
             (
-                row["archetype_or_role"],
-                row["affiliation"],
-                row["disposition"],
-                row["location"],
-                row["notes"],
-                row["custom_stats_json"],
+                merged_name,
+                merged_role,
+                merged_affiliation,
+                merged_disposition,
+                merged_location,
+                merged_notes,
+                merged_custom_stats,
                 primary_row["id"],
             ),
         )
-        connection.execute("DELETE FROM npcs WHERE id = ?", (row["id"],))
 
 
 def initialize_database(path: Path | str | None = None) -> Path:
@@ -324,8 +334,9 @@ def search_memory(query: str) -> list[dict[str, Any]]:
                 archetype_or_role LIKE ? COLLATE NOCASE OR
                 notes LIKE ? COLLATE NOCASE
             ORDER BY name
+            LIMIT ?
             """,
-            (pattern, pattern, pattern, pattern),
+            (pattern, pattern, pattern, pattern, SEARCH_RESULT_LIMIT),
         ).fetchall()
         location_rows = connection.execute(
             """
@@ -341,8 +352,9 @@ def search_memory(query: str) -> list[dict[str, Any]]:
                 description LIKE ? COLLATE NOCASE OR
                 current_status LIKE ? COLLATE NOCASE
             ORDER BY name
+            LIMIT ?
             """,
-            (pattern, pattern, pattern),
+            (pattern, pattern, pattern, SEARCH_RESULT_LIMIT),
         ).fetchall()
         plot_rows = connection.execute(
             """
@@ -357,8 +369,9 @@ def search_memory(query: str) -> list[dict[str, Any]]:
                 event_summary LIKE ? COLLATE NOCASE OR
                 timestamp LIKE ? COLLATE NOCASE
             ORDER BY id DESC
+            LIMIT ?
             """,
-            (pattern, pattern),
+            (pattern, pattern, SEARCH_RESULT_LIMIT),
         ).fetchall()
 
     return [dict(row) for row in [*npc_rows, *location_rows, *plot_rows]]

@@ -57,6 +57,41 @@ def test_initialize_database_migrates_existing_schema(isolated_campaign_db):
     assert {"locations", "plot_logs"} <= table_names
 
 
+def test_initialize_database_merges_case_variant_duplicates_and_adds_index(isolated_campaign_db):
+    with sqlite3.connect(isolated_campaign_db) as connection:
+        connection.execute(
+            """
+            CREATE TABLE npcs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                affiliation TEXT,
+                notes TEXT
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO npcs (name, affiliation, notes) VALUES (?, ?, ?)",
+            ("Nick Fury", "S.H.I.E.L.D.", "Original record."),
+        )
+        connection.execute(
+            "INSERT INTO npcs (name, affiliation, notes) VALUES (?, ?, ?)",
+            ("nick fury", "Avengers", "Most recent record."),
+        )
+        connection.commit()
+
+    campaign_db.initialize_database()
+
+    with sqlite3.connect(isolated_campaign_db) as connection:
+        rows = connection.execute("SELECT name, affiliation, notes FROM npcs").fetchall()
+        indexes = {
+            row[1]
+            for row in connection.execute("PRAGMA index_list(npcs)")
+        }
+
+    assert rows == [("nick fury", "Avengers", "Most recent record.")]
+    assert "idx_npcs_name_nocase" in indexes
+
+
 def test_save_npc_and_get_npc_round_trip():
     message = campaign_db.save_npc(
         name="Nick Fury",
