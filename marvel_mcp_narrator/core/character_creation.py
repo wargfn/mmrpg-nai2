@@ -122,11 +122,12 @@ def _get_power_details() -> dict[str, dict[str, Any]]:
                             incoming_description = str(power.get("description", "")).strip()
                             existing_summary = str(existing.get("summary", "")).strip()
                             existing_description = str(existing.get("description", "")).strip()
+                            incoming_text = incoming_description or incoming_summary
+                            existing_text = existing_description or existing_summary
                             if (
                                 rank_required != existing_rank
                                 or set(prerequisites) != set(existing_prereqs)
-                                or incoming_summary != existing_summary
-                                or incoming_description != existing_description
+                                or incoming_text != existing_text
                             ):
                                 raise ValueError(
                                     f"Conflicting definitions for power '{name}' in power set '{power_set_name}'."
@@ -221,16 +222,7 @@ def list_archetypes() -> list[dict[str, str]]:
 
 
 def list_origins() -> list[str]:
-    options: list[str] = []
-    for entry in load_rules_database().get("origins", []):
-        subcategories = [str(item).strip() for item in entry.get("subcategories", []) if str(item).strip()]
-        if subcategories:
-            options.extend(subcategories)
-            continue
-        name = str(entry.get("name", "")).strip()
-        if name:
-            options.append(name)
-    return sorted(set(options))
+    return sorted(set(_get_origins_lookup().values()))
 
 
 def list_occupations() -> list[str]:
