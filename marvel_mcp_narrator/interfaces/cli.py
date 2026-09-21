@@ -21,6 +21,17 @@ SYSTEM_PROMPT = (
 )
 DEFAULT_MODEL = "gemma2:9b"
 DEFAULT_OPEN_WEBUI_HOST = "http://127.0.0.1:3000"
+CLI_COMMANDS_HELP = "\n".join(
+    [
+        "Interactive commands:",
+        "  /roll [--edge|--trouble] [--tn N]  Run a deterministic d616 roll",
+        "  /rule <keyword>                    Search the local Marvel rulebook",
+        "  /help                              Show command help during a session",
+        "  exit | quit | /exit | /quit       Gracefully close the narrator CLI",
+        "",
+        "You can also press Ctrl+C or Ctrl+D to shut down the CLI safely.",
+    ]
+)
 
 
 def normalize_open_webui_host(host: str) -> str:
@@ -214,6 +225,11 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
     return None, None
 
 
+def _is_exit_command(user_input: str) -> bool:
+    """Return True when the user wants to shut down the CLI."""
+    return user_input.strip().lower() in {"exit", "quit", "/exit", "/quit"}
+
+
 def run_cli(
     model: str,
     host: str = DEFAULT_OPEN_WEBUI_HOST,
@@ -222,16 +238,25 @@ def run_cli(
 ) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
     print("Marvel MCP Narrator CLI")
-    print("Type '/roll [--edge|--trouble] [--tn N]' or '/rule <keyword>' for deterministic tools.")
-    print("Type 'exit' to quit.\n")
+    print("Type '/help' for commands and 'exit' to quit.\n")
 
     messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     while True:
-        user_input = input("you> ").strip()
+        try:
+            user_input = input("you> ").strip()
+        except EOFError:
+            print("Goodbye.")
+            return
+        except KeyboardInterrupt:
+            print("\nGoodbye.")
+            return
         if not user_input:
             continue
-        if user_input.lower() in {"exit", "quit"}:
+        if user_input == "/help":
+            print(CLI_COMMANDS_HELP)
+            continue
+        if _is_exit_command(user_input):
             print("Goodbye.")
             return
 
@@ -276,7 +301,11 @@ def run_cli(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Marvel MCP Narrator CLI")
+    parser = argparse.ArgumentParser(
+        description="Marvel MCP Narrator CLI for Open WebUI-backed Marvel Multiverse RPG narration.",
+        epilog=CLI_COMMANDS_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--model",
         default=None,

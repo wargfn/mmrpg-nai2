@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError
 from marvel_mcp_narrator.interfaces.cli import (
+    CLI_COMMANDS_HELP,
     _tool_injection,
     build_open_webui_chat_endpoint,
     load_cli_config,
@@ -87,6 +88,24 @@ class CLIToolInjectionTests(unittest.TestCase):
 
 
 class CLIRunLoopTests(unittest.TestCase):
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=['/help', 'exit'])
+    def test_help_command_does_not_call_chat_backend(self, _mock_input, mock_request_chat):
+        run_cli(model='fake-model')
+        mock_request_chat.assert_not_called()
+
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=KeyboardInterrupt)
+    def test_keyboard_interrupt_shuts_down_gracefully(self, _mock_input, mock_request_chat):
+        run_cli(model='fake-model')
+        mock_request_chat.assert_not_called()
+
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=EOFError)
+    def test_eof_shuts_down_gracefully(self, _mock_input, mock_request_chat):
+        run_cli(model='fake-model')
+        mock_request_chat.assert_not_called()
+
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['hello narrator', 'exit'])
     def test_non_tool_message_is_sent_to_chat_api(self, _mock_input, mock_request_chat):
@@ -225,6 +244,18 @@ class CLIMainTests(unittest.TestCase):
             base_url='http://localhost:11434/v1',
             api_key=None,
         )
+
+    @patch.dict('os.environ', {}, clear=True)
+    @patch('sys.argv', ['cli', '--help'])
+    def test_main_help_includes_interactive_commands(self):
+        with self.assertRaises(SystemExit) as exc:
+            main()
+        self.assertEqual(exc.exception.code, 0)
+
+    def test_cli_help_epilog_mentions_shutdown_commands(self):
+        self.assertIn("/help", CLI_COMMANDS_HELP)
+        self.assertIn("Ctrl+C", CLI_COMMANDS_HELP)
+        self.assertIn("/exit", CLI_COMMANDS_HELP)
 
 
 class CLIHostNormalizationTests(unittest.TestCase):
