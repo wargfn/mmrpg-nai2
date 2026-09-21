@@ -500,6 +500,24 @@ def test_load_character_json_rejects_non_object_payload(tmp_path: Path):
         load_character_json(str(output))
 
 
+def test_load_character_json_rejects_invalid_catalog_metadata(tmp_path: Path):
+    output = tmp_path / "bad-meta.json"
+    payload = {
+        "name": "Jean",
+        "archetype": "Blaster",
+        "rank": 3,
+        **ARCHETYPE_TEMPLATES["Blaster"]["ranks"][3],
+        "origin": "Mutation",
+        "occupation": "Scientist",
+        "traits": ["Iron Will"],
+        "tags": ["NotARealTag"],
+        "power_sets": ["Blast"],
+    }
+    output.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="Unsupported tag"):
+        load_character_json(str(output))
+
+
 def test_validate_character_powers_tool_uses_character_rank():
     narrator_tools.create_character_assisted(
         name="Logan",

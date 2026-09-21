@@ -588,4 +588,26 @@ def load_character_json(filepath: str) -> Character:
     if unknown_fields:
         raise ValueError(f"Unsupported fields in character file: {', '.join(unknown_fields)}")
     character_kwargs = {key: value for key, value in payload.items() if key in allowed_fields}
+    ability_values = {ability: character_kwargs[ability] for ability in ABILITY_FIELDS}
+    validation = validate_character_build(
+        name=character_kwargs.get("name", ""),
+        archetype=character_kwargs.get("archetype", ""),
+        rank=character_kwargs.get("rank", 0),
+        abilities=ability_values,
+        powers=[],
+        origin=character_kwargs.get("origin", "Unknown"),
+        occupation=character_kwargs.get("occupation", "None"),
+        traits=character_kwargs.get("traits", []),
+        tags=character_kwargs.get("tags", []),
+        power_sets=character_kwargs.get("power_sets", []),
+    )
+    if not validation["valid"]:
+        raise ValueError("; ".join(validation["errors"]))
+    character_kwargs["name"] = validation["name"]
+    character_kwargs["archetype"] = validation["archetype"]
+    character_kwargs["origin"] = validation["origin"]
+    character_kwargs["occupation"] = validation["occupation"]
+    character_kwargs["traits"] = validation["traits"]
+    character_kwargs["tags"] = validation["tags"]
+    character_kwargs["power_sets"] = validation["power_sets"]
     return Character(**character_kwargs)

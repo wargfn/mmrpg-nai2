@@ -298,7 +298,7 @@ class CharacterRoster:
                 normalized_item, key = Character._normalize_power_set_entry(item)
                 if normalized_item is not None:
                     comparable.append(key)
-            return comparable
+            return sorted(comparable)
         return value
 
     def create_or_load(
