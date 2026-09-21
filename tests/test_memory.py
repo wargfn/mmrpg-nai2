@@ -230,3 +230,20 @@ def test_search_memory_prioritizes_legacy_matches_over_fuzzy_entity_overflow():
 
     assert len(matches) == campaign_db.SEARCH_RESULT_LIMIT
     assert any(match["memory_type"] == "plot_log" for match in matches)
+
+
+def test_search_memory_prioritizes_legacy_matches_over_exact_entity_name():
+    campaign_db.save_entity(
+        name="Hydra",
+        category="Faction",
+        description="A global terror network.",
+        disposition="Hostile",
+        location="Worldwide",
+        notes="Exact entity name match.",
+    )
+    campaign_db.log_event("Hydra resurfaced in Madripoor.", session=3)
+
+    matches = campaign_db.search_memory("Hydra")
+
+    assert matches[0]["memory_type"] == "plot_log"
+    assert any(match["memory_type"] == "entity" for match in matches)

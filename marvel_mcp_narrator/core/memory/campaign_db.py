@@ -1063,14 +1063,14 @@ def search_memory(query: str) -> list[dict[str, Any]]:
             "affiliation": entity.get("category", ""),
             "summary": entity.get("description", ""),
             "notes": entity.get("notes", ""),
-            "_priority": 0 if str(entity.get("name", "")).casefold() == keyword.casefold() else 2,
+            "_priority": 1 if str(entity.get("name", "")).casefold() == keyword.casefold() else 2,
         }
         for entity in search_entities(keyword)
     ]
     legacy_matches = [
         {
             **match,
-            "_priority": 1,
+            "_priority": 0,
             "_order": index,
         }
         for index, match in enumerate(get_campaign_database().search_memory_records(
