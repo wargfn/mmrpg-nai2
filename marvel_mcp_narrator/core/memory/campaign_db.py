@@ -619,6 +619,9 @@ class CampaignDatabase:
                 (active_campaign_id,),
             ).fetchone()
             if plan_row is None:
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
                 return None
             session_rows = connection.execute(
                 """
