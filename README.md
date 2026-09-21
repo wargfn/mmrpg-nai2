@@ -31,8 +31,8 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
   - `/help` shows the available commands
   - `/roll [edges] [troubles]` or `/roll [--edge|--trouble] [--tn N]` runs a deterministic d616 roll
   - `/rules <keyword>` or `/rule <keyword>` searches the local rulebook
-  - `/attack <attacker> <ability> <target> [manual d616 roll]` resolves a player attack and can ingest manual reports such as `[4, 5, 1 (Marvel)]`
-  - `/npc-attack <attacker> <ability> <target>` automatically resolves an NPC or enemy action
+  - `/attack <attacker> <ability> <target> [manual d616 roll] [--edges N] [--troubles N] [--focus]` resolves a player attack and can ingest manual reports such as `[4, 5, 1 (Marvel)]`
+  - `/npc-attack <attacker> <ability> <target> [--edges N] [--troubles N] [--focus]` automatically resolves an NPC or enemy action
   - `/combat` shows tracked combatant health/focus state
   - `/memories` prints stored campaign memory entries
   - A plain manual d616 report such as `[4, 5, 1 (Marvel)]` is normalized and added to the session history without calling the model

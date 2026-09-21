@@ -109,11 +109,14 @@ def test_attack_damage_formula_uses_rank_times_marvel_die():
     )
     normal = character.calculate_attack_damage(ability="ego", marvel_die=6)
     fantastic = character.calculate_attack_damage(ability="ego", marvel_die=6, is_fantastic=True)
+    fantastic_from_one = character.calculate_attack_damage(ability="ego", marvel_die=1, is_fantastic=True)
 
     assert normal["damage_multiplier"] == 4
     assert normal["base_damage"] == 24
     assert normal["total_damage"] == 24
     assert fantastic["total_damage"] == 24
+    assert fantastic_from_one["effective_marvel_die"] == 6
+    assert fantastic_from_one["total_damage"] == 24
 
 
 def test_condition_management_ignores_whitespace_only_entries():

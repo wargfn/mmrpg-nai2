@@ -270,8 +270,9 @@ class NarratorToolsTests(unittest.TestCase):
         )
 
         self.assertTrue(payload["roll"]["success"])
-        self.assertEqual(payload["damage"]["total_damage"], 4)
-        self.assertEqual(payload["target"]["current_health"], 71)
+        self.assertEqual(payload["damage"]["effective_marvel_die"], 6)
+        self.assertEqual(payload["damage"]["total_damage"], 24)
+        self.assertEqual(payload["target"]["current_health"], 51)
 
 
 if __name__ == "__main__":

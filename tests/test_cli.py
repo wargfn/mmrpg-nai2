@@ -105,6 +105,9 @@ class CLIToolInjectionTests(unittest.TestCase):
             ability='melee',
             dice_values=[6, 1, 6],
             marvel_index=1,
+            target_resource='health',
+            edges=0,
+            troubles=0,
         )
         self.assertIn('Damage: 4 health', payload)
 
@@ -126,6 +129,30 @@ class CLIToolInjectionTests(unittest.TestCase):
             ability='melee',
             dice_values=None,
             marvel_index=1,
+            target_resource='health',
+            edges=0,
+            troubles=0,
+        )
+
+    @patch('marvel_mcp_narrator.interfaces.cli.resolve_npc_action', return_value={
+        "attacker": {"name": "Red Skull", "side": "enemy"},
+        "target": {"name": "Captain America", "side": "player", "current_health": 75, "max_health": 100, "current_focus": 80, "max_focus": 100},
+        "ability": "ego",
+        "target_number": 15,
+        "target_resource": "focus",
+        "roll": {"dice_values": [6, 1, 5], "total_score": 18, "is_fantastic": True, "success": True},
+        "damage": {"total_damage": 18},
+    })
+    def test_router_npc_attack_passes_edges_troubles_and_focus_flags(self, mock_attack):
+        name, _payload = _route_intent_command('/npc-attack Red Skull ego Captain America --edges 2 --troubles 1 --focus')
+        self.assertEqual(name, 'resolve_npc_action')
+        mock_attack.assert_called_once_with(
+            attacker_name='Red Skull',
+            target_name='Captain America',
+            ability='ego',
+            target_resource='focus',
+            edges=2,
+            troubles=1,
         )
 
     @patch('marvel_mcp_narrator.interfaces.cli.get_combat_state', return_value={

@@ -24,6 +24,7 @@ from marvel_mcp_narrator.core.memory.campaign_db import (
 )
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database, query_rulebook_database
 from marvel_mcp_narrator.mcp_servers.narrator_tools import (
+    clear_combat_state,
     get_combat_state,
     resolve_manual_d616_roll,
     resolve_npc_action,
@@ -55,9 +56,9 @@ CLI_COMMANDS_HELP = "\n".join(
     [
         "Interactive commands:",
         "  /roll [edges] [troubles]          Run a deterministic d616 roll",
-        "  /attack <attacker> <ability> <target> [manual d616 roll]",
+        "  /attack <attacker> <ability> <target> [manual d616 roll] [--edges N] [--troubles N] [--focus]",
         "                                   Auto-roll or apply a manual player attack",
-        "  /npc-attack <attacker> <ability> <target>",
+        "  /npc-attack <attacker> <ability> <target> [--edges N] [--troubles N] [--focus]",
         "                                   Auto-resolve an NPC or enemy action",
         "  /combat                           Show tracked combatant health/focus state",
         "  /rules <keyword>                  Search the local Marvel rulebook",
@@ -466,13 +467,44 @@ def _parse_manual_roll_text(text: str) -> tuple[list[int], int] | None:
     return dice_values, (1 if marvel_index is None else marvel_index)
 
 
-def _parse_attack_command(stripped: str, *, command_name: str) -> tuple[str, str, str, tuple[list[int], int] | None]:
+def _parse_attack_command(
+    stripped: str, *, command_name: str
+) -> tuple[str, str, str, tuple[list[int], int] | None, dict[str, int | str]]:
     remainder = stripped[len(command_name) :].strip()
     if not remainder:
         raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
     manual_roll = _parse_manual_roll_text(remainder) if "[" in remainder and "]" in remainder else None
     if manual_roll is not None:
         remainder = remainder[: remainder.rfind("[")].rstrip()
+    options: dict[str, int | str] = {"edges": 0, "troubles": 0, "target_resource": "health"}
+    tokens = remainder.split()
+    positional_tokens: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--focus":
+            options["target_resource"] = "focus"
+            index += 1
+            continue
+        if token == "--health":
+            options["target_resource"] = "health"
+            index += 1
+            continue
+        if token in {"--edges", "--troubles"}:
+            if index + 1 >= len(tokens):
+                raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
+            try:
+                value = int(tokens[index + 1])
+            except ValueError as exc:
+                raise ValueError("Edges and troubles must be non-negative integers.") from exc
+            if value < 0:
+                raise ValueError("Edges and troubles must be non-negative integers.")
+            options["edges" if token == "--edges" else "troubles"] = value
+            index += 2
+            continue
+        positional_tokens.append(token)
+        index += 1
+    remainder = " ".join(positional_tokens).strip()
     if "|" in remainder:
         fields = [segment.strip() for segment in remainder.split("|")]
         if len(fields) != 3 or not all(fields):
@@ -488,7 +520,7 @@ def _parse_attack_command(stripped: str, *, command_name: str) -> tuple[str, str
         target_name = " ".join(parts[ability_index + 1 :]).strip()
         if not attacker_name or not target_name:
             raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
-    return attacker_name.strip(), ability.strip(), target_name.strip(), manual_roll
+    return attacker_name.strip(), ability.strip(), target_name.strip(), manual_roll, options
 
 
 def _route_intent_command(user_input: str) -> tuple[str, str] | None:
@@ -525,22 +557,36 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         return "combat_state", _format_combat_state_result(get_combat_state())
 
     if command == "/attack":
-        attacker_name, ability, target_name, manual_roll = _parse_attack_command(stripped, command_name="/attack")
+        attacker_name, ability, target_name, manual_roll, options = _parse_attack_command(
+            stripped, command_name="/attack"
+        )
         payload = resolve_player_attack(
             attacker_name=attacker_name,
             target_name=target_name,
             ability=ability,
             dice_values=manual_roll[0] if manual_roll is not None else None,
             marvel_index=manual_roll[1] if manual_roll is not None else 1,
+            target_resource=str(options["target_resource"]),
+            edges=int(options["edges"]),
+            troubles=int(options["troubles"]),
         )
         return "resolve_player_attack", _format_attack_result(payload)
 
     if command == "/npc-attack":
-        attacker_name, ability, target_name, manual_roll = _parse_attack_command(stripped, command_name="/npc-attack")
+        attacker_name, ability, target_name, manual_roll, options = _parse_attack_command(
+            stripped, command_name="/npc-attack"
+        )
         if manual_roll is not None:
             raise ValueError("NPC attacks are always automated; omit manual dice values.")
         return "resolve_npc_action", _format_attack_result(
-            resolve_npc_action(attacker_name=attacker_name, target_name=target_name, ability=ability)
+            resolve_npc_action(
+                attacker_name=attacker_name,
+                target_name=target_name,
+                ability=ability,
+                target_resource=str(options["target_resource"]),
+                edges=int(options["edges"]),
+                troubles=int(options["troubles"]),
+            )
         )
 
     if command == "/roll":
@@ -643,6 +689,7 @@ def run_cli(
     database: CampaignDatabase | None = None,
 ) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
+    clear_combat_state()
     print("Marvel MCP Narrator CLI")
     print("Type '/help' for commands and 'exit' to quit.\n")
 

@@ -6,7 +6,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Lock
+from threading import Lock, RLock
 from typing import Any
 
 
@@ -33,100 +33,102 @@ class CampaignDatabase:
     def __init__(self, path: Path | str | None = None) -> None:
         self.path = Path(path) if path is not None else CAMPAIGN_DB_PATH
         self._initialized = False
+        self._write_lock = RLock()
 
     def initialize(self) -> Path:
         """Create the database schema and perform lightweight legacy migrations."""
-        if self._initialized and self.path.exists():
+        with self._write_lock:
+            if self._initialized and self.path.exists():
+                return self.path
+
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(self.path) as connection:
+                connection.row_factory = sqlite3.Row
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS memories (
+                        key TEXT PRIMARY KEY,
+                        content TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS entities (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                        category TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        disposition TEXT NOT NULL DEFAULT 'Neutral',
+                        location TEXT NOT NULL DEFAULT 'Unknown',
+                        notes TEXT NOT NULL DEFAULT '',
+                        affiliation TEXT NOT NULL DEFAULT '',
+                        custom_stats_json TEXT NOT NULL DEFAULT '{}'
+                    )
+                    """
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_entities_category_name ON entities (category, name COLLATE NOCASE)"
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS plot_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_number INTEGER NOT NULL,
+                        event_summary TEXT NOT NULL,
+                        timestamp TEXT NOT NULL
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS campaign_plans (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        theme TEXT NOT NULL,
+                        villain TEXT NOT NULL,
+                        hero_team_json TEXT NOT NULL,
+                        session_count INTEGER NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS campaign_sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        campaign_id INTEGER NOT NULL,
+                        session_number INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        objectives_json TEXT NOT NULL,
+                        key_npcs_json TEXT NOT NULL,
+                        locations_json TEXT NOT NULL,
+                        completion_milestone TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'planned',
+                        recap TEXT NOT NULL DEFAULT '',
+                        narrator_bridge_prompt TEXT NOT NULL DEFAULT '',
+                        hero_highlights_json TEXT NOT NULL DEFAULT '{}',
+                        raw_session_log TEXT NOT NULL DEFAULT '',
+                        FOREIGN KEY (campaign_id) REFERENCES campaign_plans(id),
+                        UNIQUE (campaign_id, session_number)
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS campaign_state (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+                self._migrate_legacy_tables(connection)
+                connection.commit()
+
+            self._initialized = True
             return self.path
-
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.path) as connection:
-            connection.row_factory = sqlite3.Row
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS memories (
-                    key TEXT PRIMARY KEY,
-                    content TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS entities (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
-                    category TEXT NOT NULL,
-                    description TEXT NOT NULL,
-                    disposition TEXT NOT NULL DEFAULT 'Neutral',
-                    location TEXT NOT NULL DEFAULT 'Unknown',
-                    notes TEXT NOT NULL DEFAULT '',
-                    affiliation TEXT NOT NULL DEFAULT '',
-                    custom_stats_json TEXT NOT NULL DEFAULT '{}'
-                )
-                """
-            )
-            connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_entities_category_name ON entities (category, name COLLATE NOCASE)"
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS plot_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_number INTEGER NOT NULL,
-                    event_summary TEXT NOT NULL,
-                    timestamp TEXT NOT NULL
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS campaign_plans (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    theme TEXT NOT NULL,
-                    villain TEXT NOT NULL,
-                    hero_team_json TEXT NOT NULL,
-                    session_count INTEGER NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS campaign_sessions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    campaign_id INTEGER NOT NULL,
-                    session_number INTEGER NOT NULL,
-                    title TEXT NOT NULL,
-                    objectives_json TEXT NOT NULL,
-                    key_npcs_json TEXT NOT NULL,
-                    locations_json TEXT NOT NULL,
-                    completion_milestone TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'planned',
-                    recap TEXT NOT NULL DEFAULT '',
-                    narrator_bridge_prompt TEXT NOT NULL DEFAULT '',
-                    hero_highlights_json TEXT NOT NULL DEFAULT '{}',
-                    raw_session_log TEXT NOT NULL DEFAULT '',
-                    FOREIGN KEY (campaign_id) REFERENCES campaign_plans(id),
-                    UNIQUE (campaign_id, session_number)
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS campaign_state (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-                """
-            )
-            self._migrate_legacy_tables(connection)
-            connection.commit()
-
-        self._initialized = True
-        return self.path
 
     def _connect(self) -> sqlite3.Connection:
         self.initialize()
@@ -305,18 +307,19 @@ class CampaignDatabase:
         if not cleaned_content:
             raise ValueError("Memory content is required.")
 
-        with self._connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO memories (key, content, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET
-                    content = excluded.content,
-                    updated_at = excluded.updated_at
-                """,
-                (cleaned_key, cleaned_content, _utc_now()),
-            )
-            connection.commit()
+        with self._write_lock:
+            with self._connect() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO memories (key, content, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET
+                        content = excluded.content,
+                        updated_at = excluded.updated_at
+                    """,
+                    (cleaned_key, cleaned_content, _utc_now()),
+                )
+                connection.commit()
         return f"Saved campaign memory '{cleaned_key}'."
 
     def load_memory(self, key: str) -> str | None:
@@ -357,66 +360,67 @@ class CampaignDatabase:
         if custom_stats_json is not None and not isinstance(custom_stats_json, dict):
             raise ValueError("Entity custom_stats_json must be a dictionary.")
 
-        with self._connect() as connection:
-            serialized_stats = json.dumps(custom_stats_json or {})
-            existing = connection.execute(
-                "SELECT id FROM entities WHERE name = ? COLLATE NOCASE",
-                (cleaned_name,),
-            ).fetchone()
-            if existing is None:
-                connection.execute(
-                    """
-                    INSERT INTO entities (
-                        name,
-                        category,
-                        description,
-                        disposition,
-                        location,
-                        notes,
-                        affiliation,
-                        custom_stats_json
+        with self._write_lock:
+            with self._connect() as connection:
+                serialized_stats = json.dumps(custom_stats_json or {})
+                existing = connection.execute(
+                    "SELECT id FROM entities WHERE name = ? COLLATE NOCASE",
+                    (cleaned_name,),
+                ).fetchone()
+                if existing is None:
+                    connection.execute(
+                        """
+                        INSERT INTO entities (
+                            name,
+                            category,
+                            description,
+                            disposition,
+                            location,
+                            notes,
+                            affiliation,
+                            custom_stats_json
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            cleaned_name,
+                            cleaned_category,
+                            cleaned_description,
+                            disposition.strip() or "Neutral",
+                            location.strip() or "Unknown",
+                            notes.strip(),
+                            affiliation.strip(),
+                            serialized_stats,
+                        ),
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        cleaned_name,
-                        cleaned_category,
-                        cleaned_description,
-                        disposition.strip() or "Neutral",
-                        location.strip() or "Unknown",
-                        notes.strip(),
-                        affiliation.strip(),
-                        serialized_stats,
-                    ),
-                )
-            else:
-                connection.execute(
-                    """
-                    UPDATE entities
-                    SET
-                        name = ?,
-                        category = ?,
-                        description = ?,
-                        disposition = ?,
-                        location = ?,
-                        notes = ?,
-                        affiliation = ?,
-                        custom_stats_json = ?
-                    WHERE id = ?
-                    """,
-                    (
-                        cleaned_name,
-                        cleaned_category,
-                        cleaned_description,
-                        disposition.strip() or "Neutral",
-                        location.strip() or "Unknown",
-                        notes.strip(),
-                        affiliation.strip(),
-                        serialized_stats,
-                        existing["id"],
-                    ),
-                )
-            connection.commit()
+                else:
+                    connection.execute(
+                        """
+                        UPDATE entities
+                        SET
+                            name = ?,
+                            category = ?,
+                            description = ?,
+                            disposition = ?,
+                            location = ?,
+                            notes = ?,
+                            affiliation = ?,
+                            custom_stats_json = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            cleaned_name,
+                            cleaned_category,
+                            cleaned_description,
+                            disposition.strip() or "Neutral",
+                            location.strip() or "Unknown",
+                            notes.strip(),
+                            affiliation.strip(),
+                            serialized_stats,
+                            existing["id"],
+                        ),
+                    )
+                connection.commit()
 
     def get_entity(self, name: str) -> dict[str, Any] | None:
         """Return an entity by name."""
@@ -596,15 +600,16 @@ class CampaignDatabase:
         if session < 1:
             raise ValueError("Session number must be at least 1.")
 
-        with self._connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO plot_logs (session_number, event_summary, timestamp)
-                VALUES (?, ?, ?)
-                """,
-                (session, cleaned_summary, _utc_now()),
-            )
-            connection.commit()
+        with self._write_lock:
+            with self._connect() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO plot_logs (session_number, event_summary, timestamp)
+                    VALUES (?, ?, ?)
+                    """,
+                    (session, cleaned_summary, _utc_now()),
+                )
+                connection.commit()
         return f"Logged campaign event for session {session}."
 
     def create_campaign_plan(
@@ -626,49 +631,50 @@ class CampaignDatabase:
             raise ValueError("At least one campaign session is required.")
 
         now = _utc_now()
-        with self._connect() as connection:
-            cursor = connection.execute(
-                """
-                INSERT INTO campaign_plans (theme, villain, hero_team_json, session_count, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    cleaned_theme,
-                    cleaned_villain,
-                    json.dumps(hero_team),
-                    len(sessions),
-                    now,
-                    now,
-                ),
-            )
-            campaign_id = int(cursor.lastrowid)
-            for session in sessions:
-                connection.execute(
+        with self._write_lock:
+            with self._connect() as connection:
+                cursor = connection.execute(
                     """
-                    INSERT INTO campaign_sessions (
-                        campaign_id,
-                        session_number,
-                        title,
-                        objectives_json,
-                        key_npcs_json,
-                        locations_json,
-                        completion_milestone
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO campaign_plans (theme, villain, hero_team_json, session_count, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        campaign_id,
-                        int(session["session_number"]),
-                        str(session["title"]),
-                        json.dumps(session["objectives"]),
-                        json.dumps(session["key_npcs"]),
-                        json.dumps(session["locations"]),
-                        str(session["completion_milestone"]),
+                        cleaned_theme,
+                        cleaned_villain,
+                        json.dumps(hero_team),
+                        len(sessions),
+                        now,
+                        now,
                     ),
                 )
-            self._set_state(connection, "active_campaign_id", str(campaign_id))
-            self._set_state(connection, "active_session_number", "1")
-            connection.commit()
+                campaign_id = int(cursor.lastrowid)
+                for session in sessions:
+                    connection.execute(
+                        """
+                        INSERT INTO campaign_sessions (
+                            campaign_id,
+                            session_number,
+                            title,
+                            objectives_json,
+                            key_npcs_json,
+                            locations_json,
+                            completion_milestone
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            campaign_id,
+                            int(session["session_number"]),
+                            str(session["title"]),
+                            json.dumps(session["objectives"]),
+                            json.dumps(session["key_npcs"]),
+                            json.dumps(session["locations"]),
+                            str(session["completion_milestone"]),
+                        ),
+                    )
+                self._set_state(connection, "active_campaign_id", str(campaign_id))
+                self._set_state(connection, "active_session_number", "1")
+                connection.commit()
         return campaign_id
 
     def get_active_campaign_plan(self) -> dict[str, Any] | None:
@@ -719,101 +725,102 @@ class CampaignDatabase:
 
     def get_current_session_context(self) -> dict[str, Any] | None:
         """Return the active session roadmap entry for the current campaign."""
-        with self._connect() as connection:
-            active_campaign_id = self._get_state(connection, "active_campaign_id")
-            active_session_value = self._get_state(connection, "active_session_number")
-            if active_campaign_id is None or active_session_value is None:
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
-            try:
-                campaign_id = int(active_campaign_id)
-                active_session_number = int(active_session_value)
-            except ValueError:
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
-            if active_session_number < 1:
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
-            plan_row = connection.execute(
-                """
-                SELECT id, theme, villain, hero_team_json, session_count, created_at, updated_at
-                FROM campaign_plans
-                WHERE id = ?
-                """,
-                (campaign_id,),
-            ).fetchone()
-            if plan_row is None:
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
-            current_session_row = connection.execute(
-                """
-                SELECT
-                    session_number,
-                    title,
-                    objectives_json,
-                    key_npcs_json,
-                    locations_json,
-                    completion_milestone,
-                    status,
-                    recap,
-                    narrator_bridge_prompt,
-                    hero_highlights_json,
-                    raw_session_log
-                FROM campaign_sessions
-                WHERE campaign_id = ? AND session_number = ?
-                """,
-                (campaign_id, active_session_number),
-            ).fetchone()
-            if current_session_row is None:
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
-            current_session = self._row_to_campaign_session(current_session_row)
-            if current_session.get("status") == "completed":
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
-            session_rows = connection.execute(
-                """
-                SELECT
-                    session_number,
-                    title,
-                    objectives_json,
-                    key_npcs_json,
-                    locations_json,
-                    completion_milestone,
-                    status,
-                    recap,
-                    narrator_bridge_prompt,
-                    hero_highlights_json,
-                    raw_session_log
-                FROM campaign_sessions
-                WHERE campaign_id = ?
-                ORDER BY session_number ASC
-                """,
-                (campaign_id,),
-            ).fetchall()
-            sessions = [self._row_to_campaign_session(row) for row in session_rows]
-            return {
-                "campaign_id": int(plan_row["id"]),
-                "theme": str(plan_row["theme"]),
-                "villain": str(plan_row["villain"]),
-                "hero_team": json.loads(str(plan_row["hero_team_json"])),
-                "session_count": int(plan_row["session_count"]),
-                "active_session_number": active_session_number,
-                "session": current_session,
-                "sessions": sessions,
-            }
+        with self._write_lock:
+            with self._connect() as connection:
+                active_campaign_id = self._get_state(connection, "active_campaign_id")
+                active_session_value = self._get_state(connection, "active_session_number")
+                if active_campaign_id is None or active_session_value is None:
+                    self._clear_state(connection, "active_campaign_id")
+                    self._clear_state(connection, "active_session_number")
+                    connection.commit()
+                    return None
+                try:
+                    campaign_id = int(active_campaign_id)
+                    active_session_number = int(active_session_value)
+                except ValueError:
+                    self._clear_state(connection, "active_campaign_id")
+                    self._clear_state(connection, "active_session_number")
+                    connection.commit()
+                    return None
+                if active_session_number < 1:
+                    self._clear_state(connection, "active_campaign_id")
+                    self._clear_state(connection, "active_session_number")
+                    connection.commit()
+                    return None
+                plan_row = connection.execute(
+                    """
+                    SELECT id, theme, villain, hero_team_json, session_count, created_at, updated_at
+                    FROM campaign_plans
+                    WHERE id = ?
+                    """,
+                    (campaign_id,),
+                ).fetchone()
+                if plan_row is None:
+                    self._clear_state(connection, "active_campaign_id")
+                    self._clear_state(connection, "active_session_number")
+                    connection.commit()
+                    return None
+                current_session_row = connection.execute(
+                    """
+                    SELECT
+                        session_number,
+                        title,
+                        objectives_json,
+                        key_npcs_json,
+                        locations_json,
+                        completion_milestone,
+                        status,
+                        recap,
+                        narrator_bridge_prompt,
+                        hero_highlights_json,
+                        raw_session_log
+                    FROM campaign_sessions
+                    WHERE campaign_id = ? AND session_number = ?
+                    """,
+                    (campaign_id, active_session_number),
+                ).fetchone()
+                if current_session_row is None:
+                    self._clear_state(connection, "active_campaign_id")
+                    self._clear_state(connection, "active_session_number")
+                    connection.commit()
+                    return None
+                current_session = self._row_to_campaign_session(current_session_row)
+                if current_session.get("status") == "completed":
+                    self._clear_state(connection, "active_campaign_id")
+                    self._clear_state(connection, "active_session_number")
+                    connection.commit()
+                    return None
+                session_rows = connection.execute(
+                    """
+                    SELECT
+                        session_number,
+                        title,
+                        objectives_json,
+                        key_npcs_json,
+                        locations_json,
+                        completion_milestone,
+                        status,
+                        recap,
+                        narrator_bridge_prompt,
+                        hero_highlights_json,
+                        raw_session_log
+                    FROM campaign_sessions
+                    WHERE campaign_id = ?
+                    ORDER BY session_number ASC
+                    """,
+                    (campaign_id,),
+                ).fetchall()
+                sessions = [self._row_to_campaign_session(row) for row in session_rows]
+                return {
+                    "campaign_id": int(plan_row["id"]),
+                    "theme": str(plan_row["theme"]),
+                    "villain": str(plan_row["villain"]),
+                    "hero_team": json.loads(str(plan_row["hero_team_json"])),
+                    "session_count": int(plan_row["session_count"]),
+                    "active_session_number": active_session_number,
+                    "session": current_session,
+                    "sessions": sessions,
+                }
 
     def conclude_session(self, session_number: int, raw_session_log: str) -> dict[str, Any]:
         """Store recap/highlights for a session, log significant events, and advance progress."""
@@ -849,39 +856,40 @@ class CampaignDatabase:
             significant_events=significant_events,
         )
 
-        with self._connect() as connection:
-            connection.execute(
-                """
-                UPDATE campaign_sessions
-                SET
-                    status = 'completed',
-                    recap = ?,
-                    narrator_bridge_prompt = ?,
-                    hero_highlights_json = ?,
-                    raw_session_log = ?
-                WHERE campaign_id = ? AND session_number = ?
-                """,
-                (
-                    player_recap,
-                    narrator_bridge_prompt,
-                    json.dumps(hero_highlights),
-                    cleaned_log,
-                    context["campaign_id"],
-                    session_number,
-                ),
-            )
-            for index, event in enumerate(significant_events, start=1):
-                self._save_memory_with_connection(
-                    connection,
-                    key=f"campaign_{context['campaign_id']}_session_{session_number}_event_{index}",
-                    content=event,
+        with self._write_lock:
+            with self._connect() as connection:
+                connection.execute(
+                    """
+                    UPDATE campaign_sessions
+                    SET
+                        status = 'completed',
+                        recap = ?,
+                        narrator_bridge_prompt = ?,
+                        hero_highlights_json = ?,
+                        raw_session_log = ?
+                    WHERE campaign_id = ? AND session_number = ?
+                    """,
+                    (
+                        player_recap,
+                        narrator_bridge_prompt,
+                        json.dumps(hero_highlights),
+                        cleaned_log,
+                        context["campaign_id"],
+                        session_number,
+                    ),
                 )
-            if next_session is not None:
-                self._set_state(connection, "active_session_number", str(session_number + 1))
-            else:
-                self._clear_state(connection, "active_session_number")
-                self._clear_state(connection, "active_campaign_id")
-            connection.commit()
+                for index, event in enumerate(significant_events, start=1):
+                    self._save_memory_with_connection(
+                        connection,
+                        key=f"campaign_{context['campaign_id']}_session_{session_number}_event_{index}",
+                        content=event,
+                    )
+                if next_session is not None:
+                    self._set_state(connection, "active_session_number", str(session_number + 1))
+                else:
+                    self._clear_state(connection, "active_session_number")
+                    self._clear_state(connection, "active_campaign_id")
+                connection.commit()
 
         return {
             "player_recap": player_recap,

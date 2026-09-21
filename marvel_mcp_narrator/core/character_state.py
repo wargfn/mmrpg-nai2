@@ -162,13 +162,15 @@ class Character:
             raise ValueError("Marvel die must be non-negative.")
 
         multiplier = self.damage_multiplier(bonus_multiplier=bonus_multiplier)
-        base_damage = marvel_die * multiplier
+        effective_marvel_die = 6 if marvel_die == 1 else marvel_die
+        base_damage = effective_marvel_die * multiplier
         total_damage = base_damage
 
         return {
             "attacker": self.name,
             "ability": ability,
             "marvel_die": marvel_die,
+            "effective_marvel_die": effective_marvel_die,
             "damage_multiplier": multiplier,
             "ability_score": getattr(self, ability),
             "is_fantastic": is_fantastic,
