@@ -342,9 +342,9 @@ def recall_npc_or_location(query: str) -> str:
 
 
 @mcp.tool()
-def log_campaign_event(summary: str) -> str:
+def log_campaign_event(summary: str, session: int = 1) -> str:
     """Persist a campaign event to the plot log."""
-    return log_event(summary)
+    return log_event(summary, session=session)
 
 
 if __name__ == "__main__":

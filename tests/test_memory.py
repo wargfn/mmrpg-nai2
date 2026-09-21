@@ -86,8 +86,16 @@ def test_narrator_tools_expose_campaign_memory_flow():
         notes="Controls several fronts across Hell's Kitchen.",
     )
     recalled = narrator_tools.recall_npc_or_location("Wilson Fisk")
-    logged = narrator_tools.log_campaign_event("Wilson Fisk put a bounty on the vigilantes.")
+    logged = narrator_tools.log_campaign_event(
+        "Wilson Fisk put a bounty on the vigilantes.",
+        session=4,
+    )
 
     assert remembered["npc"]["name"] == "Wilson Fisk"
     assert "Crime boss" in recalled
-    assert logged == "Logged campaign event for session 1."
+    assert logged == "Logged campaign event for session 4."
+
+
+def test_log_campaign_event_rejects_invalid_session():
+    with pytest.raises(ValueError, match="Session number must be at least 1"):
+        narrator_tools.log_campaign_event("This should fail.", session=0)

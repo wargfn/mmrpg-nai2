@@ -81,6 +81,8 @@ def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
             ON CONFLICT(name) DO UPDATE SET
                 archetype_or_role = excluded.archetype_or_role,
                 affiliation = excluded.affiliation,
+                disposition = NULL,
+                location = NULL,
                 notes = excluded.notes,
                 custom_stats_json = excluded.custom_stats_json
             """,
@@ -134,6 +136,8 @@ def log_event(summary: str, session: int = 1) -> str:
     cleaned_summary = summary.strip()
     if not cleaned_summary:
         raise ValueError("Event summary is required.")
+    if session < 1:
+        raise ValueError("Session number must be at least 1.")
 
     timestamp = datetime.now(timezone.utc).isoformat()
     with _connect() as connection:
