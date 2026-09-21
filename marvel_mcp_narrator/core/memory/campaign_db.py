@@ -1153,6 +1153,17 @@ def list_memories() -> list[dict[str, Any]]:
     return get_campaign_database().list_memories()
 
 
+def _normalize_legacy_npc_payload(entity: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(entity)
+    stats = payload.get("custom_stats_json", {})
+    if not isinstance(stats, dict):
+        stats = {}
+        payload["custom_stats_json"] = stats
+    role = stats.get("archetype_or_role") or stats.get("legacy_role") or payload.get("description")
+    payload["archetype_or_role"] = role
+    return payload
+
+
 def save_npc(
     name: str,
     affiliation: str = "",
@@ -1169,8 +1180,10 @@ def save_npc(
     if not cleaned_name:
         raise ValueError("NPC name is required.")
     merged_stats = dict(custom_stats_json or {})
-    if archetype_or_role.strip():
-        merged_stats.setdefault("legacy_role", archetype_or_role.strip())
+    normalized_role = archetype_or_role.strip()
+    if normalized_role:
+        merged_stats.setdefault("legacy_role", normalized_role)
+        merged_stats.setdefault("archetype_or_role", normalized_role)
     save_entity(
         name=cleaned_name,
         category="NPC",
@@ -1189,8 +1202,7 @@ def get_npc(name: str) -> dict[str, Any] | None:
     entity = get_entity(name)
     if entity is None or str(entity.get("category", "")).casefold() != "npc":
         return None
-    entity["archetype_or_role"] = entity.get("custom_stats_json", {}).get("legacy_role") or entity.get("description")
-    return entity
+    return _normalize_legacy_npc_payload(entity)
 
 
 def log_event(summary: str, session: int = 1) -> str:

@@ -390,6 +390,20 @@ def _format_router_roll_result(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_manual_report_result(result: dict[str, Any]) -> str:
+    lines = [
+        "Manual d616 Report:",
+        f"- Reported Dice: {result.get('dice_values', [])}",
+        f"- Normalized Dice: {result.get('normalized_dice_values', result.get('dice_values', []))}",
+        f"- Total Score (no ability modifier): {result.get('total_score')}",
+        f"- Fantastic: {result.get('is_fantastic')}",
+        f"- Ultimate Success: {result.get('is_ultimate')}",
+        f"- Botch: {result.get('is_botch')}",
+        "- Note: This stores the reported roll in chat history without resolving a target number.",
+    ]
+    return "\n".join(lines)
+
+
 def _format_router_memories_result(memories: list[dict[str, Any]]) -> str:
     if not memories:
         return "Campaign Memories:\n- No stored campaign memories were found."
@@ -547,7 +561,7 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         if manual_roll is None:
             return None
         dice_values, marvel_index = manual_roll
-        return "manual_d616_report", _format_router_roll_result(
+        return "manual_d616_report", _format_manual_report_result(
             resolve_manual_d616_roll(dice_values=dice_values, marvel_index=marvel_index)
         )
 
