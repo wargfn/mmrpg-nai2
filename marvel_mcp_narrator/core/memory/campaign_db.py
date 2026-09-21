@@ -1026,17 +1026,33 @@ def list_memories() -> list[dict[str, Any]]:
     return get_campaign_database().list_memories()
 
 
-def save_npc(name: str, affiliation: str = "", description: str = "", notes: str = "") -> str:
+def save_npc(
+    name: str,
+    affiliation: str = "",
+    description: str = "",
+    notes: str = "",
+    *,
+    archetype_or_role: str = "",
+    disposition: str = "Neutral",
+    location: str = "Unknown",
+    custom_stats_json: dict[str, Any] | None = None,
+) -> str:
     """Backward-compatible helper for storing NPC entities."""
     cleaned_name = name.strip()
     if not cleaned_name:
         raise ValueError("NPC name is required.")
+    merged_stats = dict(custom_stats_json or {})
+    if archetype_or_role.strip():
+        merged_stats.setdefault("legacy_role", archetype_or_role.strip())
     save_entity(
         name=cleaned_name,
         category="NPC",
-        description=description or "Unknown NPC",
+        description=description or archetype_or_role or "Unknown NPC",
+        disposition=disposition,
+        location=location,
         notes=notes,
         affiliation=affiliation,
+        custom_stats_json=merged_stats,
     )
     return f"Saved NPC '{cleaned_name}'."
 
@@ -1069,14 +1085,14 @@ def search_memory(query: str) -> list[dict[str, Any]]:
             "affiliation": entity.get("category", ""),
             "summary": entity.get("description", ""),
             "notes": entity.get("notes", ""),
-            "_priority": 1 if str(entity.get("name", "")).casefold() == keyword.casefold() else 2,
+            "_priority": 0 if str(entity.get("name", "")).casefold() == keyword.casefold() else 2,
         }
         for entity in search_entities(keyword)
     ]
     legacy_matches = [
         {
             **match,
-            "_priority": 0,
+            "_priority": 1,
             "_order": index,
         }
         for index, match in enumerate(get_campaign_database().search_memory_records(

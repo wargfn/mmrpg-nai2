@@ -127,6 +127,10 @@ def test_legacy_npc_helpers_still_work():
         affiliation="S.H.I.E.L.D.",
         description="Master spy.",
         notes="Coordinates global responses.",
+        archetype_or_role="Director",
+        disposition="Allied",
+        location="Helicarrier",
+        custom_stats_json={"clearance": "Omega"},
     )
 
     npc = campaign_db.get_npc("Nick Fury")
@@ -135,6 +139,10 @@ def test_legacy_npc_helpers_still_work():
     assert npc["category"] == "NPC"
     assert npc["description"] == "Master spy."
     assert npc["affiliation"] == "S.H.I.E.L.D."
+    assert npc["archetype_or_role"] == "Director"
+    assert npc["disposition"] == "Allied"
+    assert npc["location"] == "Helicarrier"
+    assert npc["custom_stats_json"]["clearance"] == "Omega"
 
 
 def test_legacy_get_npc_returns_none_for_missing_record():
@@ -256,7 +264,7 @@ def test_search_memory_prioritizes_legacy_matches_over_fuzzy_entity_overflow():
     assert any(match["memory_type"] == "plot_log" for match in matches)
 
 
-def test_search_memory_prioritizes_legacy_matches_over_exact_entity_name():
+def test_search_memory_prioritizes_exact_entity_name_over_legacy_matches():
     campaign_db.save_entity(
         name="Hydra",
         category="Faction",
@@ -269,5 +277,5 @@ def test_search_memory_prioritizes_legacy_matches_over_exact_entity_name():
 
     matches = campaign_db.search_memory("Hydra")
 
-    assert matches[0]["memory_type"] == "plot_log"
+    assert matches[0]["memory_type"] == "entity"
     assert any(match["memory_type"] == "entity" for match in matches)
