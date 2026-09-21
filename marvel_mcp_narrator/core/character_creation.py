@@ -583,7 +583,7 @@ def load_character_json(filepath: str) -> Character:
     if not isinstance(payload, dict):
         raise ValueError("Character file must contain a JSON object.")
     allowed_fields = {field.name for field in fields(Character)}
-    derived_fields = {"defenses", "attack_profiles"}
+    derived_fields = {"defenses", "derived_stats", "attack_profiles"}
     unknown_fields = sorted(set(payload) - allowed_fields - derived_fields)
     if unknown_fields:
         raise ValueError(f"Unsupported fields in character file: {', '.join(unknown_fields)}")
