@@ -543,7 +543,7 @@ def generate_character_from_template(
         archetype=canonical_archetype,
         rank=rank,
         abilities=template,
-        powers=list(power_sets or []),
+        powers=[],
         origin=origin,
         occupation=occupation,
         traits=traits,

@@ -76,6 +76,32 @@ class RulesDatabase:
                 if "summary" in entry and "description" not in entry:
                     entry["description"] = entry["summary"]
                 entries.append(entry)
+        source_by_name = {
+            str(entry.get("name", "")).strip().casefold(): entry
+            for entry in entries
+            if str(entry.get("name", "")).strip()
+        }
+        for power_set in self._data.get("power_sets", []):
+            set_name = str(power_set.get("name", "Power Set")).strip() or "Power Set"
+            for reference in power_set.get("power_references", []):
+                ref_name = str(reference).strip()
+                if not ref_name:
+                    continue
+                ref_key = ref_name.casefold()
+                if ref_key in source_by_name:
+                    referenced_entry = dict(source_by_name[ref_key])
+                    referenced_entry["category"] = set_name
+                    referenced_entry["referenced_from"] = True
+                    entries.append(referenced_entry)
+                    continue
+                entries.append(
+                    {
+                        "name": ref_name,
+                        "category": set_name,
+                        "description": f"Referenced by {set_name}.",
+                        "referenced_from": True,
+                    }
+                )
         return entries
 
     def lookup_rule(self, query: str) -> dict[str, Any]:

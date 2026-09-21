@@ -213,7 +213,7 @@ def create_character_assisted(
         archetype=archetype,
         rank=rank,
         abilities=abilities,
-        powers=list(power_sets or []),
+        powers=[],
         origin=origin,
         occupation=occupation,
         traits=traits,
