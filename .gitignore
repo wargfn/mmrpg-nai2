@@ -62,6 +62,8 @@ db.sqlite3
 db.sqlite3-journal
 data/*.db
 data/*.db-*
+marvel_mcp_narrator/data/*.db
+marvel_mcp_narrator/data/*.db-*
 
 # Flask stuff:
 instance/

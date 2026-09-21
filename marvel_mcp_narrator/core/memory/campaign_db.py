@@ -29,7 +29,7 @@ def _configure_connection(connection: sqlite3.Connection) -> sqlite3.Connection:
 
 CAMPAIGN_DB_PATH = _default_database_path()
 _DEFAULT_DATABASE: CampaignDatabase | None = None
-_DEFAULT_DATABASE_LOCK = Lock()
+_DEFAULT_DATABASE_LOCK = RLock()
 _INITIALIZED_DATABASE_PATHS: set[Path] = set()
 _DATABASE_LOCKS: dict[Path, RLock] = {}
 
@@ -1123,8 +1123,14 @@ class CampaignDatabase:
 
 
 def get_campaign_database(path: Path | str | None = None) -> CampaignDatabase:
-    """Return a database wrapper for the default campaign database path."""
-    return CampaignDatabase(path if path is not None else CAMPAIGN_DB_PATH)
+    """Return a reusable database wrapper for the default campaign database."""
+    global _DEFAULT_DATABASE
+    if path is not None:
+        return CampaignDatabase(path)
+    with _DEFAULT_DATABASE_LOCK:
+        if _DEFAULT_DATABASE is None or _DEFAULT_DATABASE.path != CAMPAIGN_DB_PATH:
+            _DEFAULT_DATABASE = CampaignDatabase(CAMPAIGN_DB_PATH)
+        return _DEFAULT_DATABASE
 
 
 def initialize_database(path: Path | str | None = None) -> Path:
