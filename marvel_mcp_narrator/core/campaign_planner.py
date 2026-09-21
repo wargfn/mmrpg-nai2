@@ -46,7 +46,7 @@ class CampaignPlanner:
             hero_team=resolved_hero_team,
             sessions=sessions,
         )
-        current = self.database.get_active_campaign_plan()
+        current = self.database.get_campaign_plan(campaign_id)
         if current is None:
             raise RuntimeError("Campaign plan was created but could not be reloaded.")
         if current["campaign_id"] != campaign_id:

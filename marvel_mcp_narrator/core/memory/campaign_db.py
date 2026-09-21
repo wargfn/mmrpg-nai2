@@ -354,39 +354,63 @@ class CampaignDatabase:
 
         with self._connect() as connection:
             serialized_stats = json.dumps(custom_stats_json or {})
-            connection.execute(
-                """
-                INSERT INTO entities (
-                    name,
-                    category,
-                    description,
-                    disposition,
-                    location,
-                    notes,
-                    affiliation,
-                    custom_stats_json
+            existing = connection.execute(
+                "SELECT id FROM entities WHERE name = ? COLLATE NOCASE",
+                (cleaned_name,),
+            ).fetchone()
+            if existing is None:
+                connection.execute(
+                    """
+                    INSERT INTO entities (
+                        name,
+                        category,
+                        description,
+                        disposition,
+                        location,
+                        notes,
+                        affiliation,
+                        custom_stats_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        cleaned_name,
+                        cleaned_category,
+                        cleaned_description,
+                        disposition.strip() or "Neutral",
+                        location.strip() or "Unknown",
+                        notes.strip(),
+                        affiliation.strip(),
+                        serialized_stats,
+                    ),
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(name) DO UPDATE SET
-                    category = excluded.category,
-                    description = excluded.description,
-                    disposition = excluded.disposition,
-                    location = excluded.location,
-                    notes = excluded.notes,
-                    affiliation = excluded.affiliation,
-                    custom_stats_json = excluded.custom_stats_json
-                """,
-                (
-                    cleaned_name,
-                    cleaned_category,
-                    cleaned_description,
-                    disposition.strip() or "Neutral",
-                    location.strip() or "Unknown",
-                    notes.strip(),
-                    affiliation.strip(),
-                    serialized_stats,
-                ),
-            )
+            else:
+                connection.execute(
+                    """
+                    UPDATE entities
+                    SET
+                        name = ?,
+                        category = ?,
+                        description = ?,
+                        disposition = ?,
+                        location = ?,
+                        notes = ?,
+                        affiliation = ?,
+                        custom_stats_json = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        cleaned_name,
+                        cleaned_category,
+                        cleaned_description,
+                        disposition.strip() or "Neutral",
+                        location.strip() or "Unknown",
+                        notes.strip(),
+                        affiliation.strip(),
+                        serialized_stats,
+                        existing["id"],
+                    ),
+                )
             connection.commit()
 
     def get_entity(self, name: str) -> dict[str, Any] | None:
@@ -482,54 +506,36 @@ class CampaignDatabase:
             return []
 
         with self._connect() as connection:
-            memory_matches = [
-                {
-                    "memory_type": "memory",
-                    "name": row["key"],
-                    "affiliation": row["updated_at"],
-                    "summary": row["content"],
-                    "notes": row["content"],
-                    "sort_timestamp": row["updated_at"],
-                }
-                for row in connection.execute(
-                    """
-                    SELECT key, content, updated_at
+            rows = connection.execute(
+                """
+                SELECT memory_type, name, affiliation, summary, notes
+                FROM (
+                    SELECT
+                        'memory' AS memory_type,
+                        key AS name,
+                        updated_at AS affiliation,
+                        content AS summary,
+                        content AS notes,
+                        updated_at AS sort_timestamp
                     FROM memories
                     WHERE key LIKE ? COLLATE NOCASE OR content LIKE ? COLLATE NOCASE
-                    ORDER BY updated_at DESC, key ASC
-                    LIMIT ?
-                    """,
-                    (f"%{keyword}%", f"%{keyword}%", limit),
-                ).fetchall()
-            ]
-            plot_log_matches = [
-                {
-                    "memory_type": "plot_log",
-                    "name": f"Session {row['session_number']}",
-                    "affiliation": row["timestamp"],
-                    "summary": row["event_summary"],
-                    "notes": row["event_summary"],
-                    "sort_timestamp": row["timestamp"],
-                }
-                for row in connection.execute(
-                    """
-                    SELECT session_number, event_summary, timestamp
+                    UNION ALL
+                    SELECT
+                        'plot_log' AS memory_type,
+                        ('Session ' || session_number) AS name,
+                        timestamp AS affiliation,
+                        event_summary AS summary,
+                        event_summary AS notes,
+                        timestamp AS sort_timestamp
                     FROM plot_logs
                     WHERE event_summary LIKE ? COLLATE NOCASE
-                    ORDER BY id DESC
-                    LIMIT ?
-                    """,
-                    (f"%{keyword}%", limit),
-                ).fetchall()
-            ]
-        combined_matches = [*memory_matches, *plot_log_matches]
-        combined_matches.sort(key=lambda item: str(item.get("sort_timestamp", "")), reverse=True)
-        trimmed_matches = []
-        for match in combined_matches[:limit]:
-            cleaned = dict(match)
-            cleaned.pop("sort_timestamp", None)
-            trimmed_matches.append(cleaned)
-        return trimmed_matches
+                )
+                ORDER BY sort_timestamp DESC, name ASC
+                LIMIT ?
+                """,
+                (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%", limit),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def add_plot_log(self, summary: str, session: int = 1) -> None:
         """Persist a legacy-style plot log entry."""
@@ -620,18 +626,22 @@ class CampaignDatabase:
             active_session_value = self._get_state(connection, "active_session_number")
             if active_campaign_id is None or active_session_value is None:
                 return None
+            if int(active_session_value) < 1:
+                return None
+        return self.get_campaign_plan(int(active_campaign_id))
+
+    def get_campaign_plan(self, campaign_id: int) -> dict[str, Any] | None:
+        """Return a campaign plan and all of its sessions by id."""
+        with self._connect() as connection:
             plan_row = connection.execute(
                 """
                 SELECT id, theme, villain, hero_team_json, session_count, created_at, updated_at
                 FROM campaign_plans
                 WHERE id = ?
                 """,
-                (active_campaign_id,),
+                (campaign_id,),
             ).fetchone()
             if plan_row is None:
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
                 return None
             session_rows = connection.execute(
                 """
@@ -651,13 +661,13 @@ class CampaignDatabase:
                 WHERE campaign_id = ?
                 ORDER BY session_number ASC
                 """,
-                (active_campaign_id,),
+                (campaign_id,),
             ).fetchall()
-            payload = dict(plan_row)
-            payload["campaign_id"] = int(payload["id"])
-            payload["hero_team"] = json.loads(payload.pop("hero_team_json"))
-            payload["sessions"] = [self._row_to_campaign_session(row) for row in session_rows]
-            return payload
+        payload = dict(plan_row)
+        payload["campaign_id"] = int(payload["id"])
+        payload["hero_team"] = json.loads(payload.pop("hero_team_json"))
+        payload["sessions"] = [self._row_to_campaign_session(row) for row in session_rows]
+        return payload
 
     def get_current_session_context(self) -> dict[str, Any] | None:
         """Return the active session roadmap entry for the current campaign."""
