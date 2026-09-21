@@ -212,7 +212,13 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
         rendered_count += 1
     omitted_count = total_memories - rendered_count
     if omitted_count:
-        lines.append(f"- Additional memories omitted to keep startup context concise ({omitted_count} more).")
+        omission_line = f"- Additional memories omitted to keep startup context concise ({omitted_count} more)."
+        if current_length + 1 + len(omission_line) <= STARTUP_CONTEXT_CHAR_BUDGET:
+            lines.append(omission_line)
+        else:
+            shorter_line = f"- {omitted_count} more memories omitted."
+            if current_length + 1 + len(shorter_line) <= STARTUP_CONTEXT_CHAR_BUDGET:
+                lines.append(shorter_line)
     return "\n".join(lines)
 
 

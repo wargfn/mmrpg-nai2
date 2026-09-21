@@ -703,6 +703,36 @@ class CampaignDatabase:
                 self._clear_state(connection, "active_session_number")
                 connection.commit()
                 return None
+            current_session_row = connection.execute(
+                """
+                SELECT
+                    session_number,
+                    title,
+                    objectives_json,
+                    key_npcs_json,
+                    locations_json,
+                    completion_milestone,
+                    status,
+                    recap,
+                    narrator_bridge_prompt,
+                    hero_highlights_json,
+                    raw_session_log
+                FROM campaign_sessions
+                WHERE campaign_id = ? AND session_number = ?
+                """,
+                (campaign_id, active_session_number),
+            ).fetchone()
+            if current_session_row is None:
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
+                return None
+            current_session = self._row_to_campaign_session(current_session_row)
+            if current_session.get("status") == "completed":
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
+                return None
             session_rows = connection.execute(
                 """
                 SELECT
@@ -724,20 +754,6 @@ class CampaignDatabase:
                 (campaign_id,),
             ).fetchall()
             sessions = [self._row_to_campaign_session(row) for row in session_rows]
-            current_session = next(
-                (session for session in sessions if session["session_number"] == active_session_number),
-                None,
-            )
-            if current_session is None:
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
-            if current_session.get("status") == "completed":
-                self._clear_state(connection, "active_campaign_id")
-                self._clear_state(connection, "active_session_number")
-                connection.commit()
-                return None
             return {
                 "campaign_id": int(plan_row["id"]),
                 "theme": str(plan_row["theme"]),
