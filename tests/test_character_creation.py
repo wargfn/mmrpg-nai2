@@ -409,10 +409,14 @@ def test_list_available_archetypes_returns_supported_entries():
 
 
 def test_list_traits_and_tags_include_common_entries():
-    assert "Iron Will" in list_traits()
-    assert "Extra Occupation" in list_traits()
-    assert "X-Men" in list_tags()
-    assert "A.I." in list_tags()
+    traits = list_traits()
+    tags = list_tags()
+    assert "Iron Will" in traits
+    assert "Extra Occupation" in traits
+    assert len(traits) == len(set(traits))
+    assert "X-Men" in tags
+    assert "A.I." in tags
+    assert len(tags) == len(set(tags))
 
 
 def test_list_available_origins_and_occupations():
@@ -420,6 +424,8 @@ def test_list_available_origins_and_occupations():
     occupations = narrator_tools.list_available_occupations()
     assert "Mutant" in origins
     assert "Scientist" in occupations
+    assert len(origins) == len(set(origins))
+    assert len(occupations) == len(set(occupations))
 
 
 def test_character_json_export_and_import_roundtrip(tmp_path: Path):

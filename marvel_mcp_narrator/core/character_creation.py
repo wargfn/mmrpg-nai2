@@ -102,6 +102,7 @@ def _get_power_details() -> dict[str, dict[str, Any]]:
                     }
 
                 for power_set in rules.get("power_sets", []):
+                    power_set_name = str(power_set.get("name", "Power Set")).strip() or "Power Set"
                     for power in power_set.get("powers", []):
                         name = str(power.get("name", "")).strip()
                         if not name:
@@ -116,13 +117,11 @@ def _get_power_details() -> dict[str, dict[str, Any]]:
                         if key in details:
                             existing = details[key]
                             existing_rank = existing.get("rank_required")
-                            if rank_required is not None and (
-                                existing_rank is None or rank_required > existing_rank
-                            ):
-                                existing["rank_required"] = rank_required
-                            existing_prereqs = [str(item).strip() for item in existing.get("prerequisites", [])]
-                            merged_prereqs = list(dict.fromkeys(existing_prereqs + prerequisites))
-                            existing["prerequisites"] = merged_prereqs
+                            existing_prereqs = [str(item).strip() for item in existing.get("prerequisites", []) if str(item).strip()]
+                            if rank_required != existing_rank or set(prerequisites) != set(existing_prereqs):
+                                raise ValueError(
+                                    f"Conflicting definitions for power '{name}' in power set '{power_set_name}'."
+                                )
                             continue
 
                         details[key] = {
@@ -211,19 +210,19 @@ def list_archetypes() -> list[dict[str, str]]:
 
 
 def list_origins() -> list[str]:
-    return sorted(_get_origins_lookup().values())
+    return sorted(set(_get_origins_lookup().values()))
 
 
 def list_occupations() -> list[str]:
-    return sorted(_get_occupations_lookup().values())
+    return sorted(set(_get_occupations_lookup().values()))
 
 
 def list_traits() -> list[str]:
-    return sorted(_get_traits_lookup().values())
+    return sorted(set(_get_traits_lookup().values()))
 
 
 def list_tags() -> list[str]:
-    return sorted(_get_tags_lookup().values())
+    return sorted(set(_get_tags_lookup().values()))
 
 
 def validate_power_selection(character_rank: int, owned_powers: list[str], target_power: str) -> tuple[bool, str]:
