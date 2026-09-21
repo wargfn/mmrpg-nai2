@@ -336,12 +336,17 @@ def load_campaign_memory(key: str) -> str:
 
 
 @mcp.tool()
-def create_campaign_plan(theme: str, villain: str, session_count: int) -> str:
+def create_campaign_plan(
+    theme: str,
+    villain: str,
+    session_count: int,
+    hero_team: list[str] | None = None,
+) -> str:
     """Create and persist a structured campaign plan."""
     plan = create_campaign_plan_core(
         theme=theme,
         villain=villain,
-        hero_team=["Marvel heroes"],
+        hero_team=hero_team,
         desired_session_count=session_count,
     )
     titles = ", ".join(session["title"] for session in plan["sessions"])

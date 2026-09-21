@@ -127,6 +127,19 @@ def test_create_campaign_plan_tool_returns_summary():
     assert "Created 2-session campaign against Leader" in summary
 
 
+def test_create_campaign_plan_tool_accepts_hero_team():
+    narrator_tools.create_campaign_plan(
+        "Celestial Alarm",
+        "Thanos",
+        2,
+        hero_team=["Captain Marvel", "Thor"],
+    )
+
+    context = campaign_planner.get_current_session_context()
+
+    assert context["hero_team"] == ["Captain Marvel", "Thor"]
+
+
 def test_create_campaign_plan_defaults_blank_hero_team_entries():
     planner = campaign_planner.CampaignPlanner()
 

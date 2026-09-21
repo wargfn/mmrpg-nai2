@@ -643,10 +643,10 @@ class CampaignDatabase:
                 """,
                 (active_campaign_id,),
             ).fetchall()
-        payload = dict(plan_row)
-        payload["hero_team"] = json.loads(payload.pop("hero_team_json"))
-        payload["sessions"] = [self._row_to_campaign_session(row) for row in session_rows]
-        return payload
+            payload = dict(plan_row)
+            payload["hero_team"] = json.loads(payload.pop("hero_team_json"))
+            payload["sessions"] = [self._row_to_campaign_session(row) for row in session_rows]
+            return payload
 
     def get_current_session_context(self) -> dict[str, Any] | None:
         """Return the active session roadmap entry for the current campaign."""
@@ -735,9 +735,10 @@ class CampaignDatabase:
                 ),
             )
             for index, event in enumerate(significant_events, start=1):
+                event_key_timestamp = _utc_now()
                 self._save_memory_with_connection(
                     connection,
-                    key=f"session_{session_number}_event_{index}",
+                    key=f"session_{session_number}_event_{index}_{event_key_timestamp}",
                     content=event,
                 )
             if next_session is not None:
