@@ -625,7 +625,8 @@ class CLIStartupContextTests(unittest.TestCase):
 
         prompt = build_startup_system_prompt(MemoryDatabase())
 
-        self.assertTrue(prompt.startswith("Campaign Memory Context:"))
+        self.assertTrue(prompt.startswith("You are a Marvel Multiverse RPG narrator copilot."))
+        self.assertIn("Campaign Memory Context:", prompt)
         self.assertIn("Hydra infiltrated the Helicarrier.", prompt)
         self.assertIn("Marvel Multiverse RPG narrator copilot", prompt)
 

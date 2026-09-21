@@ -228,7 +228,7 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
 
 def build_startup_system_prompt(database: CampaignDatabase | None = None) -> str:
     """Build the initial system prompt with injected persistent campaign memory."""
-    return get_startup_context(database) + "\n\n" + SYSTEM_PROMPT
+    return SYSTEM_PROMPT + "\n\n" + get_startup_context(database)
 
 
 def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str | None]:
