@@ -156,3 +156,22 @@ def test_create_campaign_plan_defaults_blank_hero_team_entries():
 def test_get_next_session_briefing_requires_active_campaign():
     with pytest.raises(ValueError, match="No active campaign plan is available"):
         narrator_tools.get_next_session_briefing()
+
+
+def test_malformed_active_session_state_is_ignored():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Dark Future",
+        villain="Ultron",
+        hero_team=["Vision"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "UPDATE campaign_state SET value = 'not-a-number' WHERE key = 'active_session_number'"
+        )
+        connection.commit()
+
+    with pytest.raises(ValueError, match="No active campaign plan is available"):
+        planner.get_current_session_context()

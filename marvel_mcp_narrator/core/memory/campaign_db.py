@@ -351,6 +351,8 @@ class CampaignDatabase:
             raise ValueError("Entity category is required.")
         if not cleaned_description:
             raise ValueError("Entity description is required.")
+        if custom_stats_json is not None and not isinstance(custom_stats_json, dict):
+            raise ValueError("Entity custom_stats_json must be a dictionary.")
 
         with self._connect() as connection:
             serialized_stats = json.dumps(custom_stats_json or {})
@@ -626,7 +628,14 @@ class CampaignDatabase:
             active_session_value = self._get_state(connection, "active_session_number")
             if active_campaign_id is None or active_session_value is None:
                 return None
-            if int(active_session_value) < 1:
+            try:
+                active_session_number = int(active_session_value)
+            except ValueError:
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
+                return None
+            if active_session_number < 1:
                 return None
         return self.get_campaign_plan(int(active_campaign_id))
 
@@ -676,7 +685,13 @@ class CampaignDatabase:
             active_session_value = self._get_state(connection, "active_session_number")
             if active_campaign_id is None or active_session_value is None:
                 return None
-            active_session_number = int(active_session_value)
+            try:
+                active_session_number = int(active_session_value)
+            except ValueError:
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
+                return None
             if active_session_number < 1:
                 return None
             plan_row = connection.execute(
@@ -814,7 +829,8 @@ class CampaignDatabase:
         payload = dict(row)
         raw_stats = str(payload.get("custom_stats_json") or "{}")
         try:
-            payload["custom_stats_json"] = json.loads(raw_stats)
+            decoded = json.loads(raw_stats)
+            payload["custom_stats_json"] = decoded if isinstance(decoded, dict) else {}
         except json.JSONDecodeError:
             payload["custom_stats_json"] = {}
         return payload

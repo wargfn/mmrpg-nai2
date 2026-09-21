@@ -117,6 +117,16 @@ def test_legacy_get_npc_returns_none_for_missing_record():
     assert campaign_db.get_npc("Unknown NPC") is None
 
 
+def test_save_entity_rejects_non_mapping_custom_stats():
+    with pytest.raises(ValueError, match="must be a dictionary"):
+        campaign_db.save_entity(
+            name="Hydra Base",
+            category="Location",
+            description="A hidden bunker.",
+            custom_stats_json=["not", "a", "dict"],
+        )
+
+
 def test_search_memory_includes_entities_and_saved_memories():
     campaign_db.save_entity(
         name="Maria Hill",
