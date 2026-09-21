@@ -204,6 +204,21 @@ class CLIToolInjectionTests(unittest.TestCase):
         self.assertIn('total', payload)
         self.assertEqual(payload['target_number'], 10)
 
+    @patch('marvel_mcp_narrator.interfaces.cli.resolve_d616_roll', return_value={
+        "dice_values": [3, 2, 5],
+        "total_score": 10,
+        "is_fantastic": False,
+        "is_ultimate": False,
+        "is_botch": False,
+        "target_number": 12,
+        "success": False,
+    })
+    def test_roll_command_supports_counted_edge_and_trouble_flags(self, mock_roll):
+        name, payload = _tool_injection('/roll --edges 2 --troubles 1 --tn 12')
+        self.assertEqual(name, 'resolve_d616_roll')
+        mock_roll.assert_called_once_with(edges=2, troubles=1, target_number=12)
+        self.assertEqual(payload['target_number'], 12)
+
     def test_rule_command_returns_search_results(self):
         name, payload = _tool_injection('/rule edge')
         self.assertEqual(name, 'lookup_rule')

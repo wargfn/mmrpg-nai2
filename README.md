@@ -29,7 +29,7 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
 - Run `marvel-narrator-cli --help` to see CLI flags and interactive command help.
 - During a session:
   - `/help` shows the available commands
-  - `/roll [edges] [troubles]` or `/roll [--edge|--trouble] [--tn N]` runs a deterministic d616 roll
+  - `/roll [edges] [troubles]` or `/roll [--edges N] [--troubles N] [--tn N]` runs a deterministic d616 roll
   - `/rules <keyword>` or `/rule <keyword>` searches the local rulebook
   - `/attack <attacker> <ability> <target> [manual d616 roll] [--edges N] [--troubles N] [--focus]` resolves a player attack and can ingest manual reports such as `[4, 5, 1 (Marvel)]`
   - `/npc-attack <attacker> <ability> <target> [--edges N] [--troubles N] [--focus]` automatically resolves an NPC or enemy action

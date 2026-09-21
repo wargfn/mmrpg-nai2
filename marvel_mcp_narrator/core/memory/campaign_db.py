@@ -540,7 +540,7 @@ class CampaignDatabase:
                 (
                     exact_pattern,
                     prefix_pattern,
-                    prefix_pattern,
+                    fuzzy_pattern,
                     exact_pattern,
                     fuzzy_pattern,
                     fuzzy_pattern,
