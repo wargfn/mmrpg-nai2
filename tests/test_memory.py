@@ -141,6 +141,28 @@ def test_save_npc_updates_existing_entry_case_insensitively():
     assert len([match for match in matches if match["memory_type"] == "npc"]) == 1
 
 
+def test_save_npc_preserves_existing_values_on_blank_update():
+    campaign_db.save_npc(
+        name="Jessica Jones",
+        affiliation="Alias Investigations",
+        description="Private investigator",
+        notes="Keeps her distance.",
+    )
+
+    campaign_db.save_npc(
+        name="Jessica Jones",
+        affiliation="",
+        description="",
+        notes="Updated notes.",
+    )
+
+    npc = campaign_db.get_npc("Jessica Jones")
+
+    assert npc["affiliation"] == "Alias Investigations"
+    assert npc["archetype_or_role"] == "Private investigator"
+    assert npc["notes"] == "Updated notes."
+
+
 def test_log_event_persists_plot_entry(isolated_campaign_db):
     message = campaign_db.log_event("Hydra stole the artifact.", session=3)
 

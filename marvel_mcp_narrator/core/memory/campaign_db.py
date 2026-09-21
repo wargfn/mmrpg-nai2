@@ -63,6 +63,58 @@ def _ensure_columns(connection: sqlite3.Connection, table_name: str, column_defi
             )
 
 
+def _merge_case_insensitive_npc_duplicates(connection: sqlite3.Connection) -> None:
+    connection.row_factory = sqlite3.Row
+    rows = connection.execute(
+        """
+        SELECT id, name, archetype_or_role, affiliation, disposition, location, notes, custom_stats_json
+        FROM npcs
+        ORDER BY id
+        """
+    ).fetchall()
+    seen_ids_by_name: dict[str, int] = {}
+    for row in rows:
+        normalized_name = str(row["name"]).strip().casefold()
+        if not normalized_name:
+            continue
+        primary_id = seen_ids_by_name.get(normalized_name)
+        if primary_id is None:
+            seen_ids_by_name[normalized_name] = row["id"]
+            continue
+
+        primary_row = connection.execute(
+            """
+            SELECT id, name, archetype_or_role, affiliation, disposition, location, notes, custom_stats_json
+            FROM npcs
+            WHERE id = ?
+            """,
+            (primary_id,),
+        ).fetchone()
+        connection.execute(
+            """
+            UPDATE npcs
+            SET
+                archetype_or_role = COALESCE(archetype_or_role, ?),
+                affiliation = COALESCE(affiliation, ?),
+                disposition = COALESCE(disposition, ?),
+                location = COALESCE(location, ?),
+                notes = COALESCE(notes, ?),
+                custom_stats_json = COALESCE(custom_stats_json, ?)
+            WHERE id = ?
+            """,
+            (
+                row["archetype_or_role"],
+                row["affiliation"],
+                row["disposition"],
+                row["location"],
+                row["notes"],
+                row["custom_stats_json"],
+                primary_row["id"],
+            ),
+        )
+        connection.execute("DELETE FROM npcs WHERE id = ?", (row["id"],))
+
+
 def initialize_database(path: Path | str | None = None) -> Path:
     """Create the campaign memory database and schema if needed."""
     db_path = Path(path) if path is not None else CAMPAIGN_DB_PATH
@@ -93,6 +145,10 @@ def initialize_database(path: Path | str | None = None) -> Path:
                 "notes": "TEXT",
                 "custom_stats_json": "TEXT",
             },
+        )
+        _merge_case_insensitive_npc_duplicates(connection)
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_npcs_name_nocase ON npcs (name COLLATE NOCASE)"
         )
         connection.execute(
             """
@@ -149,43 +205,27 @@ def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
         raise ValueError("NPC name is required.")
 
     with _connect() as connection:
-        existing_npc = connection.execute(
-            "SELECT id FROM npcs WHERE lower(name) = lower(?)",
-            (cleaned_name,),
-        ).fetchone()
-        if existing_npc is None:
-            connection.execute(
-                """
-                INSERT INTO npcs (name, archetype_or_role, affiliation, notes, custom_stats_json)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    cleaned_name,
-                    description.strip() or None,
-                    affiliation.strip() or None,
-                    notes.strip() or None,
-                    json.dumps({}),
-                ),
-            )
-        else:
-            connection.execute(
-                """
-                UPDATE npcs
-                SET
-                    name = ?,
-                    archetype_or_role = ?,
-                    affiliation = ?,
-                    notes = ?
-                WHERE id = ?
-                """,
-                (
-                    cleaned_name,
-                    description.strip() or None,
-                    affiliation.strip() or None,
-                    notes.strip() or None,
-                    existing_npc["id"],
-                ),
-            )
+        connection.execute(
+            """
+            INSERT INTO npcs (name, archetype_or_role, affiliation, notes, custom_stats_json)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT DO UPDATE SET
+                name = excluded.name,
+                archetype_or_role = COALESCE(excluded.archetype_or_role, npcs.archetype_or_role),
+                affiliation = COALESCE(excluded.affiliation, npcs.affiliation),
+                notes = COALESCE(excluded.notes, npcs.notes),
+                disposition = npcs.disposition,
+                location = npcs.location,
+                custom_stats_json = COALESCE(npcs.custom_stats_json, excluded.custom_stats_json)
+            """,
+            (
+                cleaned_name,
+                description.strip() or None,
+                affiliation.strip() or None,
+                notes.strip() or None,
+                json.dumps({}),
+            ),
+        )
         connection.commit()
     return f"Saved NPC '{cleaned_name}'."
 
