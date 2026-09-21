@@ -629,6 +629,7 @@ class CampaignDatabase:
             if active_campaign_id is None or active_session_value is None:
                 return None
             try:
+                campaign_id = int(active_campaign_id)
                 active_session_number = int(active_session_value)
             except ValueError:
                 self._clear_state(connection, "active_campaign_id")
@@ -640,7 +641,7 @@ class CampaignDatabase:
                 self._clear_state(connection, "active_session_number")
                 connection.commit()
                 return None
-        return self.get_campaign_plan(int(active_campaign_id))
+        return self.get_campaign_plan(campaign_id)
 
     def get_campaign_plan(self, campaign_id: int) -> dict[str, Any] | None:
         """Return a campaign plan and all of its sessions by id."""
@@ -689,6 +690,7 @@ class CampaignDatabase:
             if active_campaign_id is None or active_session_value is None:
                 return None
             try:
+                campaign_id = int(active_campaign_id)
                 active_session_number = int(active_session_value)
             except ValueError:
                 self._clear_state(connection, "active_campaign_id")
@@ -706,7 +708,7 @@ class CampaignDatabase:
                 FROM campaign_plans
                 WHERE id = ?
                 """,
-                (active_campaign_id,),
+                (campaign_id,),
             ).fetchone()
             if plan_row is None:
                 self._clear_state(connection, "active_campaign_id")

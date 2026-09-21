@@ -226,3 +226,29 @@ def test_missing_active_session_entry_clears_campaign_state():
         ).fetchall()
 
     assert rows == []
+
+
+def test_invalid_active_campaign_id_is_cleared():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Fractured Nexus",
+        villain="Mephisto",
+        hero_team=["Ghost Rider"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "UPDATE campaign_state SET value = 'not-a-number' WHERE key = 'active_campaign_id'"
+        )
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+    assert database.get_current_session_context() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []
