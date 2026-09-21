@@ -8,6 +8,12 @@ from tempfile import gettempdir
 
 from fastmcp import FastMCP
 
+from marvel_mcp_narrator.core.memory.campaign_db import (
+    get_npc,
+    log_event,
+    save_npc,
+    search_memory,
+)
 from marvel_mcp_narrator.core.character_creation import (
     ABILITY_FIELDS,
     export_character_json,
@@ -296,6 +302,49 @@ def validate_character_powers(name: str, powers_list: list) -> dict:
     """Validate selected powers against the tracked character's rank."""
     character = character_roster.get_copy(name)
     return validate_character_powers_core(rank=character.rank, powers_list=powers_list)
+
+
+@mcp.tool()
+def remember_npc(name: str, affiliation: str, description: str, notes: str) -> dict:
+    """Persist NPC campaign memory details."""
+    message = save_npc(name=name, affiliation=affiliation, description=description, notes=notes)
+    return {
+        "message": message,
+        "npc": get_npc(name),
+    }
+
+
+@mcp.tool()
+def recall_npc_or_location(query: str) -> str:
+    """Recall matching NPC, location, or plot memories."""
+    npc = get_npc(query)
+    if npc:
+        return "\n".join(
+            [
+                f"NPC: {npc['name']}",
+                f"Affiliation: {npc.get('affiliation') or 'Unknown'}",
+                f"Role: {npc.get('archetype_or_role') or 'Unknown'}",
+                f"Notes: {npc.get('notes') or 'None'}",
+            ]
+        )
+
+    matches = search_memory(query)
+    if not matches:
+        return f"No campaign memory found for '{query}'."
+
+    lines = [f"Campaign memory matches for '{query}':"]
+    for match in matches:
+        lines.append(
+            f"- [{match['memory_type']}] {match['name']}: "
+            f"{match.get('summary') or match.get('notes') or 'No details recorded.'}"
+        )
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def log_campaign_event(summary: str) -> str:
+    """Persist a campaign event to the plot log."""
+    return log_event(summary)
 
 
 if __name__ == "__main__":
