@@ -14,8 +14,12 @@ from urllib.parse import urlparse, urlunparse
 import httpx
 
 from marvel_mcp_narrator.core.character_state import character_roster
-from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
-from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase, get_campaign_database
+from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, resolve_d616_roll, roll_d616
+from marvel_mcp_narrator.core.memory.campaign_db import (
+    CampaignDatabase,
+    get_campaign_database,
+    list_memories as list_campaign_memories,
+)
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database, query_rulebook_database
 
 SYSTEM_PROMPT = (
@@ -42,8 +46,9 @@ RULES_CONTEXT_KEYS = (
 CLI_COMMANDS_HELP = "\n".join(
     [
         "Interactive commands:",
-        "  /roll [--edge|--trouble] [--tn N]  Run a deterministic d616 roll",
-        "  /rule <keyword>                    Search the local Marvel rulebook",
+        "  /roll [edges] [troubles]          Run a deterministic d616 roll",
+        "  /rules <keyword>                  Search the local Marvel rulebook",
+        "  /memories                         Show stored campaign memories",
         "  /help                              Show command help during a session",
         "  exit | quit | /exit | /quit       Gracefully close the narrator CLI",
         "",
@@ -350,6 +355,81 @@ def build_startup_system_prompt(
     )
 
 
+def _format_router_roll_result(result: dict[str, Any]) -> str:
+    lines = [
+        "Deterministic d616 Roll:",
+        f"- Dice: {result.get('dice_values', [])}",
+        f"- Total Score: {result.get('total_score')}",
+        f"- Fantastic: {result.get('is_fantastic')}",
+        f"- Ultimate Success: {result.get('is_ultimate')}",
+        f"- Botch: {result.get('is_botch')}",
+    ]
+    target_number = result.get("target_number")
+    if target_number is not None:
+        lines.append(f"- Target Number: {target_number}")
+        lines.append(f"- Success: {result.get('success')}")
+    return "\n".join(lines)
+
+
+def _format_router_memories_result(memories: list[dict[str, Any]]) -> str:
+    if not memories:
+        return "Campaign Memories:\n- No stored campaign memories were found."
+    lines = ["Campaign Memories:"]
+    for memory in memories:
+        key = str(memory.get("key", "")).strip() or "memory"
+        content = str(memory.get("content", "")).strip()
+        updated_at = str(memory.get("updated_at", "")).strip()
+        entry = f"- [{updated_at}] {key}: {content}" if updated_at else f"- {key}: {content}"
+        lines.append(entry)
+    return "\n".join(lines)
+
+
+def _route_intent_command(user_input: str) -> tuple[str, str] | None:
+    """Route deterministic CLI commands without invoking the chat model."""
+    stripped = user_input.strip()
+    if not stripped:
+        return None
+
+    parts = stripped.split()
+    command = parts[0].lower()
+    arguments = parts[1:]
+
+    if command in {"/rules", "/rule"}:
+        query = " ".join(arguments).strip()
+        if not query:
+            raise ValueError("Usage: /rules <keyword>")
+        return "lookup_rule", query_rulebook_database(query)
+
+    if command == "/memories":
+        if arguments:
+            raise ValueError("Usage: /memories")
+        return "list_memories", _format_router_memories_result(list_campaign_memories())
+
+    if command == "/roll":
+        if any(token.startswith("--") for token in arguments):
+            tool_name, payload = _tool_injection(stripped)
+            if payload is None:
+                raise ValueError("Usage: /roll [edges] [troubles]")
+            return tool_name or "roll_d616", (
+                payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False, indent=2)
+            )
+
+        if len(arguments) > 2:
+            raise ValueError("Usage: /roll [edges] [troubles]")
+        try:
+            edges = int(arguments[0]) if len(arguments) >= 1 else 0
+            troubles = int(arguments[1]) if len(arguments) >= 2 else 0
+        except ValueError as exc:
+            raise ValueError("Usage: /roll [edges] [troubles]") from exc
+        if edges < 0 or troubles < 0:
+            raise ValueError("Edges and troubles must be non-negative integers.")
+        return "resolve_d616_roll", _format_router_roll_result(
+            resolve_d616_roll(edges=edges, troubles=troubles)
+        )
+
+    return None
+
+
 def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str | None]:
     """Parse slash commands and return (tool_name, tool_output)."""
     stripped = user_input.strip()
@@ -460,6 +540,18 @@ def run_cli(
 
         turn_start_index = len(messages)
         try:
+            routed = _route_intent_command(user_input)
+            if routed is not None:
+                tool_name, formatted_output = routed
+                print(f"{tool_name}> {formatted_output}")
+                messages.append({"role": "user", "content": user_input})
+                messages.append(
+                    {
+                        "role": "tool",
+                        "content": f"Deterministic router output ({tool_name}): {formatted_output}",
+                    }
+                )
+                continue
             tool_name, tool_output = _tool_injection(user_input)
             if tool_name and tool_output is not None:
                 payload = tool_output if isinstance(tool_output, str) else json.dumps(tool_output, ensure_ascii=False)

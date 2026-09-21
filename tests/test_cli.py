@@ -14,6 +14,7 @@ from marvel_mcp_narrator.interfaces.cli import (
     STARTUP_MEMORY_LIMIT,
     STARTUP_CONTEXT_EMPTY_NOTE,
     STARTUP_CONTEXT_UNAVAILABLE_NOTE,
+    _route_intent_command,
     _tool_injection,
     get_active_character_context,
     get_rules_startup_context,
@@ -29,6 +30,35 @@ from marvel_mcp_narrator.interfaces.cli import (
 
 
 class CLIToolInjectionTests(unittest.TestCase):
+    def test_router_rules_command_returns_rule_text(self):
+        name, payload = _route_intent_command('/rules edge')
+        self.assertEqual(name, 'lookup_rule')
+        self.assertIn('Rulebook Search Results', payload)
+
+    def test_router_memories_command_lists_memories(self):
+        with patch('marvel_mcp_narrator.interfaces.cli.list_campaign_memories', return_value=[
+            {"key": "session-1", "content": "Hydra attacked.", "updated_at": "2026-09-21T10:00:00+00:00"}
+        ]):
+            name, payload = _route_intent_command('/memories')
+        self.assertEqual(name, 'list_memories')
+        self.assertIn('Campaign Memories:', payload)
+        self.assertIn('Hydra attacked.', payload)
+
+    def test_router_roll_command_supports_positional_edges_and_troubles(self):
+        with patch('marvel_mcp_narrator.interfaces.cli.resolve_d616_roll', return_value={
+            "dice_values": [3, 2, 5],
+            "total_score": 10,
+            "is_fantastic": False,
+            "is_ultimate": False,
+            "is_botch": False,
+            "target_number": None,
+        }) as mock_roll:
+            name, payload = _route_intent_command('/roll 2 1')
+        self.assertEqual(name, 'resolve_d616_roll')
+        mock_roll.assert_called_once_with(edges=2, troubles=1)
+        self.assertIn('Deterministic d616 Roll:', payload)
+        self.assertIn('Total Score: 10', payload)
+
     def test_roll_command_returns_tool_payload(self):
         name, payload = _tool_injection('/roll --tn 10')
         self.assertEqual(name, 'roll_d616')
@@ -159,25 +189,36 @@ class CLIRunLoopTests(unittest.TestCase):
 
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/roll', 'exit'])
-    def test_roll_tool_injects_system_output_only(self, _mock_input, mock_request_chat):
-        mock_request_chat.return_value = 'narration'
-
+    def test_roll_tool_bypasses_chat_backend(self, _mock_input, mock_request_chat):
         run_cli(model='fake-model')
-
-        call_messages = mock_request_chat.call_args.kwargs['messages']
-        self.assertTrue(any(msg['role'] == 'tool' and 'Tool output (roll_d616):' in msg['content'] for msg in call_messages))
-        self.assertFalse(any(msg['role'] == 'user' and msg['content'] == '/roll' for msg in call_messages))
+        mock_request_chat.assert_not_called()
 
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
-    @patch('builtins.input', side_effect=['/rule teleport', 'exit'])
-    def test_rule_tool_injects_query_results(self, _mock_input, mock_request_chat):
-        mock_request_chat.return_value = 'narration'
+    @patch('builtins.input', side_effect=['/rules teleport', 'exit'])
+    def test_rules_command_bypasses_chat_backend(self, _mock_input, mock_request_chat):
+        run_cli(model='fake-model')
+        mock_request_chat.assert_not_called()
+
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('marvel_mcp_narrator.interfaces.cli.list_campaign_memories', return_value=[
+        {"key": "session-1", "content": "Hydra attacked.", "updated_at": "2026-09-21T10:00:00+00:00"}
+    ])
+    @patch('builtins.input', side_effect=['/memories', 'exit'])
+    def test_memories_command_bypasses_chat_backend(self, _mock_input, _mock_memories, mock_request_chat):
+        run_cli(model='fake-model')
+        mock_request_chat.assert_not_called()
+
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=['/rules teleport', 'hello narrator', 'exit'])
+    def test_routed_command_is_injected_into_history_for_following_chat_turn(self, _mock_input, mock_request_chat):
+        mock_request_chat.return_value = 'hi'
 
         run_cli(model='fake-model')
 
         call_messages = mock_request_chat.call_args.kwargs['messages']
-        self.assertTrue(any(msg['role'] == 'tool' and 'Tool output (lookup_rule):' in msg['content'] for msg in call_messages))
-        self.assertTrue(any(msg['role'] == 'tool' and 'Teleportation' in msg['content'] for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'user' and msg['content'] == '/rules teleport' for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'tool' and 'Deterministic router output (lookup_rule):' in msg['content'] for msg in call_messages))
+        self.assertTrue(any(msg['role'] == 'user' and msg['content'] == 'hello narrator' for msg in call_messages))
 
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/roll --tn nope', 'exit'])
