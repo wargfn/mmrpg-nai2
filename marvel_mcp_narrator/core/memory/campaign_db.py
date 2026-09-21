@@ -994,7 +994,24 @@ class CampaignDatabase:
 
     @staticmethod
     def _extract_significant_events(raw_session_log: str) -> list[str]:
-        keywords = ("defeat", "resc", "uncover", "discover", "escape", "save", "destroy", "steal", "capture")
+        keywords = (
+            "defeat",
+            "rescue",
+            "rescued",
+            "uncover",
+            "discovered",
+            "discover",
+            "escape",
+            "escaped",
+            "save",
+            "saved",
+            "destroy",
+            "destroyed",
+            "steal",
+            "stole",
+            "capture",
+            "captured",
+        )
         sentences = CampaignDatabase._split_sentences(raw_session_log)
         events = [sentence for sentence in sentences if any(keyword in sentence.casefold() for keyword in keywords)]
         return events or sentences[:2]
@@ -1128,36 +1145,28 @@ def search_memory(query: str) -> list[dict[str, Any]]:
     if not keyword:
         return []
 
-    entity_matches = [
-        {
+    exact_entity_matches: list[dict[str, Any]] = []
+    fuzzy_entity_matches: list[dict[str, Any]] = []
+    for entity in search_entities(keyword):
+        payload = {
             "memory_type": "entity",
             "name": entity["name"],
             "affiliation": entity.get("category", ""),
             "summary": entity.get("description", ""),
             "notes": entity.get("notes", ""),
-            "_priority": 0 if str(entity.get("name", "")).casefold() == keyword.casefold() else 2,
         }
-        for entity in search_entities(keyword)
-    ]
+        if str(entity.get("name", "")).casefold() == keyword.casefold():
+            exact_entity_matches.append(payload)
+        else:
+            fuzzy_entity_matches.append(payload)
     legacy_matches = [
         {
             **match,
-            "_priority": 1,
-            "_order": index,
         }
-        for index, match in enumerate(get_campaign_database().search_memory_records(
+        for match in get_campaign_database().search_memory_records(
             keyword,
             limit=SEARCH_RESULT_LIMIT,
-        ))
+        )
     ]
-    for index, match in enumerate(entity_matches):
-        match["_order"] = index
-    combined_matches = [*entity_matches, *legacy_matches]
-    combined_matches.sort(key=lambda item: (item["_priority"], item["_order"]))
-    ordered_matches = []
-    for match in combined_matches:
-        cleaned = dict(match)
-        cleaned.pop("_priority", None)
-        cleaned.pop("_order", None)
-        ordered_matches.append(cleaned)
-    return ordered_matches[:SEARCH_RESULT_LIMIT]
+    combined_matches = [*exact_entity_matches, *legacy_matches, *fuzzy_entity_matches]
+    return combined_matches[:SEARCH_RESULT_LIMIT]

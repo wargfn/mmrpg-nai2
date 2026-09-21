@@ -241,7 +241,14 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
         fallback = f"Campaign Memory Context:\n- +{max(1, omitted_count or total_memories)}"
         if len(fallback) <= STARTUP_CONTEXT_CHAR_BUDGET:
             return fallback
-    return "\n".join(lines)
+    context = "\n".join(lines)
+    if len(context) <= STARTUP_CONTEXT_CHAR_BUDGET:
+        return context
+    if STARTUP_CONTEXT_CHAR_BUDGET <= 0:
+        return ""
+    if STARTUP_CONTEXT_CHAR_BUDGET == 1:
+        return "…"
+    return context[: STARTUP_CONTEXT_CHAR_BUDGET - 1].rstrip() + "…"
 
 
 def get_rules_startup_context() -> str:
