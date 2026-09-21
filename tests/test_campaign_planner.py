@@ -1,0 +1,383 @@
+import pytest
+
+from marvel_mcp_narrator.core import campaign_planner
+from marvel_mcp_narrator.core.memory import campaign_db
+from marvel_mcp_narrator.mcp_servers import narrator_tools
+
+
+@pytest.fixture(autouse=True)
+def isolated_campaign_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "campaign.db"
+    monkeypatch.setattr(campaign_db, "CAMPAIGN_DB_PATH", db_path)
+    monkeypatch.setattr(campaign_db, "_DEFAULT_DATABASE", None)
+    yield db_path
+
+
+def test_create_campaign_plan_generates_structured_sessions():
+    planner = campaign_planner.CampaignPlanner()
+
+    plan = planner.create_campaign_plan(
+        theme="Cosmic Rift",
+        villain="Doctor Doom",
+        hero_team=["Captain Marvel", "Spider-Man"],
+        desired_session_count=3,
+    )
+
+    assert plan["theme"] == "Cosmic Rift"
+    assert plan["villain"] == "Doctor Doom"
+    assert plan["session_count"] == 3
+    assert len(plan["sessions"]) == 3
+    assert plan["sessions"][0]["session_number"] == 1
+    assert plan["sessions"][0]["objectives"]
+    assert plan["sessions"][2]["title"] == "Final Showdown with Doctor Doom"
+
+
+def test_get_current_session_context_tracks_active_pointer():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Street War",
+        villain="Kingpin",
+        hero_team=["Daredevil", "Spider-Man"],
+        desired_session_count=2,
+    )
+
+    context = planner.get_current_session_context()
+
+    assert context["active_session_number"] == 1
+    assert context["session"]["title"] == "Street War Sparks Fly"
+
+
+def test_conclude_session_generates_recap_highlights_and_logs_events():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Hydra Uprising",
+        villain="Red Skull",
+        hero_team=["Captain America", "Black Widow"],
+        desired_session_count=2,
+    )
+
+    result = planner.conclude_session(
+        1,
+        (
+            "Captain America rescued civilians from the collapsing bridge. "
+            "Black Widow uncovered Hydra's signal tower. "
+            "The heroes defeated a Hydra strike team and discovered Red Skull's escape route."
+        ),
+    )
+
+    current = planner.get_current_session_context()
+    memories = campaign_db.list_memories()
+
+    assert "Captain America rescued civilians" in result["player_recap"]
+    assert "session 2" in result["narrator_bridge_prompt"].lower()
+    assert "Captain America" in result["hero_highlights"]
+    assert result["significant_events"]
+    assert current["active_session_number"] == 2
+    assert any("Hydra strike team" in memory["content"] for memory in memories)
+
+
+def test_conclude_session_splits_exclamation_and_question_sentences():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Cosmic Alarm",
+        villain="Galactus",
+        hero_team=["Silver Surfer", "Invisible Woman"],
+        desired_session_count=2,
+    )
+
+    result = planner.conclude_session(
+        1,
+        (
+            "Silver Surfer saved the station! "
+            "Invisible Woman uncovered Galactus's beacon? "
+            "The team escaped the collapsing relay."
+        ),
+    )
+
+    assert "Silver Surfer" in result["hero_highlights"]
+    assert "Invisible Woman" in result["hero_highlights"]
+    assert any("uncovered Galactus's beacon" in event for event in result["significant_events"])
+
+
+def test_conclude_session_rejects_out_of_order_progression():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Temporal Fracture",
+        villain="Kang",
+        hero_team=["Wasp", "Iron Man"],
+        desired_session_count=2,
+    )
+
+    with pytest.raises(ValueError, match="session 1 is active"):
+        planner.conclude_session(2, "The heroes leaped ahead in the timeline.")
+
+
+def test_wrap_up_current_session_tool_advances_campaign():
+    narrator_tools.create_campaign_plan("Mystic Crisis", "Loki", 2)
+
+    wrap_up = narrator_tools.wrap_up_current_session(
+        "Marvel heroes saved the Sanctum. Loki escaped, but the team discovered his portal nexus."
+    )
+    briefing = narrator_tools.get_next_session_briefing()
+
+    assert "Bridge Prompt:" in wrap_up
+    assert "Hero Highlights:" in wrap_up
+    assert "Session 2:" in briefing
+
+
+def test_final_session_wrap_up_clears_active_session():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Annihilation Wave",
+        villain="Annihilus",
+        hero_team=["Nova", "Quasar"],
+        desired_session_count=1,
+    )
+
+    result = planner.conclude_session(
+        1,
+        "Nova saved the refugees and defeated Annihilus in the Negative Zone.",
+    )
+
+    assert "Nova saved the refugees" in result["player_recap"]
+    with pytest.raises(ValueError, match="No active campaign plan is available"):
+        planner.get_current_session_context()
+
+
+def test_create_campaign_plan_tool_returns_summary():
+    summary = narrator_tools.create_campaign_plan("Gamma Panic", "Leader", 2)
+
+    assert "Created 2-session campaign against Leader" in summary
+
+
+def test_create_campaign_plan_tool_accepts_hero_team():
+    narrator_tools.create_campaign_plan(
+        "Celestial Alarm",
+        "Thanos",
+        2,
+        hero_team=["Captain Marvel", "Thor"],
+    )
+
+    context = campaign_planner.get_current_session_context()
+
+    assert context["hero_team"] == ["Captain Marvel", "Thor"]
+
+
+def test_create_campaign_plan_defaults_blank_hero_team_entries():
+    planner = campaign_planner.CampaignPlanner()
+
+    plan = planner.create_campaign_plan(
+        theme="Shadow Scheme",
+        villain="Mister Negative",
+        hero_team=["   "],
+        desired_session_count=1,
+    )
+
+    assert plan["hero_team"] == ["Marvel heroes"]
+
+
+def test_get_next_session_briefing_requires_active_campaign():
+    with pytest.raises(ValueError, match="No active campaign plan is available"):
+        narrator_tools.get_next_session_briefing()
+
+
+def test_malformed_active_session_state_is_ignored():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Dark Future",
+        villain="Ultron",
+        hero_team=["Vision"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "UPDATE campaign_state SET value = 'not-a-number' WHERE key = 'active_session_number'"
+        )
+        connection.commit()
+
+    with pytest.raises(ValueError, match="No active campaign plan is available"):
+        planner.get_current_session_context()
+
+
+def test_non_positive_active_session_state_is_cleared():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Broken Timeline",
+        villain="Ultron",
+        hero_team=["Vision"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "UPDATE campaign_state SET value = '0' WHERE key = 'active_session_number'"
+        )
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []
+
+
+def test_missing_active_session_entry_clears_campaign_state():
+    planner = campaign_planner.CampaignPlanner()
+    plan = planner.create_campaign_plan(
+        theme="Fading Reality",
+        villain="Dormammu",
+        hero_team=["Doctor Strange"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "DELETE FROM campaign_sessions WHERE campaign_id = ? AND session_number = 1",
+            (plan["campaign_id"],),
+        )
+        connection.commit()
+
+    assert database.get_current_session_context() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []
+
+
+def test_invalid_active_campaign_id_is_cleared():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Fractured Nexus",
+        villain="Mephisto",
+        hero_team=["Ghost Rider"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "UPDATE campaign_state SET value = 'not-a-number' WHERE key = 'active_campaign_id'"
+        )
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+    assert database.get_current_session_context() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []
+
+
+def test_missing_active_campaign_plan_clears_campaign_state():
+    planner = campaign_planner.CampaignPlanner()
+    plan = planner.create_campaign_plan(
+        theme="Vanishing Front",
+        villain="Molecule Man",
+        hero_team=["Reed Richards"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute("DELETE FROM campaign_plans WHERE id = ?", (plan["campaign_id"],))
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []
+
+
+def test_active_campaign_plan_requires_active_session_entry():
+    planner = campaign_planner.CampaignPlanner()
+    plan = planner.create_campaign_plan(
+        theme="Last Beacon",
+        villain="Apocalypse",
+        hero_team=["Storm"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "DELETE FROM campaign_sessions WHERE campaign_id = ? AND session_number = 1",
+            (plan["campaign_id"],),
+        )
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []
+
+
+def test_partial_active_campaign_state_is_cleared():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Phantom Signal",
+        villain="The Hood",
+        hero_team=["Moon Knight"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "DELETE FROM campaign_state WHERE key = 'active_session_number'"
+        )
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+    assert database.get_current_session_context() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []
+
+
+def test_completed_active_session_state_is_cleared():
+    planner = campaign_planner.CampaignPlanner()
+    plan = planner.create_campaign_plan(
+        theme="Broken Finale",
+        villain="Ultron",
+        hero_team=["Iron Man"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            """
+            UPDATE campaign_sessions
+            SET status = 'completed'
+            WHERE campaign_id = ? AND session_number = 1
+            """,
+            (plan["campaign_id"],),
+        )
+        connection.execute(
+            "INSERT OR REPLACE INTO campaign_state (key, value, updated_at) VALUES ('active_campaign_id', ?, 'now')",
+            (str(plan["campaign_id"]),),
+        )
+        connection.execute(
+            "INSERT OR REPLACE INTO campaign_state (key, value, updated_at) VALUES ('active_session_number', '1', 'now')"
+        )
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+    assert database.get_current_session_context() is None

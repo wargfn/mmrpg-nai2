@@ -138,12 +138,13 @@ class RulesDatabase:
         """Format an exact indexed match for CLI and tool display."""
         entry_type = payload["entry_type"]
         if entry_type == "mechanic":
+            detail_lines = self._mechanic_detail_lines(payload)
             return "\n".join(
                 [
                     f"## Rule Reference: {payload.get('title', payload['rule_key'])}",
                     f"- Key: `{payload['rule_key']}`",
                     f"- Category: {payload.get('category', 'Mechanics')}",
-                    f"- {payload.get('description', '')}",
+                    *detail_lines,
                 ]
             )
 
@@ -156,6 +157,19 @@ class RulesDatabase:
                 f"- {payload.get('description', '')}",
             ]
         )
+
+    @staticmethod
+    def _mechanic_detail_lines(payload: dict[str, Any]) -> list[str]:
+        lines = [f"- {payload.get('description', '')}"]
+        formula = str(payload.get("formula", "")).strip()
+        if formula:
+            lines.append(f"- Formula: {formula}")
+        examples = payload.get("examples", [])
+        if isinstance(examples, list):
+            cleaned_examples = [str(item).strip() for item in examples if str(item).strip()]
+            if cleaned_examples:
+                lines.append(f"- Examples: {'; '.join(cleaned_examples)}")
+        return lines
 
     def query_rules(self, query: str) -> str:
         """Search mechanics and powers by keyword and return markdown results."""
@@ -173,7 +187,10 @@ class RulesDatabase:
             title = str(payload.get("title", key))
             category = str(payload.get("category", "Mechanics"))
             description = str(payload.get("description", ""))
-            haystack = " ".join([key, title, category, description]).lower()
+            formula = str(payload.get("formula", ""))
+            examples = payload.get("examples", [])
+            example_text = " ".join(str(item).strip() for item in examples if str(item).strip()) if isinstance(examples, list) else ""
+            haystack = " ".join([key, title, category, description, formula, example_text]).lower()
             if keyword in haystack:
                 mechanics_matches.append(
                     {
@@ -181,6 +198,8 @@ class RulesDatabase:
                         "title": title,
                         "category": category,
                         "description": description,
+                        "formula": formula,
+                        "examples": examples,
                     }
                 )
 
@@ -212,6 +231,13 @@ class RulesDatabase:
                 lines.append(f"- **{item['title']}** (`{item['key']}`)")
                 lines.append(f"  - Category: {item['category']}")
                 lines.append(f"  - {item['description']}")
+                if item.get("formula"):
+                    lines.append(f"  - Formula: {item['formula']}")
+                examples = item.get("examples", [])
+                if isinstance(examples, list):
+                    cleaned_examples = [str(example).strip() for example in examples if str(example).strip()]
+                    if cleaned_examples:
+                        lines.append(f"  - Examples: {'; '.join(cleaned_examples)}")
 
         if powers_matches:
             lines.append("\n### Powers")

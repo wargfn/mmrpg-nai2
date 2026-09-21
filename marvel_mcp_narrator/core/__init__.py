@@ -2,6 +2,7 @@
 
 from .d616_engine import D616ConfigurationError, resolve_d616_roll, roll_d616
 from .character_state import Character, CharacterRoster, character_roster
+from .combat_tracker import CombatTracker, combat_tracker
 from .character_creation import (
     ARCHETYPE_TEMPLATES,
     export_character_json,
@@ -15,6 +16,12 @@ from .character_creation import (
     validate_character_build,
     validate_power_selection,
     validate_character_powers,
+)
+from .campaign_planner import (
+    CampaignPlanner,
+    conclude_session,
+    create_campaign_plan,
+    get_current_session_context,
 )
 from .rules_database import (
     RulesDatabase,
@@ -30,6 +37,8 @@ __all__ = [
     "Character",
     "CharacterRoster",
     "character_roster",
+    "CombatTracker",
+    "combat_tracker",
     "ARCHETYPE_TEMPLATES",
     "validate_character_build",
     "validate_power_selection",
@@ -37,6 +46,10 @@ __all__ = [
     "generate_character_from_template",
     "export_character_json",
     "load_character_json",
+    "CampaignPlanner",
+    "create_campaign_plan",
+    "get_current_session_context",
+    "conclude_session",
     "list_archetypes",
     "list_origins",
     "list_occupations",

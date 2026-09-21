@@ -8,6 +8,22 @@ from tempfile import gettempdir
 
 from fastmcp import FastMCP
 
+from marvel_mcp_narrator.core.campaign_planner import (
+    conclude_session as conclude_session_core,
+    create_campaign_plan as create_campaign_plan_core,
+    get_current_session_context as get_current_session_context_core,
+)
+from marvel_mcp_narrator.core.memory.campaign_db import (
+    get_entity,
+    get_npc,
+    load_memory,
+    save_entity,
+    save_memory,
+    log_event,
+    save_npc,
+    search_entities,
+    search_memory,
+)
 from marvel_mcp_narrator.core.character_creation import (
     ABILITY_FIELDS,
     export_character_json,
@@ -19,12 +35,19 @@ from marvel_mcp_narrator.core.character_creation import (
     validate_character_powers as validate_character_powers_core,
     validate_character_build,
 )
+from marvel_mcp_narrator.core.combat_tracker import combat_tracker
 from marvel_mcp_narrator.core.character_state import character_roster
-from marvel_mcp_narrator.core.d616_engine import roll_d616 as roll_d616_core
+from marvel_mcp_narrator.core.d616_engine import (
+    roll_d616 as roll_d616_core,
+)
 from marvel_mcp_narrator.core.rules_database import lookup_rule_reference
 
 
 mcp = FastMCP("mmrpg-narrator")
+
+
+def clear_combat_state() -> None:
+    combat_tracker.clear()
 
 
 @mcp.tool()
@@ -107,6 +130,78 @@ def calculate_attack(
         marvel_die=marvel_die,
         is_fantastic=is_fantastic,
         bonus_multiplier=bonus_multiplier,
+    )
+
+
+@mcp.tool()
+def track_combatant(name: str, side: str = "player") -> dict:
+    """Mark an existing tracked character as part of the current combat."""
+    return combat_tracker.track_combatant(name, side=side)
+
+
+@mcp.tool()
+def get_combat_state() -> dict:
+    """Return all combatants currently tracked in the active combat."""
+    return combat_tracker.get_combat_state()
+
+
+@mcp.tool()
+def resolve_manual_d616_roll(
+    dice_values: list[int],
+    marvel_index: int = 1,
+    ability_modifier: int = 0,
+    target_number: int | None = None,
+) -> dict:
+    """Normalize a manually reported d616 roll into the standard deterministic payload."""
+    return combat_tracker.resolve_manual_roll(
+        dice_values=dice_values,
+        marvel_index=marvel_index,
+        ability_modifier=ability_modifier,
+        target_number=target_number,
+    )
+
+
+@mcp.tool()
+def resolve_player_attack(
+    attacker_name: str,
+    target_name: str,
+    ability: str,
+    dice_values: list[int] | None = None,
+    marvel_index: int = 1,
+    target_resource: str = "health",
+    edges: int = 0,
+    troubles: int = 0,
+) -> dict:
+    """Resolve a player attack, optionally using a manually reported d616 result."""
+    return combat_tracker.resolve_player_attack(
+        attacker_name=attacker_name,
+        target_name=target_name,
+        ability=ability,
+        dice_values=dice_values,
+        marvel_index=marvel_index,
+        target_resource=target_resource,
+        edges=edges,
+        troubles=troubles,
+    )
+
+
+@mcp.tool()
+def resolve_npc_action(
+    attacker_name: str,
+    target_name: str,
+    ability: str,
+    target_resource: str = "health",
+    edges: int = 0,
+    troubles: int = 0,
+) -> dict:
+    """Automatically resolve an NPC or enemy combat action against a tracked target."""
+    return combat_tracker.resolve_npc_action(
+        attacker_name=attacker_name,
+        target_name=target_name,
+        ability=ability,
+        target_resource=target_resource,
+        edges=edges,
+        troubles=troubles,
     )
 
 
@@ -296,6 +391,169 @@ def validate_character_powers(name: str, powers_list: list) -> dict:
     """Validate selected powers against the tracked character's rank."""
     character = character_roster.get_copy(name)
     return validate_character_powers_core(rank=character.rank, powers_list=powers_list)
+
+
+@mcp.tool()
+def remember_npc(name: str, affiliation: str = "", description: str = "", notes: str = "") -> str:
+    """Persist NPC campaign memory details."""
+    return save_npc(name=name, affiliation=affiliation, description=description, notes=notes)
+
+
+@mcp.tool()
+def save_campaign_memory(key: str, content: str) -> str:
+    """Persist a named campaign memory entry."""
+    return save_memory(key=key, content=content)
+
+
+@mcp.tool()
+def load_campaign_memory(key: str) -> str:
+    """Load a named campaign memory entry."""
+    content = load_memory(key)
+    if content is None:
+        return f"No campaign memory found for '{key}'."
+    return content
+
+
+@mcp.tool()
+def create_campaign_plan(
+    theme: str,
+    villain: str,
+    session_count: int,
+    hero_team: list[str] | None = None,
+) -> str:
+    """Create and persist a structured campaign plan."""
+    plan = create_campaign_plan_core(
+        theme=theme,
+        villain=villain,
+        hero_team=hero_team,
+        desired_session_count=session_count,
+    )
+    titles = ", ".join(session["title"] for session in plan["sessions"])
+    return (
+        f"Created {plan['session_count']}-session campaign against {plan['villain']} "
+        f"with sessions: {titles}."
+    )
+
+
+@mcp.tool()
+def get_next_session_briefing() -> str:
+    """Return the active session briefing for the current campaign."""
+    context = get_current_session_context_core()
+    session = context["session"]
+    return "\n".join(
+        [
+            f"Session {session['session_number']}: {session['title']}",
+            f"Theme: {context['theme']}",
+            f"Villain: {context['villain']}",
+            f"Objectives: {', '.join(session['objectives'])}",
+            f"Key NPCs: {', '.join(session['key_npcs'])}",
+            f"Locations: {', '.join(session['locations'])}",
+            f"Milestone: {session['completion_milestone']}",
+        ]
+    )
+
+
+@mcp.tool()
+def wrap_up_current_session(session_log_summary: str) -> str:
+    """Generate recap data and advance the active campaign session."""
+    context = get_current_session_context_core()
+    session = context["session"]
+    wrap_up = conclude_session_core(
+        session_number=session["session_number"],
+        raw_session_log=session_log_summary,
+    )
+    highlight_names = ", ".join(wrap_up["hero_highlights"].keys())
+    return "\n".join(
+        [
+            wrap_up["player_recap"],
+            f"Bridge Prompt: {wrap_up['narrator_bridge_prompt']}",
+            f"Hero Highlights: {highlight_names}",
+        ]
+    )
+
+
+@mcp.tool()
+def remember_entity(
+    name: str,
+    category: str,
+    description: str,
+    disposition: str = "Neutral",
+    location: str = "Unknown",
+    notes: str = "",
+) -> str:
+    """Persist a named campaign entity."""
+    save_entity(
+        name=name,
+        category=category,
+        description=description,
+        disposition=disposition,
+        location=location,
+        notes=notes,
+    )
+    return f"Saved {category.strip() or 'entity'} '{name.strip()}'."
+
+
+@mcp.tool()
+def recall_entity(name_or_query: str) -> str:
+    """Recall a single entity or search across tracked entities."""
+    entity = get_entity(name_or_query)
+    if entity:
+        return "\n".join(
+            [
+                f"Name: {entity['name']}",
+                f"Category: {entity.get('category') or 'Unknown'}",
+                f"Description: {entity.get('description') or 'Unknown'}",
+                f"Disposition: {entity.get('disposition') or 'Neutral'}",
+                f"Location: {entity.get('location') or 'Unknown'}",
+                f"Notes: {entity.get('notes') or 'None'}",
+            ]
+        )
+
+    matches = search_entities(name_or_query)
+    if not matches:
+        return f"No entity found for '{name_or_query}'."
+
+    lines = [f"Entity matches for '{name_or_query}':"]
+    for match in matches:
+        lines.append(
+            f"- [{match['category']}] {match['name']} ({match['location']}): "
+            f"{match['description']}"
+        )
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def recall_npc_or_location(query: str) -> str:
+    """Recall matching NPC, location, or plot memories."""
+    npc = get_npc(query)
+    if npc:
+        return "\n".join(
+            [
+                f"NPC: {npc['name']}",
+                f"Affiliation: {npc.get('affiliation') or 'Unknown'}",
+                f"Role: {npc.get('archetype_or_role') or 'Unknown'}",
+                f"Notes: {npc.get('notes') or 'None'}",
+            ]
+        )
+
+    matches = search_memory(query)
+    if not matches:
+        return f"No campaign memory found for '{query}'."
+
+    lines = [f"Campaign memory matches for '{query}':"]
+    for match in matches:
+        details = match.get("summary") or match.get("notes") or "No details recorded."
+        if match["memory_type"] == "plot_log" and match.get("affiliation"):
+            lines.append(f"- [plot_log] {match['name']} @ {match['affiliation']}: {details}")
+            continue
+        lines.append(f"- [{match['memory_type']}] {match['name']}: {details}")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def log_campaign_event(summary: str, session: int = 1) -> str:
+    """Persist a campaign event to the plot log."""
+    return log_event(summary, session=session)
 
 
 if __name__ == "__main__":
