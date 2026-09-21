@@ -219,7 +219,7 @@ def test_recall_npc_or_location_formats_search_results_and_missing_message():
     missing = narrator_tools.recall_npc_or_location("Latveria")
 
     assert "Campaign memory matches for 'Avengers Tower':" in recalled
-    assert "[plot_log] Session 2" in recalled
+    assert "[plot_log] Session 2 @" in recalled
     assert missing == "No campaign memory found for 'Latveria'."
 
 

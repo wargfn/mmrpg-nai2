@@ -205,27 +205,44 @@ def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
         raise ValueError("NPC name is required.")
 
     with _connect() as connection:
-        connection.execute(
-            """
-            INSERT INTO npcs (name, archetype_or_role, affiliation, notes, custom_stats_json)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT DO UPDATE SET
-                name = excluded.name,
-                archetype_or_role = COALESCE(excluded.archetype_or_role, npcs.archetype_or_role),
-                affiliation = COALESCE(excluded.affiliation, npcs.affiliation),
-                notes = COALESCE(excluded.notes, npcs.notes),
-                disposition = npcs.disposition,
-                location = npcs.location,
-                custom_stats_json = COALESCE(npcs.custom_stats_json, excluded.custom_stats_json)
-            """,
-            (
-                cleaned_name,
-                description.strip() or None,
-                affiliation.strip() or None,
-                notes.strip() or None,
-                json.dumps({}),
-            ),
-        )
+        connection.execute("BEGIN IMMEDIATE")
+        existing_npc = connection.execute(
+            "SELECT id FROM npcs WHERE name = ? COLLATE NOCASE",
+            (cleaned_name,),
+        ).fetchone()
+        if existing_npc is None:
+            connection.execute(
+                """
+                INSERT INTO npcs (name, archetype_or_role, affiliation, notes, custom_stats_json)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    cleaned_name,
+                    description.strip() or None,
+                    affiliation.strip() or None,
+                    notes.strip() or None,
+                    json.dumps({}),
+                ),
+            )
+        else:
+            connection.execute(
+                """
+                UPDATE npcs
+                SET
+                    name = ?,
+                    archetype_or_role = COALESCE(?, archetype_or_role),
+                    affiliation = COALESCE(?, affiliation),
+                    notes = COALESCE(?, notes)
+                WHERE id = ?
+                """,
+                (
+                    cleaned_name,
+                    description.strip() or None,
+                    affiliation.strip() or None,
+                    notes.strip() or None,
+                    existing_npc["id"],
+                ),
+            )
         connection.commit()
     return f"Saved NPC '{cleaned_name}'."
 

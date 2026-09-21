@@ -334,10 +334,11 @@ def recall_npc_or_location(query: str) -> str:
 
     lines = [f"Campaign memory matches for '{query}':"]
     for match in matches:
-        lines.append(
-            f"- [{match['memory_type']}] {match['name']}: "
-            f"{match.get('summary') or match.get('notes') or 'No details recorded.'}"
-        )
+        details = match.get("summary") or match.get("notes") or "No details recorded."
+        if match["memory_type"] == "plot_log" and match.get("affiliation"):
+            lines.append(f"- [plot_log] {match['name']} @ {match['affiliation']}: {details}")
+            continue
+        lines.append(f"- [{match['memory_type']}] {match['name']}: {details}")
     return "\n".join(lines)
 
 
