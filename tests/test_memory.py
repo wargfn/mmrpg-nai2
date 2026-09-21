@@ -230,7 +230,8 @@ def test_log_campaign_event_is_searchable_via_legacy_memory_flow():
 
 
 def test_log_event_rejects_invalid_session_number():
-    assert campaign_db.log_event("This should fail.", session=0) == "Session number must be at least 1."
+    with pytest.raises(ValueError, match="Session number must be at least 1"):
+        campaign_db.log_event("This should fail.", session=0)
 
 
 def test_search_memory_combines_memories_and_plot_logs_with_shared_limit():

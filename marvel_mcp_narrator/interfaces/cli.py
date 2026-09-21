@@ -58,7 +58,6 @@ STARTUP_CONTEXT_UNAVAILABLE_NOTE = (
     "SQLite campaign memory could not be loaded at startup. "
     "Continue narrating with the live session context only."
 )
-_RULES_STARTUP_CONTEXT: str | None = None
 
 
 def normalize_open_webui_host(host: str) -> str:
@@ -247,9 +246,6 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
 
 def get_rules_startup_context() -> str:
     """Return a concise core-rules block for startup prompt injection."""
-    global _RULES_STARTUP_CONTEXT
-    if _RULES_STARTUP_CONTEXT is not None:
-        return _RULES_STARTUP_CONTEXT
     try:
         mechanics = load_rules_database().get("mechanics", {})
     except (OSError, ValueError, TypeError):
@@ -272,8 +268,7 @@ def get_rules_startup_context() -> str:
         lines.append(line)
     if len(lines) == 1:
         lines.append("- Core mechanics were not found in the rules database.")
-    _RULES_STARTUP_CONTEXT = "\n".join(lines)
-    return _RULES_STARTUP_CONTEXT
+    return "\n".join(lines)
 
 
 def get_active_character_context() -> str:

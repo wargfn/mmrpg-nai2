@@ -294,7 +294,7 @@ class CampaignDatabase:
                     ),
                 )
 
-    def save_memory(self, key: str, content: str) -> None:
+    def save_memory(self, key: str, content: str) -> str:
         """Save or update a named campaign memory entry."""
         cleaned_key = key.strip()
         cleaned_content = content.strip()
@@ -315,6 +315,7 @@ class CampaignDatabase:
                 (cleaned_key, cleaned_content, _utc_now()),
             )
             connection.commit()
+        return f"Saved campaign memory '{cleaned_key}'."
 
     def load_memory(self, key: str) -> str | None:
         """Load a saved campaign memory by key."""
@@ -585,7 +586,7 @@ class CampaignDatabase:
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def add_plot_log(self, summary: str, session: int = 1) -> None:
+    def add_plot_log(self, summary: str, session: int = 1) -> str:
         """Persist a legacy-style plot log entry."""
         cleaned_summary = summary.strip()
         if not cleaned_summary:
@@ -602,6 +603,7 @@ class CampaignDatabase:
                 (session, cleaned_summary, _utc_now()),
             )
             connection.commit()
+        return f"Logged campaign event for session {session}."
 
     def create_campaign_plan(
         self,
@@ -1033,8 +1035,7 @@ def initialize_database(path: Path | str | None = None) -> Path:
 
 
 def save_memory(key: str, content: str) -> str:
-    get_campaign_database().save_memory(key=key, content=content)
-    return f"Saved campaign memory '{key.strip()}'."
+    return get_campaign_database().save_memory(key=key, content=content)
 
 
 def load_memory(key: str) -> str | None:
@@ -1118,11 +1119,7 @@ def get_npc(name: str) -> dict[str, Any] | None:
 
 def log_event(summary: str, session: int = 1) -> str:
     """Backward-compatible plot log storage using the plot_logs table."""
-    try:
-        get_campaign_database().add_plot_log(summary=summary, session=session)
-    except ValueError as exc:
-        return str(exc)
-    return f"Logged campaign event for session {session}."
+    return get_campaign_database().add_plot_log(summary=summary, session=session)
 
 
 def search_memory(query: str) -> list[dict[str, Any]]:
