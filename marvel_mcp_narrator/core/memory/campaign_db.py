@@ -642,7 +642,10 @@ class CampaignDatabase:
                 connection.commit()
                 return None
         plan = self.get_campaign_plan(campaign_id)
-        if plan is not None:
+        if plan is not None and any(
+            session["session_number"] == active_session_number
+            for session in plan["sessions"]
+        ):
             return plan
         with self._connect() as connection:
             self._clear_state(connection, "active_campaign_id")

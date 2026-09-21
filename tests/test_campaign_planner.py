@@ -275,3 +275,29 @@ def test_missing_active_campaign_plan_clears_campaign_state():
         ).fetchall()
 
     assert rows == []
+
+
+def test_active_campaign_plan_requires_active_session_entry():
+    planner = campaign_planner.CampaignPlanner()
+    plan = planner.create_campaign_plan(
+        theme="Last Beacon",
+        villain="Apocalypse",
+        hero_team=["Storm"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "DELETE FROM campaign_sessions WHERE campaign_id = ? AND session_number = 1",
+            (plan["campaign_id"],),
+        )
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []
