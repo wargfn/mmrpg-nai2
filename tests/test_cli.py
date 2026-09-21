@@ -846,6 +846,16 @@ class CLIStartupContextTests(unittest.TestCase):
 
         self.assertIn(STARTUP_CONTEXT_UNAVAILABLE_NOTE, context)
 
+    def test_get_startup_context_respects_budget_smaller_than_header(self):
+        class EmptyDatabase:
+            def list_memories(self):
+                return []
+
+        with patch('marvel_mcp_narrator.interfaces.cli.STARTUP_CONTEXT_CHAR_BUDGET', 5):
+            context = get_startup_context(EmptyDatabase())
+
+        self.assertLessEqual(len(context), 5)
+
     def test_build_startup_system_prompt_prepends_memory_context(self):
         class MemoryDatabase:
             def list_memories(self):

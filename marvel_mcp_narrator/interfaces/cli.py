@@ -211,14 +211,23 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
 
 def get_startup_context(database: CampaignDatabase | None = None) -> str:
     """Return a structured startup context block from persisted campaign memories."""
+    def _truncate_context(context: str) -> str:
+        if STARTUP_CONTEXT_CHAR_BUDGET <= 0:
+            return ""
+        if len(context) <= STARTUP_CONTEXT_CHAR_BUDGET:
+            return context
+        if STARTUP_CONTEXT_CHAR_BUDGET == 1:
+            return "…"
+        return context[: STARTUP_CONTEXT_CHAR_BUDGET - 1].rstrip() + "…"
+
     db = database or get_campaign_database()
     try:
         memories = db.list_memories()
     except (OSError, sqlite3.Error, ValueError):
-        return "Campaign Memory Context:\n- " + STARTUP_CONTEXT_UNAVAILABLE_NOTE
+        return _truncate_context("Campaign Memory Context:\n- " + STARTUP_CONTEXT_UNAVAILABLE_NOTE)
 
     if not memories:
-        return "Campaign Memory Context:\n- " + STARTUP_CONTEXT_EMPTY_NOTE
+        return _truncate_context("Campaign Memory Context:\n- " + STARTUP_CONTEXT_EMPTY_NOTE)
 
     lines = ["Campaign Memory Context:"]
     current_length = len(lines[0])
@@ -259,16 +268,8 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
                     lines.append(minimal_line)
     if len(lines) == 1:
         fallback = f"Campaign Memory Context:\n- +{max(1, omitted_count or total_memories)}"
-        if len(fallback) <= STARTUP_CONTEXT_CHAR_BUDGET:
-            return fallback
-    context = "\n".join(lines)
-    if len(context) <= STARTUP_CONTEXT_CHAR_BUDGET:
-        return context
-    if STARTUP_CONTEXT_CHAR_BUDGET <= 0:
-        return ""
-    if STARTUP_CONTEXT_CHAR_BUDGET == 1:
-        return "…"
-    return context[: STARTUP_CONTEXT_CHAR_BUDGET - 1].rstrip() + "…"
+        return _truncate_context(fallback)
+    return _truncate_context("\n".join(lines))
 
 
 def get_rules_startup_context() -> str:
