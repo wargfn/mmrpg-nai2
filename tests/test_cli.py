@@ -119,6 +119,31 @@ class CLIToolInjectionTests(unittest.TestCase):
         self.assertIn('Damage: 4 health', payload)
 
     @patch('marvel_mcp_narrator.interfaces.cli.resolve_player_attack', return_value={
+        "attacker": {"name": "Spider-Man", "side": "player"},
+        "target": {"name": "Hydra", "side": "enemy", "current_health": 71, "max_health": 75, "current_focus": 32, "max_focus": 50},
+        "ability": "melee",
+        "target_number": 13,
+        "target_resource": "focus",
+        "roll": {"dice_values": [6, 1, 6], "total_score": 22, "is_fantastic": True, "success": True},
+        "damage": {"total_damage": 18},
+    })
+    def test_router_attack_command_preserves_flags_after_manual_roll(self, mock_attack):
+        name, _payload = _route_intent_command(
+            '/attack Spider-Man melee Hydra [6, 1 (Marvel), 6] --edges 2 --troubles 1 --focus'
+        )
+        self.assertEqual(name, 'resolve_player_attack')
+        mock_attack.assert_called_once_with(
+            attacker_name='Spider-Man',
+            target_name='Hydra',
+            ability='melee',
+            dice_values=[6, 1, 6],
+            marvel_index=1,
+            target_resource='focus',
+            edges=2,
+            troubles=1,
+        )
+
+    @patch('marvel_mcp_narrator.interfaces.cli.resolve_player_attack', return_value={
         "attacker": {"name": "Captain America", "side": "player"},
         "target": {"name": "Red Skull", "side": "enemy", "current_health": 71, "max_health": 75, "current_focus": 50, "max_focus": 50},
         "ability": "melee",

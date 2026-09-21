@@ -21,6 +21,7 @@ def _default_database_path() -> Path:
 
 def _configure_connection(connection: sqlite3.Connection) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA busy_timeout = 5000")
     return connection
@@ -117,7 +118,7 @@ class CampaignDatabase:
                         narrator_bridge_prompt TEXT NOT NULL DEFAULT '',
                         hero_highlights_json TEXT NOT NULL DEFAULT '{}',
                         raw_session_log TEXT NOT NULL DEFAULT '',
-                        FOREIGN KEY (campaign_id) REFERENCES campaign_plans(id),
+                        FOREIGN KEY (campaign_id) REFERENCES campaign_plans(id) ON DELETE CASCADE,
                         UNIQUE (campaign_id, session_number)
                     )
                     """

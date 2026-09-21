@@ -469,15 +469,22 @@ def _parse_manual_roll_text(text: str) -> tuple[list[int], int] | None:
     return dice_values, (1 if marvel_index is None else marvel_index)
 
 
+def _extract_manual_roll(text: str) -> tuple[tuple[list[int], int] | None, str]:
+    match = MANUAL_D616_ROLL_PATTERN.search(text)
+    if match is None:
+        return None, text
+    manual_roll = _parse_manual_roll_text(match.group(0))
+    remainder = f"{text[:match.start()]} {text[match.end():]}".strip()
+    return manual_roll, remainder
+
+
 def _parse_attack_command(
     stripped: str, *, command_name: str
 ) -> tuple[str, str, str, tuple[list[int], int] | None, dict[str, int | str]]:
     remainder = stripped[len(command_name) :].strip()
     if not remainder:
         raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
-    manual_roll = _parse_manual_roll_text(remainder) if "[" in remainder and "]" in remainder else None
-    if manual_roll is not None:
-        remainder = remainder[: remainder.rfind("[")].rstrip()
+    manual_roll, remainder = _extract_manual_roll(remainder)
     options: dict[str, int | str] = {"edges": 0, "troubles": 0, "target_resource": "health"}
     tokens = remainder.split()
     positional_tokens = list(tokens)
@@ -530,8 +537,8 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
     if not stripped:
         return None
 
-    manual_roll = _parse_manual_roll_text(stripped) if MANUAL_D616_ROLL_PATTERN.fullmatch(stripped) else None
-    if manual_roll is not None:
+    manual_roll, remainder = _extract_manual_roll(stripped)
+    if manual_roll is not None and not remainder:
         dice_values, marvel_index = manual_roll
         return "manual_d616_report", _format_router_roll_result(
             resolve_manual_d616_roll(dice_values=dice_values, marvel_index=marvel_index)
