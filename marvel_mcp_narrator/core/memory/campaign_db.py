@@ -733,7 +733,7 @@ class CampaignDatabase:
                 WHERE campaign_id = ?
                 ORDER BY session_number ASC
                 """,
-                (active_campaign_id,),
+                (campaign_id,),
             ).fetchall()
             sessions = [self._row_to_campaign_session(row) for row in session_rows]
             current_session = next(

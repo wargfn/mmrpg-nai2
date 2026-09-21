@@ -1,3 +1,5 @@
+import contextlib
+import io
 import unittest
 import tomllib
 from tempfile import TemporaryDirectory
@@ -248,9 +250,15 @@ class CLIMainTests(unittest.TestCase):
     @patch.dict('os.environ', {}, clear=True)
     @patch('sys.argv', ['cli', '--help'])
     def test_main_help_includes_interactive_commands(self):
-        with self.assertRaises(SystemExit) as exc:
-            main()
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as exc:
+                main()
         self.assertEqual(exc.exception.code, 0)
+        help_output = stdout.getvalue()
+        self.assertIn("Interactive commands:", help_output)
+        self.assertIn("/help", help_output)
+        self.assertIn("Ctrl+C", help_output)
 
     def test_cli_help_epilog_mentions_shutdown_commands(self):
         self.assertIn("/help", CLI_COMMANDS_HELP)
