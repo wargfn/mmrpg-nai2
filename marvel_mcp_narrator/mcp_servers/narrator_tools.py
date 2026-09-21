@@ -310,13 +310,9 @@ def validate_character_powers(name: str, powers_list: list) -> dict:
 
 
 @mcp.tool()
-def remember_npc(name: str, affiliation: str = "", description: str = "", notes: str = "") -> dict:
+def remember_npc(name: str, affiliation: str = "", description: str = "", notes: str = "") -> str:
     """Persist NPC campaign memory details."""
-    message = save_npc(name=name, affiliation=affiliation, description=description, notes=notes)
-    return {
-        "message": message,
-        "npc": get_npc(name),
-    }
+    return save_npc(name=name, affiliation=affiliation, description=description, notes=notes)
 
 
 @mcp.tool()

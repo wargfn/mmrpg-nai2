@@ -428,6 +428,54 @@ class CampaignDatabase:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def search_memory_records(self, query: str, limit: int = SEARCH_RESULT_LIMIT) -> list[dict[str, Any]]:
+        """Search saved memories and plot logs for legacy compatibility flows."""
+        keyword = query.strip()
+        if not keyword:
+            return []
+
+        with self._connect() as connection:
+            memory_matches = [
+                {
+                    "memory_type": "memory",
+                    "name": row["key"],
+                    "affiliation": row["updated_at"],
+                    "summary": row["content"],
+                    "notes": row["content"],
+                }
+                for row in connection.execute(
+                    """
+                    SELECT key, content, updated_at
+                    FROM memories
+                    WHERE key LIKE ? COLLATE NOCASE OR content LIKE ? COLLATE NOCASE
+                    ORDER BY updated_at DESC, key ASC
+                    LIMIT ?
+                    """,
+                    (f"%{keyword}%", f"%{keyword}%", limit),
+                ).fetchall()
+            ]
+            remaining = max(limit - len(memory_matches), 0)
+            plot_log_matches = [] if remaining == 0 else [
+                {
+                    "memory_type": "plot_log",
+                    "name": f"Session {row['session_number']}",
+                    "affiliation": row["timestamp"],
+                    "summary": row["event_summary"],
+                    "notes": row["event_summary"],
+                }
+                for row in connection.execute(
+                    """
+                    SELECT session_number, event_summary, timestamp
+                    FROM plot_logs
+                    WHERE event_summary LIKE ? COLLATE NOCASE
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (f"%{keyword}%", remaining),
+                ).fetchall()
+            ]
+        return [*memory_matches, *plot_log_matches]
+
     def add_plot_log(self, summary: str, session: int = 1) -> None:
         """Persist a legacy-style plot log entry."""
         cleaned_summary = summary.strip()
@@ -561,43 +609,8 @@ def search_memory(query: str) -> list[dict[str, Any]]:
         }
         for entity in search_entities(keyword)
     ]
-    with get_campaign_database()._connect() as connection:
-        memory_matches = [
-            {
-                "memory_type": "memory",
-                "name": row["key"],
-                "affiliation": row["updated_at"],
-                "summary": row["content"],
-                "notes": row["content"],
-            }
-            for row in connection.execute(
-                """
-                SELECT key, content, updated_at
-                FROM memories
-                WHERE key LIKE ? COLLATE NOCASE OR content LIKE ? COLLATE NOCASE
-                ORDER BY updated_at DESC, key ASC
-                LIMIT ?
-                """,
-                (f"%{keyword}%", f"%{keyword}%", SEARCH_RESULT_LIMIT),
-            ).fetchall()
-        ]
-        plot_log_matches = [
-            {
-                "memory_type": "plot_log",
-                "name": f"Session {row['session_number']}",
-                "affiliation": row["timestamp"],
-                "summary": row["event_summary"],
-                "notes": row["event_summary"],
-            }
-            for row in connection.execute(
-                """
-                SELECT session_number, event_summary, timestamp
-                FROM plot_logs
-                WHERE event_summary LIKE ? COLLATE NOCASE
-                ORDER BY id DESC
-                LIMIT ?
-                """,
-                (f"%{keyword}%", SEARCH_RESULT_LIMIT),
-            ).fetchall()
-        ]
-    return [*entity_matches, *memory_matches, *plot_log_matches][:SEARCH_RESULT_LIMIT]
+    legacy_matches = get_campaign_database().search_memory_records(
+        keyword,
+        limit=max(SEARCH_RESULT_LIMIT - len(entity_matches), 0),
+    )
+    return [*entity_matches, *legacy_matches][:SEARCH_RESULT_LIMIT]
