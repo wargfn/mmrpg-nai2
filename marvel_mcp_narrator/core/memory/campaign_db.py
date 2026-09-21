@@ -739,6 +739,7 @@ class CampaignDatabase:
                 None,
             )
             if current_session is None:
+                self._clear_state(connection, "active_campaign_id")
                 self._clear_state(connection, "active_session_number")
                 connection.commit()
                 return None

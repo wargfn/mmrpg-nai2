@@ -200,3 +200,29 @@ def test_non_positive_active_session_state_is_cleared():
         ).fetchall()
 
     assert rows == []
+
+
+def test_missing_active_session_entry_clears_campaign_state():
+    planner = campaign_planner.CampaignPlanner()
+    plan = planner.create_campaign_plan(
+        theme="Fading Reality",
+        villain="Dormammu",
+        hero_team=["Doctor Strange"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            "DELETE FROM campaign_sessions WHERE campaign_id = ? AND session_number = 1",
+            (plan["campaign_id"],),
+        )
+        connection.commit()
+
+    assert database.get_current_session_context() is None
+
+    with database._connect() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM campaign_state WHERE key IN ('active_campaign_id', 'active_session_number')"
+        ).fetchall()
+
+    assert rows == []
