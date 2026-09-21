@@ -117,6 +117,30 @@ def test_save_npc_preserves_existing_location_and_disposition(isolated_campaign_
     assert npc["custom_stats_json"] == {"speed": 4}
 
 
+def test_save_npc_updates_existing_entry_case_insensitively():
+    campaign_db.save_npc(
+        name="Nick Fury",
+        affiliation="S.H.I.E.L.D.",
+        description="Director",
+        notes="Original record.",
+    )
+
+    campaign_db.save_npc(
+        name="nick fury",
+        affiliation="Avengers",
+        description="Spymaster",
+        notes="Updated record.",
+    )
+
+    npc = campaign_db.get_npc("Nick Fury")
+    matches = campaign_db.search_memory("nick fury")
+
+    assert npc["name"] == "nick fury"
+    assert npc["affiliation"] == "Avengers"
+    assert npc["archetype_or_role"] == "Spymaster"
+    assert len([match for match in matches if match["memory_type"] == "npc"]) == 1
+
+
 def test_log_event_persists_plot_entry(isolated_campaign_db):
     message = campaign_db.log_event("Hydra stole the artifact.", session=3)
 
@@ -164,6 +188,17 @@ def test_narrator_tools_expose_campaign_memory_flow():
     assert remembered["npc"]["name"] == "Wilson Fisk"
     assert "Crime boss" in recalled
     assert logged == "Logged campaign event for session 4."
+
+
+def test_recall_npc_or_location_formats_search_results_and_missing_message():
+    narrator_tools.log_campaign_event("The heroes regrouped in Avengers Tower.", session=2)
+
+    recalled = narrator_tools.recall_npc_or_location("Avengers Tower")
+    missing = narrator_tools.recall_npc_or_location("Latveria")
+
+    assert "Campaign memory matches for 'Avengers Tower':" in recalled
+    assert "[plot_log] Session 2" in recalled
+    assert missing == "No campaign memory found for 'Latveria'."
 
 
 def test_log_campaign_event_rejects_invalid_session():

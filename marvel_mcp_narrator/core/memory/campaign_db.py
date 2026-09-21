@@ -15,22 +15,52 @@ def _default_database_path() -> Path:
 
 
 CAMPAIGN_DB_PATH = _default_database_path()
+_ALLOWED_IDENTIFIERS = {
+    "npcs": {
+        "archetype_or_role",
+        "affiliation",
+        "disposition",
+        "location",
+        "notes",
+        "custom_stats_json",
+    },
+    "locations": {"description", "current_status"},
+    "plot_logs": {"session_number", "event_summary", "timestamp"},
+}
+
+
+def _quote_identifier(identifier: str) -> str:
+    if not identifier.replace("_", "").isalnum():
+        raise ValueError(f"Unsafe SQL identifier: {identifier}")
+    return f'"{identifier}"'
 
 
 def _existing_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
-    return {row[1] for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
+    if table_name not in _ALLOWED_IDENTIFIERS:
+        raise ValueError(f"Unsupported table for migration: {table_name}")
+    quoted_table_name = _quote_identifier(table_name)
+    return {row[1] for row in connection.execute(f"PRAGMA table_info({quoted_table_name})").fetchall()}
 
 
 def _ensure_columns(connection: sqlite3.Connection, table_name: str, column_definitions: dict[str, str]) -> None:
+    allowed_columns = _ALLOWED_IDENTIFIERS.get(table_name)
+    if allowed_columns is None:
+        raise ValueError(f"Unsupported table for migration: {table_name}")
     existing_columns = _existing_columns(connection, table_name)
     for column_name, column_definition in column_definitions.items():
+        if column_name not in allowed_columns:
+            raise ValueError(f"Unsupported column for migration: {table_name}.{column_name}")
         if column_name not in existing_columns:
             normalized_definition = column_definition.upper()
             if "NOT NULL" in normalized_definition and "DEFAULT" not in normalized_definition:
                 raise ValueError(
                     f"SQLite migration for {table_name}.{column_name} requires a DEFAULT value for NOT NULL columns."
                 )
-            connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
+            quoted_table_name = _quote_identifier(table_name)
+            quoted_column_name = _quote_identifier(column_name)
+            connection.execute(
+                f"ALTER TABLE {quoted_table_name} ADD COLUMN {quoted_column_name} {column_definition}"
+            )
 
 
 def initialize_database(path: Path | str | None = None) -> Path:
@@ -119,26 +149,43 @@ def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
         raise ValueError("NPC name is required.")
 
     with _connect() as connection:
-        connection.execute(
-            """
-            INSERT INTO npcs (name, archetype_or_role, affiliation, notes, custom_stats_json)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(name) DO UPDATE SET
-                archetype_or_role = excluded.archetype_or_role,
-                affiliation = excluded.affiliation,
-                disposition = npcs.disposition,
-                location = npcs.location,
-                notes = excluded.notes,
-                custom_stats_json = COALESCE(npcs.custom_stats_json, excluded.custom_stats_json)
-            """,
-            (
-                cleaned_name,
-                description.strip() or None,
-                affiliation.strip() or None,
-                notes.strip() or None,
-                json.dumps({}),
-            ),
-        )
+        existing_npc = connection.execute(
+            "SELECT id FROM npcs WHERE lower(name) = lower(?)",
+            (cleaned_name,),
+        ).fetchone()
+        if existing_npc is None:
+            connection.execute(
+                """
+                INSERT INTO npcs (name, archetype_or_role, affiliation, notes, custom_stats_json)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    cleaned_name,
+                    description.strip() or None,
+                    affiliation.strip() or None,
+                    notes.strip() or None,
+                    json.dumps({}),
+                ),
+            )
+        else:
+            connection.execute(
+                """
+                UPDATE npcs
+                SET
+                    name = ?,
+                    archetype_or_role = ?,
+                    affiliation = ?,
+                    notes = ?
+                WHERE id = ?
+                """,
+                (
+                    cleaned_name,
+                    description.strip() or None,
+                    affiliation.strip() or None,
+                    notes.strip() or None,
+                    existing_npc["id"],
+                ),
+            )
         connection.commit()
     return f"Saved NPC '{cleaned_name}'."
 
