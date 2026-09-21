@@ -47,6 +47,15 @@ class RulesDatabaseTests(unittest.TestCase):
         self.assertIn('Rule Reference: Teleportation', results)
         self.assertIn('teleportation', results)
 
+    def test_query_rulebook_database_finds_power_set_expansion_entries(self):
+        results = query_rulebook_database('Telespot')
+        self.assertIn('Rule Reference: Telespot', results)
+        self.assertIn('teleportation', results.lower())
+
+    def test_query_rulebook_database_finds_iconic_item_subset_power(self):
+        results = query_rulebook_database('Iconic Item')
+        self.assertIn('Rule Reference: Iconic Item', results)
+
     def test_query_rulebook_database_uses_exact_index_before_keyword_search(self):
         results = query_rulebook_database('d616_basics')
         self.assertIn('Rule Reference: d616 Basics', results)

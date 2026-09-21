@@ -38,6 +38,7 @@ class RulesDatabase:
 
     def __init__(self, path: Path | str | None = None) -> None:
         self._data = load_rules_database(path)
+        self._power_entries = self._iter_power_entries()
         self._lookup_index = self._build_lookup_index()
 
     def _build_lookup_index(self) -> dict[str, dict[str, Any]]:
@@ -51,16 +52,77 @@ class RulesDatabase:
                 if alias:
                     index[alias] = {"entry_type": "mechanic", "rule_key": str(key), **payload}
 
-        for payload in self._data.get("powers", []):
+        for payload in self._power_entries:
             name = str(payload.get("name", "")).strip()
             if not name:
                 continue
             rule_key = name.lower().replace(" ", "_")
             aliases = {name.lower(), rule_key}
             for alias in aliases:
-                index[alias] = {"entry_type": "power", "rule_key": rule_key, **payload}
+                index.setdefault(alias, {"entry_type": "power", "rule_key": rule_key, **payload})
 
         return index
+
+    def _iter_power_entries(self) -> list[dict[str, Any]]:
+        entries: list[dict[str, Any]] = []
+        entries.extend(self._data.get("powers", []))
+        for power_set in self._data.get("power_sets", []):
+            set_name = str(power_set.get("name", "Power Set")).strip() or "Power Set"
+            for payload in power_set.get("powers", []):
+                if not isinstance(payload, dict):
+                    continue
+                entry = dict(payload)
+                entry.setdefault("category", set_name)
+                if "summary" in entry and "description" not in entry:
+                    entry["description"] = entry["summary"]
+                entries.append(entry)
+        source_by_name = {
+            str(entry.get("name", "")).strip().casefold(): entry
+            for entry in entries
+            if str(entry.get("name", "")).strip()
+        }
+        reference_entries: dict[str, dict[str, Any]] = {}
+        for power_set in self._data.get("power_sets", []):
+            set_name = str(power_set.get("name", "Power Set")).strip() or "Power Set"
+            for reference in power_set.get("power_references", []):
+                ref_name = str(reference).strip()
+                if not ref_name:
+                    continue
+                ref_key = ref_name.casefold()
+                target_entry = reference_entries.get(ref_key)
+                if ref_key in source_by_name:
+                    if target_entry is None:
+                        target_entry = dict(source_by_name[ref_key])
+                        target_entry["referenced_from"] = True
+                        target_entry["referenced_by_subsets"] = []
+                        reference_entries[ref_key] = target_entry
+                    subsets = list(target_entry.get("referenced_by_subsets", []))
+                    if set_name not in subsets:
+                        subsets.append(set_name)
+                    target_entry["referenced_by_subsets"] = subsets
+                    continue
+                if target_entry is None:
+                    target_entry = {
+                        "name": ref_name,
+                        "category": "Referenced Power",
+                        "description": "",
+                        "referenced_from": True,
+                        "referenced_by_subsets": [],
+                    }
+                    reference_entries[ref_key] = target_entry
+                subsets = list(target_entry.get("referenced_by_subsets", []))
+                if set_name not in subsets:
+                    subsets.append(set_name)
+                target_entry["referenced_by_subsets"] = subsets
+        for target_entry in reference_entries.values():
+            subset_text = ", ".join(target_entry.get("referenced_by_subsets", []))
+            base_description = str(target_entry.get("description", "")).strip()
+            if subset_text:
+                target_entry["description"] = (
+                    f"{base_description} Referenced by {subset_text}."
+                ).strip()
+            entries.append(target_entry)
+        return entries
 
     def lookup_rule(self, query: str) -> dict[str, Any]:
         """Return an exact indexed rule lookup by key, title, or power name."""
@@ -123,7 +185,7 @@ class RulesDatabase:
                 )
 
         powers_matches: list[dict[str, Any]] = []
-        for payload in self._data.get("powers", []):
+        for payload in self._power_entries:
             name = str(payload.get("name", "Unknown Power"))
             category = str(payload.get("category", "Uncategorized"))
             rank_required = payload.get("rank_required", "?")
