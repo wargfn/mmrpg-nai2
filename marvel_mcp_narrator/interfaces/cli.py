@@ -40,25 +40,22 @@ def build_open_webui_chat_endpoint(host: str) -> str:
     normalized_host = normalize_open_webui_host(host)
     parsed = urlparse(normalized_host)
     path = parsed.path.rstrip("/")
-    last_segment = path.rsplit("/", maxsplit=1)[-1] if path else ""
+    segments = [segment for segment in path.split("/") if segment]
+    last_segment = segments[-1] if segments else ""
     is_version_segment = len(last_segment) > 1 and last_segment.startswith("v") and last_segment[1:].isdigit()
-    if path.endswith("/chat/completions"):
-        endpoint_path = path
-    elif path.endswith("/completions"):
-        prefix_path = path[: -len("/completions")]
-        prefix_segment = prefix_path.rsplit("/", maxsplit=1)[-1] if prefix_path else ""
-        is_openai_completions = (
-            (len(prefix_segment) > 1 and prefix_segment.startswith("v") and prefix_segment[1:].isdigit())
-            or prefix_path.endswith("/openai")
-            or prefix_path.endswith("/api")
-        )
-        endpoint_path = f"{prefix_path}/chat/completions" if is_openai_completions else path
-    elif path.endswith("/chat"):
-        endpoint_path = f"{path}/completions"
-    elif is_version_segment or path.endswith("/api") or path.endswith("/openai"):
-        endpoint_path = f"{path}/chat/completions"
+
+    if len(segments) >= 2 and segments[-2:] == ["chat", "completions"]:
+        endpoint_segments = segments
+    elif segments and segments[-1] == "completions":
+        endpoint_segments = segments[:-1] + ["chat", "completions"]
+    elif segments and segments[-1] == "chat":
+        endpoint_segments = segments + ["completions"]
+    elif is_version_segment or (segments and segments[-1] in {"api", "openai"}):
+        endpoint_segments = segments + ["chat", "completions"]
     else:
-        endpoint_path = f"{path}/api/chat/completions"
+        endpoint_segments = segments + ["api", "chat", "completions"]
+
+    endpoint_path = "/" + "/".join(endpoint_segments)
     return urlunparse(parsed._replace(path=endpoint_path))
 
 

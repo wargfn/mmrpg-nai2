@@ -2032,33 +2032,12 @@
       "name": "Emotion Powers",
       "type": "expansion_sub_set",
       "parent_set": "Telepathy",
-      "powers": [
-        {
-          "name": "Sense Emotion",
-          "rank_required": 1,
-          "prerequisites": []
-        },
-        {
-          "name": "Sway Emotion",
-          "rank_required": 2,
-          "prerequisites": [
-            "Sense Emotion"
-          ]
-        },
-        {
-          "name": "Control Emotion",
-          "rank_required": 3,
-          "prerequisites": [
-            "Sway Emotion"
-          ]
-        },
-        {
-          "name": "Group Control Emotion",
-          "rank_required": 4,
-          "prerequisites": [
-            "Control Emotion"
-          ]
-        }
+      "powers": [],
+      "power_references": [
+        "Sense Emotion",
+        "Sway Emotion",
+        "Control Emotion",
+        "Group Control Emotion"
       ]
     },
     {
@@ -2077,21 +2056,10 @@
       "name": "Dreamtime Sub-Set",
       "type": "expansion_sub_set",
       "parent_set": "Omniversal Travel",
-      "powers": [
-        {
-          "name": "Enter Dreamtime",
-          "rank_required": 3,
-          "prerequisites": [],
-          "summary": "Dreamtime sub-set gateway; costs 15 Focus."
-        },
-        {
-          "name": "Enter Dreamtime Together",
-          "rank_required": 4,
-          "prerequisites": [
-            "Enter Dreamtime"
-          ],
-          "summary": "Bring companions into Dreamtime; costs 10 Focus."
-        }
+      "powers": [],
+      "power_references": [
+        "Enter Dreamtime",
+        "Enter Dreamtime Together"
       ]
     }
   ],

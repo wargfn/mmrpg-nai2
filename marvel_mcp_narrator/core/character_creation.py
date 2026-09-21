@@ -118,7 +118,16 @@ def _get_power_details() -> dict[str, dict[str, Any]]:
                             existing = details[key]
                             existing_rank = existing.get("rank_required")
                             existing_prereqs = [str(item).strip() for item in existing.get("prerequisites", []) if str(item).strip()]
-                            if rank_required != existing_rank or set(prerequisites) != set(existing_prereqs):
+                            incoming_summary = str(power.get("summary", "")).strip()
+                            incoming_description = str(power.get("description", "")).strip()
+                            existing_summary = str(existing.get("summary", "")).strip()
+                            existing_description = str(existing.get("description", "")).strip()
+                            if (
+                                rank_required != existing_rank
+                                or set(prerequisites) != set(existing_prereqs)
+                                or incoming_summary != existing_summary
+                                or incoming_description != existing_description
+                            ):
                                 raise ValueError(
                                     f"Conflicting definitions for power '{name}' in power set '{power_set_name}'."
                                 )
@@ -128,6 +137,8 @@ def _get_power_details() -> dict[str, dict[str, Any]]:
                             "name": name,
                             "rank_required": rank_required,
                             "prerequisites": prerequisites,
+                            "summary": str(power.get("summary", "")).strip(),
+                            "description": str(power.get("description", "")).strip(),
                         }
 
                 _POWER_DETAILS_CACHE = details
@@ -210,7 +221,16 @@ def list_archetypes() -> list[dict[str, str]]:
 
 
 def list_origins() -> list[str]:
-    return sorted(set(_get_origins_lookup().values()))
+    options: list[str] = []
+    for entry in load_rules_database().get("origins", []):
+        subcategories = [str(item).strip() for item in entry.get("subcategories", []) if str(item).strip()]
+        if subcategories:
+            options.extend(subcategories)
+            continue
+        name = str(entry.get("name", "")).strip()
+        if name:
+            options.append(name)
+    return sorted(set(options))
 
 
 def list_occupations() -> list[str]:

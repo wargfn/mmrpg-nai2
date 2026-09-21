@@ -422,7 +422,8 @@ def test_list_traits_and_tags_include_common_entries():
 def test_list_available_origins_and_occupations():
     origins = narrator_tools.list_available_origins()
     occupations = narrator_tools.list_available_occupations()
-    assert "Mutant" in origins
+    assert "Skrull" in origins
+    assert "Unknown" in origins
     assert "Scientist" in occupations
     assert len(origins) == len(set(origins))
     assert len(occupations) == len(set(occupations))
