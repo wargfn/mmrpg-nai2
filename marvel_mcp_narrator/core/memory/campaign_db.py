@@ -645,11 +645,17 @@ class CampaignDatabase:
                 connection.commit()
                 return None
         plan = self.get_campaign_plan(campaign_id)
-        if plan is not None and any(
-            session["session_number"] == active_session_number
-            for session in plan["sessions"]
-        ):
-            return plan
+        if plan is not None:
+            active_session = next(
+                (
+                    session
+                    for session in plan["sessions"]
+                    if session["session_number"] == active_session_number
+                ),
+                None,
+            )
+            if active_session is not None and active_session.get("status") != "completed":
+                return plan
         with self._connect() as connection:
             self._clear_state(connection, "active_campaign_id")
             self._clear_state(connection, "active_session_number")
@@ -757,6 +763,11 @@ class CampaignDatabase:
                 None,
             )
             if current_session is None:
+                self._clear_state(connection, "active_campaign_id")
+                self._clear_state(connection, "active_session_number")
+                connection.commit()
+                return None
+            if current_session.get("status") == "completed":
                 self._clear_state(connection, "active_campaign_id")
                 self._clear_state(connection, "active_session_number")
                 connection.commit()

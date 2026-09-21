@@ -350,3 +350,34 @@ def test_partial_active_campaign_state_is_cleared():
         ).fetchall()
 
     assert rows == []
+
+
+def test_completed_active_session_state_is_cleared():
+    planner = campaign_planner.CampaignPlanner()
+    plan = planner.create_campaign_plan(
+        theme="Broken Finale",
+        villain="Ultron",
+        hero_team=["Iron Man"],
+        desired_session_count=1,
+    )
+    database = campaign_db.get_campaign_database()
+    with database._connect() as connection:
+        connection.execute(
+            """
+            UPDATE campaign_sessions
+            SET status = 'completed'
+            WHERE campaign_id = ? AND session_number = 1
+            """,
+            (plan["campaign_id"],),
+        )
+        connection.execute(
+            "INSERT OR REPLACE INTO campaign_state (key, value, updated_at) VALUES ('active_campaign_id', ?, 'now')",
+            (str(plan["campaign_id"]),),
+        )
+        connection.execute(
+            "INSERT OR REPLACE INTO campaign_state (key, value, updated_at) VALUES ('active_session_number', '1', 'now')"
+        )
+        connection.commit()
+
+    assert database.get_active_campaign_plan() is None
+    assert database.get_current_session_context() is None
