@@ -113,6 +113,15 @@ class CampaignDatabase:
             name = str(row["name"]).strip()
             if not name:
                 continue
+            legacy_role = str(row["archetype_or_role"] or "").strip()
+            try:
+                legacy_stats = json.loads(str(row["custom_stats_json"] or "{}"))
+                if not isinstance(legacy_stats, dict):
+                    legacy_stats = {}
+            except json.JSONDecodeError:
+                legacy_stats = {}
+            if legacy_role:
+                legacy_stats.setdefault("legacy_role", legacy_role)
             existing = connection.execute(
                 "SELECT id, custom_stats_json FROM entities WHERE name = ? COLLATE NOCASE",
                 (name,),
@@ -120,12 +129,12 @@ class CampaignDatabase:
             payload = (
                 name,
                 "NPC",
-                str(row["archetype_or_role"] or "Unknown entity"),
+                legacy_role or "Unknown entity",
                 str(row["disposition"] or "Neutral"),
                 str(row["location"] or "Unknown"),
                 str(row["notes"] or ""),
                 str(row["affiliation"] or ""),
-                str(row["custom_stats_json"] or "{}"),
+                json.dumps(legacy_stats),
             )
             if existing is None:
                 connection.execute(
@@ -180,7 +189,7 @@ class CampaignDatabase:
             if not name:
                 continue
             existing = connection.execute(
-                "SELECT id FROM entities WHERE name = ? COLLATE NOCASE",
+                "SELECT id, category FROM entities WHERE name = ? COLLATE NOCASE",
                 (name,),
             ).fetchone()
             payload = (
@@ -210,7 +219,7 @@ class CampaignDatabase:
                     """,
                     payload,
                 )
-            else:
+            elif str(existing["category"] or "").casefold() == "location":
                 connection.execute(
                     """
                     UPDATE entities
@@ -535,11 +544,11 @@ def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
     return f"Saved NPC '{cleaned_name}'."
 
 
-def get_npc(name: str) -> dict[str, Any]:
+def get_npc(name: str) -> dict[str, Any] | None:
     """Backward-compatible NPC lookup."""
     entity = get_entity(name)
     if entity is None or str(entity.get("category", "")).casefold() != "npc":
-        return {}
+        return None
     return entity
 
 
