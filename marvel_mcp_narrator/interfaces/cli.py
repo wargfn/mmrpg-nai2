@@ -239,7 +239,7 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
                 if current_length + 1 + len(minimal_line) <= STARTUP_CONTEXT_CHAR_BUDGET:
                     lines.append(minimal_line)
     if len(lines) == 1:
-        fallback = f"Memory:\n+{max(1, omitted_count or total_memories)}"
+        fallback = f"Campaign Memory Context:\n- +{max(1, omitted_count or total_memories)}"
         if len(fallback) <= STARTUP_CONTEXT_CHAR_BUDGET:
             return fallback
     return "\n".join(lines)
@@ -423,14 +423,13 @@ def run_cli(
     print("Type '/help' for commands and 'exit' to quit.\n")
 
     rules_context = get_rules_startup_context()
-    campaign_memory_context = get_startup_context(database)
     messages: list[dict[str, str]] = [
         {
             "role": "system",
             "content": build_startup_system_prompt(
                 database,
                 rules_context=rules_context,
-                campaign_memory_context=campaign_memory_context,
+                campaign_memory_context=get_startup_context(database),
             ),
         }
     ]
@@ -472,6 +471,7 @@ def run_cli(
             continue
 
         try:
+            campaign_memory_context = get_startup_context(database)
             messages[0]["content"] = build_startup_system_prompt(
                 database,
                 rules_context=rules_context,
