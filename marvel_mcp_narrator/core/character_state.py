@@ -55,9 +55,9 @@ class Character:
                 raise ValueError(f"Ability '{ability_name}' must be non-negative.")
 
         if self.max_health is None:
-            self.max_health = max(10, self.resilience * 30)
+            self.max_health = self.resilience * 25
         if self.max_focus is None:
-            self.max_focus = max(10, self.vigilance * 30)
+            self.max_focus = self.vigilance * 25
 
         if self.max_health < 1 or self.max_focus < 1:
             raise ValueError("Maximum health and focus must be positive.")
@@ -135,6 +135,14 @@ class Character:
     def logic_defense(self) -> int:
         return 10 + self.logic
 
+    @property
+    def initiative_modifier(self) -> int:
+        return self.vigilance
+
+    @property
+    def running_speed(self) -> int:
+        return 5 + (self.agility // 5)
+
     def damage_multiplier(self, bonus_multiplier: int = 0) -> int:
         if bonus_multiplier < 0:
             raise ValueError("Bonus multiplier must be non-negative.")
@@ -154,8 +162,8 @@ class Character:
             raise ValueError("Marvel die must be non-negative.")
 
         multiplier = self.damage_multiplier(bonus_multiplier=bonus_multiplier)
-        base_damage = (marvel_die * multiplier) + getattr(self, ability)
-        total_damage = base_damage * 2 if is_fantastic else base_damage
+        base_damage = marvel_die * multiplier
+        total_damage = base_damage
 
         return {
             "attacker": self.name,
@@ -226,13 +234,21 @@ class Character:
             "logic_defense": self.logic_defense,
         }
 
+    def get_derived_stats(self) -> dict[str, int]:
+        return {
+            "max_health": self.max_health,
+            "max_focus": self.max_focus,
+            "initiative_modifier": self.initiative_modifier,
+            "running_speed": self.running_speed,
+        }
+
     def get_attack_profiles(self) -> dict[str, dict[str, str | int]]:
         return {
             ability: {
                 "ability_score": getattr(self, ability),
                 "damage_multiplier": self.rank,
-                "formula": "(marvel_die * damage_multiplier) + ability_score",
-                "fantastic_rule": "Double total damage on Fantastic hits",
+                "formula": "marvel_die * damage_multiplier",
+                "fantastic_rule": "Fantastic status comes from the Marvel die and may unlock power-specific effects",
             }
             for ability in _ABILITY_FIELDS
         }
@@ -240,6 +256,7 @@ class Character:
     def to_dict(self) -> dict:
         payload = asdict(self)
         payload["defenses"] = self.get_defenses()
+        payload["derived_stats"] = self.get_derived_stats()
         payload["attack_profiles"] = self.get_attack_profiles()
         return payload
 
@@ -249,6 +266,7 @@ class CharacterRoster:
 
     def __init__(self) -> None:
         self._characters: dict[str, Character] = {}
+        self._active_character_key: str | None = None
         self._lock = RLock()
 
     @staticmethod
@@ -341,6 +359,7 @@ class CharacterRoster:
         with self._lock:
             existing = self._characters.get(key)
             if existing is not None:
+                self._active_character_key = key
                 mismatches = [
                     field_name
                     for field_name in _CHARACTER_DEFINITION_FIELDS
@@ -373,12 +392,14 @@ class CharacterRoster:
                 power_sets=requested_values["power_sets"],
             )
             self._characters[key] = created
+            self._active_character_key = key
             return self._copy_character(created).to_dict(), True
 
     def get_copy(self, name: str) -> Character:
         key = self._normalize(name)
         with self._lock:
             try:
+                self._active_character_key = key
                 return self._copy_character(self._characters[key])
             except KeyError as error:
                 raise KeyError(f"Character '{name}' was not found.") from error
@@ -387,9 +408,20 @@ class CharacterRoster:
         key = self._normalize(name)
         with self._lock:
             try:
+                self._active_character_key = key
                 return self._copy_character(self._characters[key]).to_dict()
             except KeyError as error:
                 raise KeyError(f"Character '{name}' was not found.") from error
+
+    def get_active_sheet(self) -> dict | None:
+        with self._lock:
+            if self._active_character_key is None:
+                return None
+            character = self._characters.get(self._active_character_key)
+            if character is None:
+                self._active_character_key = None
+                return None
+            return self._copy_character(character).to_dict()
 
     def apply_damage(self, name: str, health_damage: int = 0, focus_damage: int = 0) -> dict:
         if health_damage < 0 or focus_damage < 0:
@@ -400,6 +432,7 @@ class CharacterRoster:
                 character = self._characters[key]
             except KeyError as error:
                 raise KeyError(f"Character '{name}' was not found.") from error
+            self._active_character_key = key
 
             health_result = character.take_health_damage(health_damage)
             focus_result = character.take_focus_damage(focus_damage)
@@ -426,6 +459,7 @@ class CharacterRoster:
                 character = self._characters[key]
             except KeyError as error:
                 raise KeyError(f"Character '{attacker_name}' was not found.") from error
+            self._active_character_key = key
             return character.calculate_attack_damage(
                 ability=ability,
                 marvel_die=marvel_die,
@@ -436,6 +470,7 @@ class CharacterRoster:
     def clear(self) -> None:
         with self._lock:
             self._characters.clear()
+            self._active_character_key = None
 
 
 character_roster = CharacterRoster()

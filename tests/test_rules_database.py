@@ -37,6 +37,18 @@ class RulesDatabaseTests(unittest.TestCase):
         self.assertIn('Rulebook Search Results', results)
         self.assertIn('Botch and Ultimate 616', results)
 
+    def test_query_rulebook_database_finds_core_attribute_rules(self):
+        results = query_rulebook_database('resilience')
+        self.assertIn('Rulebook Search Results', results)
+        self.assertIn('Core Attribute: Resilience', results)
+        self.assertIn('Health = Resilience × 25', results)
+
+    def test_lookup_rule_reference_returns_damage_formula_rule(self):
+        payload = lookup_rule_reference('damage_formula')
+        self.assertEqual(payload['entry_type'], 'mechanic')
+        self.assertEqual(payload['title'], 'Damage Formula')
+        self.assertEqual(payload['formula'], 'Base Damage = Rank × Marvel Die')
+
     @patch('marvel_mcp_narrator.core.rules_database.files', side_effect=ModuleNotFoundError)
     def test_load_rules_database_falls_back_to_source_path(self, _mock_files):
         rules = load_rules_database()

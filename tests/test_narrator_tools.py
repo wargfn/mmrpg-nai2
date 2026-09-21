@@ -49,7 +49,7 @@ class NarratorToolsTests(unittest.TestCase):
         )
         payload = narrator_tools.get_character("Storm")
         self.assertEqual(payload["name"], "Storm")
-        self.assertEqual(payload["max_focus"], 150)
+        self.assertEqual(payload["max_focus"], 125)
 
     def test_get_character_accepts_trimmed_identifier(self):
         narrator_tools.create_character(
@@ -79,8 +79,8 @@ class NarratorToolsTests(unittest.TestCase):
             logic=2,
         )
         payload = narrator_tools.apply_damage_to_character("Wolverine", health_damage=15, focus_damage=10)
-        self.assertEqual(payload["health"]["current"], 105)
-        self.assertEqual(payload["focus"]["current"], 50)
+        self.assertEqual(payload["health"]["current"], 85)
+        self.assertEqual(payload["focus"]["current"], 40)
 
     def test_calculate_attack_uses_character_rank_multiplier(self):
         narrator_tools.create_character(
@@ -101,8 +101,8 @@ class NarratorToolsTests(unittest.TestCase):
             is_fantastic=True,
         )
         self.assertEqual(payload["damage_multiplier"], 4)
-        self.assertEqual(payload["base_damage"], 29)
-        self.assertEqual(payload["total_damage"], 58)
+        self.assertEqual(payload["base_damage"], 24)
+        self.assertEqual(payload["total_damage"], 24)
 
     def test_new_character_tools_are_callable(self):
         self.assertTrue(callable(narrator_tools.create_character))

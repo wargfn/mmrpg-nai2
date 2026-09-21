@@ -57,15 +57,21 @@ def test_health_and_focus_pools_initialize_from_resilience_and_vigilance():
         traits=["Brawler"],
         tags=["Weapon X"],
     )
-    assert character.max_health == 120
-    assert character.current_health == 120
-    assert character.max_focus == 60
-    assert character.current_focus == 60
+    assert character.max_health == 100
+    assert character.current_health == 100
+    assert character.max_focus == 50
+    assert character.current_focus == 50
     payload = character.to_dict()
     assert payload["origin"] == "Mutation"
     assert payload["occupation"] == "Military"
     assert payload["traits"] == ["Brawler"]
     assert payload["tags"] == ["Weapon X"]
+    assert payload["derived_stats"] == {
+        "max_health": 100,
+        "max_focus": 50,
+        "initiative_modifier": 2,
+        "running_speed": 5,
+    }
 
 
 def test_take_damage_threshold_states():
@@ -89,7 +95,7 @@ def test_take_damage_threshold_states():
     assert focus_result["current"] == 0
 
 
-def test_attack_damage_formula_and_fantastic_double():
+def test_attack_damage_formula_uses_rank_times_marvel_die():
     character = Character(
         name="Captain Marvel",
         archetype="Blaster",
@@ -105,9 +111,9 @@ def test_attack_damage_formula_and_fantastic_double():
     fantastic = character.calculate_attack_damage(ability="ego", marvel_die=6, is_fantastic=True)
 
     assert normal["damage_multiplier"] == 4
-    assert normal["base_damage"] == 29
-    assert normal["total_damage"] == 29
-    assert fantastic["total_damage"] == 58
+    assert normal["base_damage"] == 24
+    assert normal["total_damage"] == 24
+    assert fantastic["total_damage"] == 24
 
 
 def test_condition_management_ignores_whitespace_only_entries():
@@ -178,16 +184,16 @@ def test_tools_character_management_and_damage_response():
     assert create_payload["character"]["defenses"]["vigilance_defense"] == 15
 
     sheet = narrator_tools.get_character_sheet("Storm")
-    assert sheet["max_health"] == 90
-    assert sheet["max_focus"] == 150
+    assert sheet["max_health"] == 75
+    assert sheet["max_focus"] == 125
 
     damage_result = narrator_tools.apply_damage("Storm", health_damage=10, focus_damage=25)
-    assert damage_result["health"]["previous"] == 90
+    assert damage_result["health"]["previous"] == 75
     assert damage_result["health"]["damage"] == 10
-    assert damage_result["health"]["current"] == 80
-    assert damage_result["focus"]["previous"] == 150
+    assert damage_result["health"]["current"] == 65
+    assert damage_result["focus"]["previous"] == 125
     assert damage_result["focus"]["damage"] == 25
-    assert damage_result["focus"]["current"] == 125
+    assert damage_result["focus"]["current"] == 100
 
     attack_result = narrator_tools.calculate_attack_damage(
         attacker_name="Storm",
@@ -196,8 +202,40 @@ def test_tools_character_management_and_damage_response():
         is_fantastic=True,
     )
     assert attack_result["damage_multiplier"] == 4
-    assert attack_result["base_damage"] == 25
-    assert attack_result["total_damage"] == 50
+    assert attack_result["base_damage"] == 20
+    assert attack_result["total_damage"] == 20
+
+
+def test_active_character_sheet_tracks_last_accessed_character():
+    narrator_tools.create_or_load_character(
+        name="Storm",
+        rank=4,
+        archetype="Polymath",
+        melee=2,
+        agility=4,
+        resilience=3,
+        vigilance=5,
+        ego=5,
+        logic=3,
+    )
+    narrator_tools.create_or_load_character(
+        name="Wolverine",
+        rank=4,
+        archetype="Striker",
+        melee=5,
+        agility=3,
+        resilience=4,
+        vigilance=2,
+        ego=2,
+        logic=2,
+    )
+
+    narrator_tools.get_character_sheet("Storm")
+
+    active_sheet = character_roster.get_active_sheet()
+
+    assert active_sheet is not None
+    assert active_sheet["name"] == "Storm"
 
 
 def test_create_or_load_character_rejects_conflicting_definition():
@@ -330,7 +368,7 @@ def test_roster_get_returns_copy_not_live_state():
     detached.current_health = 1
 
     sheet = narrator_tools.get_character_sheet("Storm")
-    assert sheet["current_health"] == 90
+    assert sheet["current_health"] == 75
 
 
 def test_tool_error_paths():

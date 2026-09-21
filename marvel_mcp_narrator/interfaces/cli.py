@@ -13,9 +13,10 @@ from urllib.parse import urlparse, urlunparse
 
 import httpx
 
+from marvel_mcp_narrator.core.character_state import character_roster
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
 from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase, get_campaign_database
-from marvel_mcp_narrator.core.rules_database import RulesLookupError, query_rulebook_database
+from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database, query_rulebook_database
 
 SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "
@@ -25,6 +26,19 @@ DEFAULT_MODEL = "qwen2.5:14b-instruct"
 DEFAULT_OPEN_WEBUI_HOST = "http://127.0.0.1:3000"
 STARTUP_MEMORY_LIMIT = 12
 STARTUP_CONTEXT_CHAR_BUDGET = 6000
+RULES_CONTEXT_KEYS = (
+    "core_attribute_melee",
+    "core_attribute_agility",
+    "core_attribute_resilience",
+    "core_attribute_vigilance",
+    "core_attribute_ego",
+    "core_attribute_logic",
+    "secondary_defenses",
+    "action_check_format",
+    "damage_formula",
+    "special_rolls",
+    "running_speed",
+)
 CLI_COMMANDS_HELP = "\n".join(
     [
         "Interactive commands:",
@@ -226,9 +240,94 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
     return "\n".join(lines)
 
 
+def get_rules_startup_context() -> str:
+    """Return a concise core-rules block for startup prompt injection."""
+    try:
+        mechanics = load_rules_database().get("mechanics", {})
+    except (OSError, ValueError, TypeError):
+        return "Core d616 Rules Context:\n- Rules database could not be loaded; use deterministic tool outputs for rules lookups."
+
+    lines = ["Core d616 Rules Context:"]
+    for key in RULES_CONTEXT_KEYS:
+        payload = mechanics.get(key)
+        if not isinstance(payload, dict):
+            continue
+        title = str(payload.get("title", key)).strip()
+        description = str(payload.get("description", "")).strip()
+        formula = str(payload.get("formula", "")).strip()
+        examples = payload.get("examples", [])
+        line = f"- {title}: {description}"
+        if formula:
+            line += f" Formula: {formula}."
+        if isinstance(examples, list) and examples:
+            line += f" Examples: {'; '.join(str(item).strip() for item in examples if str(item).strip())}."
+        lines.append(line)
+    if len(lines) == 1:
+        lines.append("- Core mechanics were not found in the rules database.")
+    return "\n".join(lines)
+
+
+def get_active_character_context() -> str:
+    """Return derived-stat context for the currently active tracked character."""
+    active_sheet = character_roster.get_active_sheet()
+    if active_sheet is None:
+        return "Active Character Context:\n- No active character is currently loaded."
+
+    attributes = {
+        "Melee": int(active_sheet["melee"]),
+        "Agility": int(active_sheet["agility"]),
+        "Resilience": int(active_sheet["resilience"]),
+        "Vigilance": int(active_sheet["vigilance"]),
+        "Ego": int(active_sheet["ego"]),
+        "Logic": int(active_sheet["logic"]),
+    }
+    rank = int(active_sheet["rank"])
+    health = attributes["Resilience"] * 25
+    focus = attributes["Vigilance"] * 25
+    running_speed = 5 + (attributes["Agility"] // 5)
+    defenses = {
+        "Melee": 10 + attributes["Melee"],
+        "Agility": 10 + attributes["Agility"],
+        "Resilience": 10 + attributes["Resilience"],
+        "Vigilance": 10 + attributes["Vigilance"],
+        "Ego": 10 + attributes["Ego"],
+        "Logic": 10 + attributes["Logic"],
+    }
+    return "\n".join(
+        [
+            "Active Character Context:",
+            f"- Name: {active_sheet['name']} ({active_sheet['archetype']}, Rank {rank})",
+            (
+                "- Attributes: "
+                + ", ".join(f"{name} {value}" for name, value in attributes.items())
+            ),
+            (
+                "- Derived Stats: "
+                f"Health {health}, Focus {focus}, Initiative Modifier +{attributes['Vigilance']}, "
+                f"Running Speed {running_speed} spaces"
+            ),
+            (
+                "- Defenses: "
+                + ", ".join(f"{name} Defense {value}" for name, value in defenses.items())
+            ),
+            (
+                f"- Damage Math: Base damage = Rank {rank} × Marvel Die; "
+                f"current damage multiplier = {rank}"
+            ),
+        ]
+    )
+
+
 def build_startup_system_prompt(database: CampaignDatabase | None = None) -> str:
     """Build the initial system prompt with injected persistent campaign memory."""
-    return SYSTEM_PROMPT + "\n\n" + get_startup_context(database)
+    return "\n\n".join(
+        [
+            SYSTEM_PROMPT,
+            get_rules_startup_context(),
+            get_active_character_context(),
+            get_startup_context(database),
+        ]
+    )
 
 
 def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str | None]:
@@ -348,6 +447,7 @@ def run_cli(
             continue
 
         try:
+            messages[0]["content"] = build_startup_system_prompt(database)
             final_content = request_open_webui_chat(
                 host=host,
                 base_url=base_url or host,

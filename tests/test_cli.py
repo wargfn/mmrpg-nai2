@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from pathlib import Path
 from unittest.mock import patch
 
+from marvel_mcp_narrator.core.character_state import character_roster
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError
 from marvel_mcp_narrator.interfaces.cli import (
     CLI_COMMANDS_HELP,
@@ -14,6 +15,8 @@ from marvel_mcp_narrator.interfaces.cli import (
     STARTUP_CONTEXT_EMPTY_NOTE,
     STARTUP_CONTEXT_UNAVAILABLE_NOTE,
     _tool_injection,
+    get_active_character_context,
+    get_rules_startup_context,
     build_startup_system_prompt,
     build_open_webui_chat_endpoint,
     get_startup_context,
@@ -96,16 +99,25 @@ class CLIToolInjectionTests(unittest.TestCase):
 
 
 class CLIRunLoopTests(unittest.TestCase):
+    def setUp(self):
+        character_roster.clear()
+
+    def tearDown(self):
+        character_roster.clear()
+
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['hello narrator', 'exit'])
     @patch('marvel_mcp_narrator.interfaces.cli.get_startup_context', return_value='Campaign Memory Context:\n- session-1: Avengers assembled.')
-    def test_run_cli_injects_startup_memory_into_system_prompt(self, _mock_context, _mock_input, mock_request_chat):
+    @patch('marvel_mcp_narrator.interfaces.cli.get_rules_startup_context', return_value='Core d616 Rules Context:\n- Damage Formula: Base Damage = Rank × Marvel Die')
+    @patch('marvel_mcp_narrator.interfaces.cli.get_active_character_context', return_value='Active Character Context:\n- No active character is currently loaded.')
+    def test_run_cli_injects_startup_memory_into_system_prompt(self, _mock_active, _mock_rules, _mock_context, _mock_input, mock_request_chat):
         mock_request_chat.return_value = 'hi'
 
         run_cli(model='fake-model')
 
         call_messages = mock_request_chat.call_args.kwargs['messages']
         self.assertEqual(call_messages[0]['role'], 'system')
+        self.assertIn('Core d616 Rules Context:', call_messages[0]['content'])
         self.assertIn('Campaign Memory Context:', call_messages[0]['content'])
         self.assertIn('Avengers assembled.', call_messages[0]['content'])
         self.assertIn('Marvel Multiverse RPG narrator copilot', call_messages[0]['content'])
@@ -522,6 +534,41 @@ class OpenWebUIRequestTests(unittest.TestCase):
 
 
 class CLIStartupContextTests(unittest.TestCase):
+    def setUp(self):
+        character_roster.clear()
+
+    def tearDown(self):
+        character_roster.clear()
+
+    def test_get_rules_startup_context_includes_core_math_rules(self):
+        context = get_rules_startup_context()
+
+        self.assertIn("Core d616 Rules Context:", context)
+        self.assertIn("Health = Resilience × 25", context)
+        self.assertIn("Focus = Vigilance × 25", context)
+        self.assertIn("Base Damage = Rank × Marvel Die", context)
+
+    def test_get_active_character_context_uses_current_tracked_character(self):
+        character_roster.create_or_load(
+            name="Storm",
+            archetype="Blaster",
+            rank=4,
+            melee=2,
+            agility=5,
+            resilience=3,
+            vigilance=5,
+            ego=5,
+            logic=3,
+        )
+
+        context = get_active_character_context()
+
+        self.assertIn("Storm", context)
+        self.assertIn("Health 75", context)
+        self.assertIn("Focus 125", context)
+        self.assertIn("Running Speed 6 spaces", context)
+        self.assertIn("Base damage = Rank 4 × Marvel Die", context)
+
     def test_get_startup_context_uses_fresh_campaign_note_when_memory_is_empty(self):
         class EmptyDatabase:
             def list_memories(self):
@@ -626,6 +673,8 @@ class CLIStartupContextTests(unittest.TestCase):
         prompt = build_startup_system_prompt(MemoryDatabase())
 
         self.assertTrue(prompt.startswith("You are a Marvel Multiverse RPG narrator copilot."))
+        self.assertIn("Core d616 Rules Context:", prompt)
+        self.assertIn("Active Character Context:", prompt)
         self.assertIn("Campaign Memory Context:", prompt)
         self.assertIn("Hydra infiltrated the Helicarrier.", prompt)
         self.assertIn("Marvel Multiverse RPG narrator copilot", prompt)
