@@ -29,6 +29,34 @@ def test_initialize_database_creates_expected_tables(isolated_campaign_db):
     assert {"npcs", "locations", "plot_logs"} <= table_names
 
 
+def test_initialize_database_migrates_existing_schema(isolated_campaign_db):
+    with sqlite3.connect(isolated_campaign_db) as connection:
+        connection.execute(
+            """
+            CREATE TABLE npcs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            )
+            """
+        )
+        connection.commit()
+
+    campaign_db.initialize_database()
+
+    with sqlite3.connect(isolated_campaign_db) as connection:
+        npc_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(npcs)")
+        }
+        table_names = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            if not row[0].startswith("sqlite_")
+        }
+
+    assert {"archetype_or_role", "affiliation", "disposition", "location", "notes", "custom_stats_json"} <= npc_columns
+    assert {"locations", "plot_logs"} <= table_names
+
+
 def test_save_npc_and_get_npc_round_trip():
     message = campaign_db.save_npc(
         name="Nick Fury",
@@ -45,6 +73,47 @@ def test_save_npc_and_get_npc_round_trip():
     assert npc["archetype_or_role"] == "Spy master"
     assert npc["notes"] == "Keeps tabs on emerging threats."
     assert npc["custom_stats_json"] == {}
+
+
+def test_save_npc_preserves_existing_location_and_disposition(isolated_campaign_db):
+    campaign_db.initialize_database()
+    with sqlite3.connect(isolated_campaign_db) as connection:
+        connection.execute(
+            """
+            INSERT INTO npcs (
+                name,
+                archetype_or_role,
+                affiliation,
+                disposition,
+                location,
+                notes,
+                custom_stats_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "Black Cat",
+                "Thief",
+                "Independent",
+                "Wary",
+                "Midtown",
+                "Old notes.",
+                "{}",
+            ),
+        )
+        connection.commit()
+
+    campaign_db.save_npc(
+        name="Black Cat",
+        affiliation="Allies",
+        description="Cat burglar",
+        notes="Sometimes helps Spider-Man.",
+    )
+
+    npc = campaign_db.get_npc("Black Cat")
+
+    assert npc["disposition"] == "Wary"
+    assert npc["location"] == "Midtown"
 
 
 def test_log_event_persists_plot_entry(isolated_campaign_db):

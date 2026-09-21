@@ -17,6 +17,17 @@ def _default_database_path() -> Path:
 CAMPAIGN_DB_PATH = _default_database_path()
 
 
+def _existing_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
+    return {row[1] for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
+
+
+def _ensure_columns(connection: sqlite3.Connection, table_name: str, column_definitions: dict[str, str]) -> None:
+    existing_columns = _existing_columns(connection, table_name)
+    for column_name, column_definition in column_definitions.items():
+        if column_name not in existing_columns:
+            connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
+
+
 def initialize_database(path: Path | str | None = None) -> Path:
     """Create the campaign memory database and schema if needed."""
     db_path = Path(path) if path is not None else CAMPAIGN_DB_PATH
@@ -36,6 +47,18 @@ def initialize_database(path: Path | str | None = None) -> Path:
             )
             """
         )
+        _ensure_columns(
+            connection,
+            "npcs",
+            {
+                "archetype_or_role": "TEXT",
+                "affiliation": "TEXT",
+                "disposition": "TEXT",
+                "location": "TEXT",
+                "notes": "TEXT",
+                "custom_stats_json": "TEXT",
+            },
+        )
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS locations (
@@ -46,6 +69,14 @@ def initialize_database(path: Path | str | None = None) -> Path:
             )
             """
         )
+        _ensure_columns(
+            connection,
+            "locations",
+            {
+                "description": "TEXT",
+                "current_status": "TEXT",
+            },
+        )
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS plot_logs (
@@ -55,6 +86,15 @@ def initialize_database(path: Path | str | None = None) -> Path:
                 timestamp TEXT NOT NULL
             )
             """
+        )
+        _ensure_columns(
+            connection,
+            "plot_logs",
+            {
+                "session_number": "INTEGER NOT NULL DEFAULT 1",
+                "event_summary": "TEXT NOT NULL DEFAULT ''",
+                "timestamp": "TEXT NOT NULL DEFAULT ''",
+            },
         )
         connection.commit()
     return db_path
@@ -81,8 +121,8 @@ def save_npc(name: str, affiliation: str, description: str, notes: str) -> str:
             ON CONFLICT(name) DO UPDATE SET
                 archetype_or_role = excluded.archetype_or_role,
                 affiliation = excluded.affiliation,
-                disposition = NULL,
-                location = NULL,
+                disposition = npcs.disposition,
+                location = npcs.location,
                 notes = excluded.notes,
                 custom_stats_json = excluded.custom_stats_json
             """,
