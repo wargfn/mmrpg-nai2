@@ -56,7 +56,7 @@ def build_open_webui_chat_endpoint(host: str) -> str:
         endpoint_segments = segments + ["api", "chat", "completions"]
 
     endpoint_path = "/" + "/".join(endpoint_segments)
-    return urlunparse(parsed._replace(path=endpoint_path))
+    return urlunparse(parsed._replace(path=endpoint_path, fragment=""))
 
 
 def request_open_webui_chat(

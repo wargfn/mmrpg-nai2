@@ -132,6 +132,10 @@ def _get_power_details() -> dict[str, dict[str, Any]]:
                                 raise ValueError(
                                     f"Conflicting definitions for power '{name}' in power set '{power_set_name}'."
                                 )
+                            memberships = list(existing.get("power_sets", []))
+                            if power_set_name not in memberships:
+                                memberships.append(power_set_name)
+                            existing["power_sets"] = memberships
                             continue
 
                         details[key] = {
@@ -140,7 +144,22 @@ def _get_power_details() -> dict[str, dict[str, Any]]:
                             "prerequisites": prerequisites,
                             "summary": str(power.get("summary", "")).strip(),
                             "description": str(power.get("description", "")).strip(),
+                            "power_sets": [power_set_name],
                         }
+
+                for power_set in rules.get("power_sets", []):
+                    power_set_name = str(power_set.get("name", "Power Set")).strip() or "Power Set"
+                    for reference in power_set.get("power_references", []):
+                        ref_name = str(reference).strip()
+                        if not ref_name:
+                            continue
+                        ref_key = ref_name.casefold()
+                        if ref_key not in details:
+                            continue
+                        memberships = list(details[ref_key].get("power_sets", []))
+                        if power_set_name not in memberships:
+                            memberships.append(power_set_name)
+                        details[ref_key]["power_sets"] = memberships
 
                 _POWER_DETAILS_CACHE = details
     return _POWER_DETAILS_CACHE
@@ -185,6 +204,8 @@ def _list_catalog_names(key: str, *, include_subcategories: bool = False) -> lis
         name = str(entry.get("name", "")).strip()
         if include_subcategories:
             subcategories = [str(item).strip() for item in entry.get("subcategories", []) if str(item).strip()]
+            if name:
+                values.append(name)
             if subcategories:
                 values.extend(subcategories)
                 continue
