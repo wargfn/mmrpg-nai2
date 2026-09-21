@@ -27,7 +27,7 @@ def test_initialize_database_creates_expected_tables(isolated_campaign_db):
             if not row[0].startswith("sqlite_")
         }
 
-    assert {"memories", "entities"} <= table_names
+    assert {"memories", "entities", "plot_logs"} <= table_names
 
 
 def test_campaign_database_saves_and_loads_memory():
@@ -175,3 +175,13 @@ def test_recall_entity_returns_search_results_and_missing_message():
 
 def test_load_campaign_memory_returns_not_found_message_for_missing_key():
     assert narrator_tools.load_campaign_memory("missing-key") == "No campaign memory found for 'missing-key'."
+
+
+def test_log_campaign_event_is_searchable_via_legacy_memory_flow():
+    message = narrator_tools.log_campaign_event("Hydra launched an attack on the Helicarrier.", session=7)
+    matches = campaign_db.search_memory("Helicarrier")
+    recalled = narrator_tools.recall_npc_or_location("Helicarrier")
+
+    assert message == "Logged campaign event for session 7."
+    assert any(match["memory_type"] == "plot_log" for match in matches)
+    assert "[plot_log] Session 7 @" in recalled

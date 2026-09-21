@@ -53,7 +53,7 @@ class CampaignDatabase:
                 """
                 CREATE TABLE IF NOT EXISTS entities (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
+                    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
                     category TEXT NOT NULL,
                     description TEXT NOT NULL,
                     disposition TEXT NOT NULL DEFAULT 'Neutral',
@@ -65,10 +65,17 @@ class CampaignDatabase:
                 """
             )
             connection.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_entities_name_nocase ON entities (name COLLATE NOCASE)"
+                "CREATE INDEX IF NOT EXISTS idx_entities_category_name ON entities (category, name COLLATE NOCASE)"
             )
             connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_entities_category_name ON entities (category, name COLLATE NOCASE)"
+                """
+                CREATE TABLE IF NOT EXISTS plot_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_number INTEGER NOT NULL,
+                    event_summary TEXT NOT NULL,
+                    timestamp TEXT NOT NULL
+                )
+                """
             )
             self._migrate_legacy_tables(connection)
             connection.commit()
@@ -91,8 +98,6 @@ class CampaignDatabase:
             self._migrate_legacy_npcs(connection)
         if "locations" in tables:
             self._migrate_legacy_locations(connection)
-        if "plot_logs" in tables:
-            self._migrate_legacy_plot_logs(connection)
 
     def _migrate_legacy_npcs(self, connection: sqlite3.Connection) -> None:
         rows = connection.execute(
@@ -240,28 +245,6 @@ class CampaignDatabase:
                     ),
                 )
 
-    def _migrate_legacy_plot_logs(self, connection: sqlite3.Connection) -> None:
-        rows = connection.execute(
-            "SELECT id, session_number, event_summary, timestamp FROM plot_logs ORDER BY id"
-        ).fetchall()
-        for row in rows:
-            key = f"legacy_plot_log_{row['id']}"
-            summary = str(row["event_summary"] or "").strip()
-            if not summary:
-                continue
-            content = f"Session {row['session_number']}: {summary}"
-            updated_at = str(row["timestamp"] or _utc_now())
-            connection.execute(
-                """
-                INSERT INTO memories (key, content, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET
-                    content = excluded.content,
-                    updated_at = excluded.updated_at
-                """,
-                (key, content, updated_at),
-            )
-
     def save_memory(self, key: str, content: str) -> None:
         """Save or update a named campaign memory entry."""
         cleaned_key = key.strip()
@@ -321,55 +304,40 @@ class CampaignDatabase:
             raise ValueError("Entity description is required.")
 
         with self._connect() as connection:
-            existing = connection.execute(
-                "SELECT id FROM entities WHERE name = ? COLLATE NOCASE",
-                (cleaned_name,),
-            ).fetchone()
             serialized_stats = json.dumps(custom_stats_json or {})
-            payload = (
-                cleaned_name,
-                cleaned_category,
-                cleaned_description,
-                disposition.strip() or "Neutral",
-                location.strip() or "Unknown",
-                notes.strip(),
-                affiliation.strip(),
-                serialized_stats,
+            connection.execute(
+                """
+                INSERT INTO entities (
+                    name,
+                    category,
+                    description,
+                    disposition,
+                    location,
+                    notes,
+                    affiliation,
+                    custom_stats_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    category = excluded.category,
+                    description = excluded.description,
+                    disposition = excluded.disposition,
+                    location = excluded.location,
+                    notes = excluded.notes,
+                    affiliation = excluded.affiliation,
+                    custom_stats_json = excluded.custom_stats_json
+                """,
+                (
+                    cleaned_name,
+                    cleaned_category,
+                    cleaned_description,
+                    disposition.strip() or "Neutral",
+                    location.strip() or "Unknown",
+                    notes.strip(),
+                    affiliation.strip(),
+                    serialized_stats,
+                ),
             )
-            if existing is None:
-                connection.execute(
-                    """
-                    INSERT INTO entities (
-                        name,
-                        category,
-                        description,
-                        disposition,
-                        location,
-                        notes,
-                        affiliation,
-                        custom_stats_json
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    payload,
-                )
-            else:
-                connection.execute(
-                    """
-                    UPDATE entities
-                    SET
-                        name = ?,
-                        category = ?,
-                        description = ?,
-                        disposition = ?,
-                        location = ?,
-                        notes = ?,
-                        affiliation = ?,
-                        custom_stats_json = ?
-                    WHERE id = ?
-                    """,
-                    (*payload, existing["id"]),
-                )
             connection.commit()
 
     def get_entity(self, name: str) -> dict[str, Any] | None:
@@ -560,7 +528,15 @@ def log_event(summary: str, session: int = 1) -> str:
     if session < 1:
         raise ValueError("Session number must be at least 1.")
     timestamp = _utc_now()
-    save_memory(f"session_{session}_{timestamp}", cleaned_summary)
+    with get_campaign_database()._connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO plot_logs (session_number, event_summary, timestamp)
+            VALUES (?, ?, ?)
+            """,
+            (session, cleaned_summary, timestamp),
+        )
+        connection.commit()
     return f"Logged campaign event for session {session}."
 
 
@@ -592,4 +568,24 @@ def search_memory(query: str) -> list[dict[str, Any]]:
         for entry in list_memories()
         if pattern in str(entry["key"]).casefold() or pattern in str(entry["content"]).casefold()
     ]
-    return [*entity_matches, *memory_matches][:SEARCH_RESULT_LIMIT]
+    with get_campaign_database()._connect() as connection:
+        plot_log_matches = [
+            {
+                "memory_type": "plot_log",
+                "name": f"Session {row['session_number']}",
+                "affiliation": row["timestamp"],
+                "summary": row["event_summary"],
+                "notes": row["event_summary"],
+            }
+            for row in connection.execute(
+                """
+                SELECT session_number, event_summary, timestamp
+                FROM plot_logs
+                WHERE event_summary LIKE ? COLLATE NOCASE
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (f"%{keyword}%", SEARCH_RESULT_LIMIT),
+            ).fetchall()
+        ]
+    return [*entity_matches, *memory_matches, *plot_log_matches][:SEARCH_RESULT_LIMIT]
