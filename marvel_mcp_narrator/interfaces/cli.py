@@ -237,6 +237,10 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
                 minimal_line = f"- +{omitted_count}"
                 if current_length + 1 + len(minimal_line) <= STARTUP_CONTEXT_CHAR_BUDGET:
                     lines.append(minimal_line)
+    if len(lines) == 1:
+        fallback = f"Memory:\n+{max(1, omitted_count or total_memories)}"
+        if len(fallback) <= STARTUP_CONTEXT_CHAR_BUDGET:
+            return fallback
     return "\n".join(lines)
 
 

@@ -1068,7 +1068,10 @@ def get_npc(name: str) -> dict[str, Any] | None:
 
 def log_event(summary: str, session: int = 1) -> str:
     """Backward-compatible plot log storage using the plot_logs table."""
-    get_campaign_database().add_plot_log(summary=summary, session=session)
+    try:
+        get_campaign_database().add_plot_log(summary=summary, session=session)
+    except ValueError as exc:
+        return str(exc)
     return f"Logged campaign event for session {session}."
 
 
