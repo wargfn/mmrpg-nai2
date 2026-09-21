@@ -588,6 +588,7 @@ class CLIStartupContextTests(unittest.TestCase):
 
         self.assertIn("Additional memories omitted", context)
         self.assertIn(f"({STARTUP_MEMORY_LIMIT + 4} more)", context)
+        self.assertLessEqual(len(context), 120)
 
     def test_get_startup_context_handles_database_errors_gracefully(self):
         class BrokenDatabase:
