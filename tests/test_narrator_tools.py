@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from marvel_mcp_narrator.core.character_state import character_roster
 from marvel_mcp_narrator.mcp_servers import narrator_tools
@@ -7,9 +8,11 @@ from marvel_mcp_narrator.mcp_servers import narrator_tools
 class NarratorToolsTests(unittest.TestCase):
     def setUp(self):
         character_roster.clear()
+        narrator_tools.clear_combat_state()
 
     def tearDown(self):
         character_roster.clear()
+        narrator_tools.clear_combat_state()
 
     def test_roll_d616_tool_uses_public_name(self):
         self.assertTrue(callable(narrator_tools.roll_d616))
@@ -109,6 +112,11 @@ class NarratorToolsTests(unittest.TestCase):
         self.assertTrue(callable(narrator_tools.get_character))
         self.assertTrue(callable(narrator_tools.apply_damage_to_character))
         self.assertTrue(callable(narrator_tools.calculate_attack))
+        self.assertTrue(callable(narrator_tools.track_combatant))
+        self.assertTrue(callable(narrator_tools.get_combat_state))
+        self.assertTrue(callable(narrator_tools.resolve_manual_d616_roll))
+        self.assertTrue(callable(narrator_tools.resolve_player_attack))
+        self.assertTrue(callable(narrator_tools.resolve_npc_action))
         self.assertTrue(callable(narrator_tools.create_character_assisted))
         self.assertTrue(callable(narrator_tools.list_available_archetypes))
         self.assertTrue(callable(narrator_tools.list_available_origins))
@@ -155,6 +163,115 @@ class NarratorToolsTests(unittest.TestCase):
                 ego=5,
                 logic=3,
             )
+
+    def test_resolve_manual_d616_roll_normalizes_manual_results(self):
+        payload = narrator_tools.resolve_manual_d616_roll(
+            dice_values=[4, 5, 1],
+            marvel_index=2,
+            ability_modifier=3,
+            target_number=15,
+        )
+        self.assertEqual(payload["raw_dice"]["marvel_die"], 1)
+        self.assertTrue(payload["is_fantastic"])
+        self.assertEqual(payload["total_score"], 18)
+        self.assertTrue(payload["success"])
+
+    def test_track_combatant_and_get_combat_state(self):
+        narrator_tools.create_character(
+            name="Storm",
+            archetype="Blaster",
+            rank=4,
+            melee=2,
+            agility=4,
+            resilience=3,
+            vigilance=5,
+            ego=5,
+            logic=3,
+        )
+        tracked = narrator_tools.track_combatant("Storm", side="player")
+        self.assertEqual(tracked["side"], "player")
+
+        payload = narrator_tools.get_combat_state()
+        self.assertEqual(len(payload["combatants"]), 1)
+        self.assertEqual(payload["combatants"][0]["name"], "Storm")
+
+    @patch("marvel_mcp_narrator.mcp_servers.narrator_tools.resolve_d616_roll_core")
+    def test_resolve_npc_action_auto_rolls_and_applies_damage(self, mock_roll):
+        narrator_tools.create_character(
+            name="Hydra",
+            archetype="Striker",
+            rank=2,
+            melee=4,
+            agility=2,
+            resilience=3,
+            vigilance=2,
+            ego=1,
+            logic=1,
+        )
+        narrator_tools.create_character(
+            name="Storm",
+            archetype="Blaster",
+            rank=4,
+            melee=2,
+            agility=4,
+            resilience=3,
+            vigilance=5,
+            ego=5,
+            logic=3,
+        )
+        mock_roll.return_value = {
+            "raw_dice": {"standard_1": 6, "marvel_die": 5, "standard_2": 4},
+            "dice_values": [6, 5, 4],
+            "total_score": 19,
+            "is_fantastic": False,
+            "is_ultimate": False,
+            "is_botch": False,
+            "target_number": 12,
+            "success": True,
+        }
+
+        payload = narrator_tools.resolve_npc_action("Hydra", "Storm", "melee")
+
+        self.assertEqual(payload["damage"]["total_damage"], 10)
+        self.assertEqual(payload["target"]["current_health"], 65)
+        self.assertEqual(payload["attacker"]["side"], "enemy")
+        self.assertEqual(payload["target"]["side"], "player")
+
+    def test_resolve_player_attack_accepts_manual_roll_and_updates_enemy_health(self):
+        narrator_tools.create_character(
+            name="Spider-Man",
+            archetype="Polymath",
+            rank=4,
+            melee=5,
+            agility=6,
+            resilience=4,
+            vigilance=5,
+            ego=4,
+            logic=4,
+        )
+        narrator_tools.create_character(
+            name="Hydra",
+            archetype="Striker",
+            rank=2,
+            melee=3,
+            agility=2,
+            resilience=3,
+            vigilance=2,
+            ego=1,
+            logic=1,
+        )
+
+        payload = narrator_tools.resolve_player_attack(
+            attacker_name="Spider-Man",
+            target_name="Hydra",
+            ability="melee",
+            dice_values=[6, 1, 6],
+            marvel_index=1,
+        )
+
+        self.assertTrue(payload["roll"]["success"])
+        self.assertEqual(payload["damage"]["total_damage"], 4)
+        self.assertEqual(payload["target"]["current_health"], 71)
 
 
 if __name__ == "__main__":

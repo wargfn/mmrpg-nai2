@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sqlite3
 import tomllib
 from pathlib import Path
@@ -21,6 +22,12 @@ from marvel_mcp_narrator.core.memory.campaign_db import (
     list_memories as list_campaign_memories,
 )
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database, query_rulebook_database
+from marvel_mcp_narrator.mcp_servers.narrator_tools import (
+    get_combat_state,
+    resolve_manual_d616_roll,
+    resolve_npc_action,
+    resolve_player_attack,
+)
 
 SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "
@@ -47,6 +54,11 @@ CLI_COMMANDS_HELP = "\n".join(
     [
         "Interactive commands:",
         "  /roll [edges] [troubles]          Run a deterministic d616 roll",
+        "  /attack <attacker> <ability> <target> [manual d616 roll]",
+        "                                   Auto-roll or apply a manual player attack",
+        "  /npc-attack <attacker> <ability> <target>",
+        "                                   Auto-resolve an NPC or enemy action",
+        "  /combat                           Show tracked combatant health/focus state",
         "  /rules <keyword>                  Search the local Marvel rulebook",
         "  /memories                         Show stored campaign memories",
         "  /help                              Show command help during a session",
@@ -63,6 +75,7 @@ STARTUP_CONTEXT_UNAVAILABLE_NOTE = (
     "SQLite campaign memory could not be loaded at startup. "
     "Continue narrating with the live session context only."
 )
+MANUAL_D616_ROLL_PATTERN = re.compile(r"\[(?P<body>[^\]]+)\]")
 
 
 def normalize_open_webui_host(host: str) -> str:
@@ -350,6 +363,7 @@ def build_startup_system_prompt(
             SYSTEM_PROMPT,
             resolved_rules_context,
             get_active_character_context(),
+            get_active_combat_context(),
             resolved_memory_context,
         ]
     )
@@ -384,11 +398,105 @@ def _format_router_memories_result(memories: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _format_combat_state_result(combat_state: dict[str, Any]) -> str:
+    combatants = combat_state.get("combatants", [])
+    if not combatants:
+        return "Active Combat State:\n- No combatants are currently tracked."
+    lines = ["Active Combat State:"]
+    for combatant in combatants:
+        lines.append(
+            f"- [{combatant['side']}] {combatant['name']}: "
+            f"Health {combatant['current_health']}/{combatant['max_health']}, "
+            f"Focus {combatant['current_focus']}/{combatant['max_focus']}"
+        )
+    return "\n".join(lines)
+
+
+def get_active_combat_context() -> str:
+    """Return tracked combatant health/focus context for the current session."""
+    return _format_combat_state_result(get_combat_state())
+
+
+def _format_attack_result(payload: dict[str, Any]) -> str:
+    roll = payload["roll"]
+    lines = [
+        f"Combat Resolution: {payload['attacker']['name']} used {payload['ability']} against {payload['target']['name']}",
+        f"- Target Number: {payload['target_number']}",
+        f"- Dice: {roll.get('dice_values', [])}",
+        f"- Total Score: {roll.get('total_score')}",
+        f"- Fantastic: {roll.get('is_fantastic')}",
+        f"- Success: {roll.get('success')}",
+    ]
+    if payload.get("damage") is not None:
+        lines.append(f"- Damage: {payload['damage']['total_damage']} {payload['target_resource']}")
+        lines.append(
+            f"- Target Status: {payload['target']['name']} now has "
+            f"{payload['target']['current_health']}/{payload['target']['max_health']} Health and "
+            f"{payload['target']['current_focus']}/{payload['target']['max_focus']} Focus"
+        )
+    else:
+        lines.append("- Damage: none")
+    return "\n".join(lines)
+
+
+def _parse_manual_roll_text(text: str) -> tuple[list[int], int] | None:
+    match = MANUAL_D616_ROLL_PATTERN.search(text)
+    if match is None:
+        return None
+    body = match.group("body")
+    entries = [entry.strip() for entry in body.split(",") if entry.strip()]
+    if len(entries) != 3:
+        raise ValueError("Manual d616 rolls must use three comma-separated dice values.")
+    dice_values: list[int] = []
+    marvel_index: int | None = None
+    for index, entry in enumerate(entries):
+        marvel_marked = "marvel" in entry.casefold()
+        number_match = re.search(r"\d+", entry)
+        if number_match is None:
+            raise ValueError("Each manual d616 die entry must include a numeric value.")
+        value = int(number_match.group(0))
+        if not 1 <= value <= 6:
+            raise ValueError("Each manual d616 die value must be between 1 and 6.")
+        dice_values.append(value)
+        if marvel_marked:
+            if marvel_index is not None:
+                raise ValueError("Manual d616 rolls may only mark one die as the Marvel die.")
+            marvel_index = index
+    return dice_values, (1 if marvel_index is None else marvel_index)
+
+
+def _parse_attack_command(stripped: str, *, command_name: str) -> tuple[str, str, str, tuple[list[int], int] | None]:
+    remainder = stripped[len(command_name) :].strip()
+    if not remainder:
+        raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
+    manual_roll = _parse_manual_roll_text(remainder) if "[" in remainder and "]" in remainder else None
+    if manual_roll is not None:
+        remainder = remainder[: remainder.rfind("[")].rstrip()
+    if "|" in remainder:
+        fields = [segment.strip() for segment in remainder.split("|")]
+        if len(fields) != 3 or not all(fields):
+            raise ValueError(f"Usage: {command_name} <attacker> | <ability> | <target> [| manual d616 roll]")
+        attacker_name, ability, target_name = fields
+    else:
+        parts = remainder.split(maxsplit=2)
+        if len(parts) != 3:
+            raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
+        attacker_name, ability, target_name = parts
+    return attacker_name.strip(), ability.strip(), target_name.strip(), manual_roll
+
+
 def _route_intent_command(user_input: str) -> tuple[str, str] | None:
     """Route deterministic CLI commands without invoking the chat model."""
     stripped = user_input.strip()
     if not stripped:
         return None
+
+    manual_roll = _parse_manual_roll_text(stripped) if stripped.startswith("[") else None
+    if manual_roll is not None:
+        dice_values, marvel_index = manual_roll
+        return "manual_d616_report", _format_router_roll_result(
+            resolve_manual_d616_roll(dice_values=dice_values, marvel_index=marvel_index)
+        )
 
     parts = stripped.split()
     command = parts[0].lower()
@@ -404,6 +512,30 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         if arguments:
             raise ValueError("Usage: /memories")
         return "list_memories", _format_router_memories_result(list_campaign_memories())
+
+    if command == "/combat":
+        if arguments:
+            raise ValueError("Usage: /combat")
+        return "combat_state", _format_combat_state_result(get_combat_state())
+
+    if command == "/attack":
+        attacker_name, ability, target_name, manual_roll = _parse_attack_command(stripped, command_name="/attack")
+        payload = resolve_player_attack(
+            attacker_name=attacker_name,
+            target_name=target_name,
+            ability=ability,
+            dice_values=manual_roll[0] if manual_roll is not None else None,
+            marvel_index=manual_roll[1] if manual_roll is not None else 1,
+        )
+        return "resolve_player_attack", _format_attack_result(payload)
+
+    if command == "/npc-attack":
+        attacker_name, ability, target_name, manual_roll = _parse_attack_command(stripped, command_name="/npc-attack")
+        if manual_roll is not None:
+            raise ValueError("NPC attacks are always automated; omit manual dice values.")
+        return "resolve_npc_action", _format_attack_result(
+            resolve_npc_action(attacker_name=attacker_name, target_name=target_name, ability=ability)
+        )
 
     if command == "/roll":
         if any(token.startswith("--") for token in arguments):

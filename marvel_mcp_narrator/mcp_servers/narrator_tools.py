@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import gettempdir
+from threading import RLock
 
 from fastmcp import FastMCP
 
@@ -36,11 +37,188 @@ from marvel_mcp_narrator.core.character_creation import (
     validate_character_build,
 )
 from marvel_mcp_narrator.core.character_state import character_roster
-from marvel_mcp_narrator.core.d616_engine import roll_d616 as roll_d616_core
+from marvel_mcp_narrator.core.d616_engine import (
+    D616ConfigurationError,
+    resolve_d616_roll as resolve_d616_roll_core,
+    roll_d616 as roll_d616_core,
+)
 from marvel_mcp_narrator.core.rules_database import lookup_rule_reference
 
 
 mcp = FastMCP("mmrpg-narrator")
+_COMBAT_STATE_LOCK = RLock()
+_VALID_COMBAT_SIDES = {"player", "ally", "npc", "enemy"}
+_VALID_TARGET_RESOURCES = {"health", "focus"}
+_combat_state: dict[str, dict[str, str]] = {"combatants": {}}
+
+
+def _normalize_name(name: str) -> str:
+    return str(name).strip().casefold()
+
+
+def _require_known_character(name: str) -> dict:
+    return character_roster.get_sheet(name)
+
+
+def _normalize_combat_side(side: str) -> str:
+    normalized = str(side).strip().lower()
+    if normalized not in _VALID_COMBAT_SIDES:
+        raise ValueError(f"Combat side must be one of: {', '.join(sorted(_VALID_COMBAT_SIDES))}.")
+    return normalized
+
+
+def _normalize_target_resource(target_resource: str) -> str:
+    normalized = str(target_resource).strip().lower()
+    if normalized not in _VALID_TARGET_RESOURCES:
+        raise ValueError("Target resource must be 'health' or 'focus'.")
+    return normalized
+
+
+def _register_combatant(name: str, side: str) -> None:
+    sheet = _require_known_character(name)
+    with _COMBAT_STATE_LOCK:
+        _combat_state["combatants"][_normalize_name(sheet["name"])] = {
+            "name": sheet["name"],
+            "side": _normalize_combat_side(side),
+        }
+
+
+def _build_combatant_snapshot(name: str, side: str | None = None) -> dict:
+    sheet = _require_known_character(name)
+    resolved_side = side
+    if resolved_side is None:
+        with _COMBAT_STATE_LOCK:
+            resolved_side = _combat_state["combatants"].get(_normalize_name(sheet["name"]), {}).get("side")
+    return {
+        "name": sheet["name"],
+        "side": resolved_side or "unassigned",
+        "rank": sheet["rank"],
+        "current_health": sheet["current_health"],
+        "max_health": sheet["max_health"],
+        "current_focus": sheet["current_focus"],
+        "max_focus": sheet["max_focus"],
+        "conditions": list(sheet.get("conditions", [])),
+    }
+
+
+def _validate_d616_values(dice_values: list[int], marvel_index: int, target_number: int | None = None) -> None:
+    if len(dice_values) != 3:
+        raise ValueError("Manual d616 rolls must include exactly three dice values.")
+    if marvel_index not in {0, 1, 2}:
+        raise ValueError("Marvel die index must be 0, 1, or 2.")
+    if any(value < 1 or value > 6 for value in dice_values):
+        raise ValueError("Each d616 die value must be between 1 and 6.")
+    if target_number is not None and target_number <= 0:
+        raise D616ConfigurationError("Target number must be a positive integer.")
+
+
+def _resolve_manual_roll_payload(
+    *, dice_values: list[int], marvel_index: int = 1, ability_modifier: int = 0, target_number: int | None = None
+) -> dict:
+    _validate_d616_values(dice_values, marvel_index, target_number=target_number)
+    marvel_die = dice_values[marvel_index]
+    standards = [value for index, value in enumerate(dice_values) if index != marvel_index]
+    is_botch = all(value == 1 for value in dice_values)
+    is_ultimate = marvel_die == 1 and standards == [6, 6]
+    is_fantastic = marvel_die == 1 and not is_botch
+    total_score = standards[0] + standards[1] + (6 if marvel_die == 1 else marvel_die) + ability_modifier
+    success = True
+    if target_number is not None:
+        if is_botch:
+            success = False
+        elif is_ultimate:
+            success = True
+        else:
+            success = total_score >= target_number
+    return {
+        "source": "manual",
+        "raw_dice": {
+            "standard_1": standards[0],
+            "marvel_die": marvel_die,
+            "standard_2": standards[1],
+        },
+        "dice_values": list(dice_values),
+        "marvel_index": marvel_index,
+        "ability_modifier": ability_modifier,
+        "total_score": total_score,
+        "is_fantastic": is_fantastic,
+        "is_ultimate": is_ultimate,
+        "is_botch": is_botch,
+        "target_number": target_number,
+        "success": success,
+    }
+
+
+def _resolve_attack(
+    *,
+    attacker_name: str,
+    target_name: str,
+    ability: str,
+    attacker_side: str,
+    target_side: str,
+    target_resource: str = "health",
+    edges: int = 0,
+    troubles: int = 0,
+    manual_roll: dict | None = None,
+) -> dict:
+    attacker_sheet = _require_known_character(attacker_name)
+    target_sheet = _require_known_character(target_name)
+    normalized_ability = str(ability).strip().lower()
+    if normalized_ability not in ABILITY_FIELDS:
+        raise ValueError(f"Unknown ability '{ability}'.")
+    if edges < 0 or troubles < 0:
+        raise ValueError("Edges and troubles must be non-negative integers.")
+    resource = _normalize_target_resource(target_resource)
+    ability_modifier = int(attacker_sheet[normalized_ability])
+    target_number = int(target_sheet["defenses"][f"{normalized_ability}_defense"])
+    if manual_roll is None:
+        roll_result = resolve_d616_roll_core(
+            ability_modifier=ability_modifier,
+            target_number=target_number,
+            edges=edges,
+            troubles=troubles,
+        )
+    else:
+        roll_result = _resolve_manual_roll_payload(
+            dice_values=list(manual_roll["dice_values"]),
+            marvel_index=int(manual_roll.get("marvel_index", 1)),
+            ability_modifier=ability_modifier,
+            target_number=target_number,
+        )
+    _register_combatant(attacker_sheet["name"], attacker_side)
+    _register_combatant(target_sheet["name"], target_side)
+
+    damage = None
+    target_state = _build_combatant_snapshot(target_sheet["name"], side=target_side)
+    if roll_result["success"]:
+        damage = character_roster.calculate_attack_damage(
+            attacker_name=attacker_sheet["name"],
+            ability=normalized_ability,
+            marvel_die=int(roll_result["raw_dice"]["marvel_die"]),
+            is_fantastic=bool(roll_result["is_fantastic"]),
+        )
+        damage_amount = int(damage["total_damage"])
+        if resource == "health":
+            applied = character_roster.apply_damage(target_sheet["name"], health_damage=damage_amount)
+        else:
+            applied = character_roster.apply_damage(target_sheet["name"], focus_damage=damage_amount)
+        target_state = _build_combatant_snapshot(target_sheet["name"], side=target_side)
+        target_state["damage_application"] = applied
+
+    return {
+        "attacker": _build_combatant_snapshot(attacker_sheet["name"], side=attacker_side),
+        "target": target_state,
+        "ability": normalized_ability,
+        "target_number": target_number,
+        "target_resource": resource,
+        "roll": roll_result,
+        "damage": damage,
+    }
+
+
+def clear_combat_state() -> None:
+    with _COMBAT_STATE_LOCK:
+        _combat_state["combatants"].clear()
 
 
 @mcp.tool()
@@ -123,6 +301,92 @@ def calculate_attack(
         marvel_die=marvel_die,
         is_fantastic=is_fantastic,
         bonus_multiplier=bonus_multiplier,
+    )
+
+
+@mcp.tool()
+def track_combatant(name: str, side: str = "player") -> dict:
+    """Mark an existing tracked character as part of the current combat."""
+    normalized_side = _normalize_combat_side(side)
+    _register_combatant(name, normalized_side)
+    return _build_combatant_snapshot(name, side=normalized_side)
+
+
+@mcp.tool()
+def get_combat_state() -> dict:
+    """Return all combatants currently tracked in the active combat."""
+    with _COMBAT_STATE_LOCK:
+        tracked = list(_combat_state["combatants"].values())
+    combatants = [
+        _build_combatant_snapshot(entry["name"], side=entry["side"])
+        for entry in sorted(tracked, key=lambda item: (item["side"], item["name"].casefold()))
+    ]
+    return {"combatants": combatants}
+
+
+@mcp.tool()
+def resolve_manual_d616_roll(
+    dice_values: list[int],
+    marvel_index: int = 1,
+    ability_modifier: int = 0,
+    target_number: int | None = None,
+) -> dict:
+    """Normalize a manually reported d616 roll into the standard deterministic payload."""
+    return _resolve_manual_roll_payload(
+        dice_values=dice_values,
+        marvel_index=marvel_index,
+        ability_modifier=ability_modifier,
+        target_number=target_number,
+    )
+
+
+@mcp.tool()
+def resolve_player_attack(
+    attacker_name: str,
+    target_name: str,
+    ability: str,
+    dice_values: list[int] | None = None,
+    marvel_index: int = 1,
+    target_resource: str = "health",
+    edges: int = 0,
+    troubles: int = 0,
+) -> dict:
+    """Resolve a player attack, optionally using a manually reported d616 result."""
+    manual_roll = None
+    if dice_values is not None:
+        manual_roll = {"dice_values": list(dice_values), "marvel_index": marvel_index}
+    return _resolve_attack(
+        attacker_name=attacker_name,
+        target_name=target_name,
+        ability=ability,
+        attacker_side="player",
+        target_side="enemy",
+        target_resource=target_resource,
+        edges=edges,
+        troubles=troubles,
+        manual_roll=manual_roll,
+    )
+
+
+@mcp.tool()
+def resolve_npc_action(
+    attacker_name: str,
+    target_name: str,
+    ability: str,
+    target_resource: str = "health",
+    edges: int = 0,
+    troubles: int = 0,
+) -> dict:
+    """Automatically resolve an NPC or enemy combat action against a tracked target."""
+    return _resolve_attack(
+        attacker_name=attacker_name,
+        target_name=target_name,
+        ability=ability,
+        attacker_side="enemy",
+        target_side="player",
+        target_resource=target_resource,
+        edges=edges,
+        troubles=troubles,
     )
 
 

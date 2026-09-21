@@ -14,9 +14,11 @@ from marvel_mcp_narrator.interfaces.cli import (
     STARTUP_MEMORY_LIMIT,
     STARTUP_CONTEXT_EMPTY_NOTE,
     STARTUP_CONTEXT_UNAVAILABLE_NOTE,
+    _parse_manual_roll_text,
     _route_intent_command,
     _tool_injection,
     get_active_character_context,
+    get_active_combat_context,
     get_rules_startup_context,
     build_startup_system_prompt,
     build_open_webui_chat_endpoint,
@@ -27,9 +29,16 @@ from marvel_mcp_narrator.interfaces.cli import (
     request_open_webui_chat,
     run_cli,
 )
+from marvel_mcp_narrator.mcp_servers.narrator_tools import clear_combat_state
 
 
 class CLIToolInjectionTests(unittest.TestCase):
+    def setUp(self):
+        clear_combat_state()
+
+    def tearDown(self):
+        clear_combat_state()
+
     def test_router_rules_command_returns_rule_text(self):
         name, payload = _route_intent_command('/rules edge')
         self.assertEqual(name, 'lookup_rule')
@@ -58,6 +67,57 @@ class CLIToolInjectionTests(unittest.TestCase):
         mock_roll.assert_called_once_with(edges=2, troubles=1)
         self.assertIn('Deterministic d616 Roll:', payload)
         self.assertIn('Total Score: 10', payload)
+
+    def test_parse_manual_roll_text_detects_marvel_marker(self):
+        dice_values, marvel_index = _parse_manual_roll_text("[4, 5, 1 (Marvel)]")
+        self.assertEqual(dice_values, [4, 5, 1])
+        self.assertEqual(marvel_index, 2)
+
+    @patch('marvel_mcp_narrator.interfaces.cli.resolve_manual_d616_roll', return_value={
+        "dice_values": [4, 5, 1],
+        "total_score": 15,
+        "is_fantastic": True,
+        "is_ultimate": False,
+        "is_botch": False,
+        "target_number": None,
+    })
+    def test_router_accepts_plain_manual_d616_report(self, mock_manual_roll):
+        name, payload = _route_intent_command('[4, 5, 1 (Marvel)]')
+        self.assertEqual(name, 'manual_d616_report')
+        mock_manual_roll.assert_called_once_with(dice_values=[4, 5, 1], marvel_index=2)
+        self.assertIn('Fantastic: True', payload)
+
+    @patch('marvel_mcp_narrator.interfaces.cli.resolve_player_attack', return_value={
+        "attacker": {"name": "Spider-Man", "side": "player"},
+        "target": {"name": "Hydra", "side": "enemy", "current_health": 71, "max_health": 75, "current_focus": 50, "max_focus": 50},
+        "ability": "melee",
+        "target_number": 13,
+        "target_resource": "health",
+        "roll": {"dice_values": [6, 1, 6], "total_score": 22, "is_fantastic": True, "success": True},
+        "damage": {"total_damage": 4},
+    })
+    def test_router_attack_command_accepts_manual_roll_suffix(self, mock_attack):
+        name, payload = _route_intent_command('/attack Spider-Man melee Hydra [6, 1 (Marvel), 6]')
+        self.assertEqual(name, 'resolve_player_attack')
+        mock_attack.assert_called_once_with(
+            attacker_name='Spider-Man',
+            target_name='Hydra',
+            ability='melee',
+            dice_values=[6, 1, 6],
+            marvel_index=1,
+        )
+        self.assertIn('Damage: 4 health', payload)
+
+    @patch('marvel_mcp_narrator.interfaces.cli.get_combat_state', return_value={
+        "combatants": [
+            {"name": "Hydra", "side": "enemy", "current_health": 30, "max_health": 50, "current_focus": 20, "max_focus": 20}
+        ]
+    })
+    def test_get_active_combat_context_formats_health_tracker(self, _mock_state):
+        context = get_active_combat_context()
+        self.assertIn('Active Combat State:', context)
+        self.assertIn('Hydra', context)
+        self.assertIn('30/50', context)
 
     def test_roll_command_returns_tool_payload(self):
         name, payload = _tool_injection('/roll --tn 10')
@@ -131,9 +191,11 @@ class CLIToolInjectionTests(unittest.TestCase):
 class CLIRunLoopTests(unittest.TestCase):
     def setUp(self):
         character_roster.clear()
+        clear_combat_state()
 
     def tearDown(self):
         character_roster.clear()
+        clear_combat_state()
 
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['hello narrator', 'exit'])
@@ -208,6 +270,21 @@ class CLIRunLoopTests(unittest.TestCase):
         run_cli(model='fake-model')
         mock_request_chat.assert_not_called()
 
+    @patch('marvel_mcp_narrator.interfaces.cli.resolve_player_attack', return_value={
+        "attacker": {"name": "Spider-Man", "side": "player"},
+        "target": {"name": "Hydra", "side": "enemy", "current_health": 71, "max_health": 75, "current_focus": 50, "max_focus": 50},
+        "ability": "melee",
+        "target_number": 13,
+        "target_resource": "health",
+        "roll": {"dice_values": [6, 1, 6], "total_score": 22, "is_fantastic": True, "success": True},
+        "damage": {"total_damage": 4},
+    })
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=['/attack Spider-Man melee Hydra [6, 1 (Marvel), 6]', 'exit'])
+    def test_attack_command_bypasses_chat_backend(self, _mock_input, mock_request_chat, _mock_attack):
+        run_cli(model='fake-model')
+        mock_request_chat.assert_not_called()
+
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/rules teleport', 'hello narrator', 'exit'])
     def test_routed_command_is_injected_into_history_for_following_chat_turn(self, _mock_input, mock_request_chat):
@@ -219,6 +296,19 @@ class CLIRunLoopTests(unittest.TestCase):
         self.assertTrue(any(msg['role'] == 'user' and msg['content'] == '/rules teleport' for msg in call_messages))
         self.assertTrue(any(msg['role'] == 'tool' and 'Deterministic router output (lookup_rule):' in msg['content'] for msg in call_messages))
         self.assertTrue(any(msg['role'] == 'user' and msg['content'] == 'hello narrator' for msg in call_messages))
+
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=['[4, 5, 1 (Marvel)]', 'hello narrator', 'exit'])
+    def test_manual_roll_report_is_injected_into_history_for_following_chat_turn(self, _mock_input, mock_request_chat):
+        mock_request_chat.return_value = 'hi'
+
+        run_cli(model='fake-model')
+
+        call_messages = mock_request_chat.call_args.kwargs['messages']
+        self.assertTrue(any(msg['role'] == 'user' and msg['content'] == '[4, 5, 1 (Marvel)]' for msg in call_messages))
+        self.assertTrue(
+            any(msg['role'] == 'tool' and 'Deterministic router output (manual_d616_report):' in msg['content'] for msg in call_messages)
+        )
 
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['/roll --tn nope', 'exit'])
