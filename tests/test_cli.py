@@ -178,6 +178,7 @@ class CLIRunLoopTests(unittest.TestCase):
 
 
 class CLIMainTests(unittest.TestCase):
+    @patch.dict('os.environ', {}, clear=True)
     @patch('marvel_mcp_narrator.interfaces.cli.run_cli')
     @patch('sys.argv', ['cli'])
     def test_main_uses_default_model(self, mock_run_cli):
@@ -189,6 +190,7 @@ class CLIMainTests(unittest.TestCase):
             api_key=None,
         )
 
+    @patch.dict('os.environ', {}, clear=True)
     @patch('marvel_mcp_narrator.interfaces.cli.run_cli')
     @patch('sys.argv', ['cli', '--model', 'qwen2.5-coder'])
     def test_main_passes_custom_model(self, mock_run_cli):
@@ -200,6 +202,7 @@ class CLIMainTests(unittest.TestCase):
             api_key=None,
         )
 
+    @patch.dict('os.environ', {}, clear=True)
     @patch('marvel_mcp_narrator.interfaces.cli.run_cli')
     @patch('sys.argv', ['cli', '--host', 'http://remote:11434', '--api-key', 'abc123'])
     def test_main_passes_custom_host_and_api_key(self, mock_run_cli):
@@ -211,6 +214,7 @@ class CLIMainTests(unittest.TestCase):
             api_key='abc123',
         )
 
+    @patch.dict('os.environ', {}, clear=True)
     @patch('marvel_mcp_narrator.interfaces.cli.run_cli')
     @patch('sys.argv', ['cli', '--base-url', 'http://localhost:11434/v1'])
     def test_main_passes_custom_base_url(self, mock_run_cli):
