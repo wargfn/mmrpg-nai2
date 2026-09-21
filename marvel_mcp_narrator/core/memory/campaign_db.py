@@ -919,8 +919,16 @@ class CampaignDatabase:
         )
 
     @staticmethod
+    def _split_sentences(raw_session_log: str) -> list[str]:
+        normalized = raw_session_log.replace("\n", " ")
+        for terminator in ("!", "?"):
+            normalized = normalized.replace(terminator, ".")
+        return [part.strip() for part in normalized.split(".") if part.strip()]
+
+    @staticmethod
     def _build_player_recap(session: dict[str, Any], raw_session_log: str) -> str:
-        first_sentence = raw_session_log.split(".")[0].strip()
+        sentences = CampaignDatabase._split_sentences(raw_session_log)
+        first_sentence = sentences[0] if sentences else raw_session_log.strip()
         opening = first_sentence if first_sentence else raw_session_log
         opening_suffix = "" if opening.endswith(("!", "?", ".")) else "."
         return (
@@ -931,7 +939,7 @@ class CampaignDatabase:
     @staticmethod
     def _extract_hero_highlights(hero_team: list[str], raw_session_log: str) -> dict[str, list[str]]:
         highlights: dict[str, list[str]] = {}
-        sentences = [part.strip() for part in raw_session_log.replace("\n", " ").split(".") if part.strip()]
+        sentences = CampaignDatabase._split_sentences(raw_session_log)
         for hero in hero_team:
             hero_key = str(hero).strip()
             if not hero_key:
@@ -946,7 +954,7 @@ class CampaignDatabase:
     @staticmethod
     def _extract_significant_events(raw_session_log: str) -> list[str]:
         keywords = ("defeat", "resc", "uncover", "discover", "escape", "save", "destroy", "steal", "capture")
-        sentences = [part.strip() for part in raw_session_log.replace("\n", " ").split(".") if part.strip()]
+        sentences = CampaignDatabase._split_sentences(raw_session_log)
         events = [sentence for sentence in sentences if any(keyword in sentence.casefold() for keyword in keywords)]
         return events or sentences[:2]
 

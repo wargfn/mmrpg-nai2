@@ -76,6 +76,29 @@ def test_conclude_session_generates_recap_highlights_and_logs_events():
     assert any("Hydra strike team" in memory["content"] for memory in memories)
 
 
+def test_conclude_session_splits_exclamation_and_question_sentences():
+    planner = campaign_planner.CampaignPlanner()
+    planner.create_campaign_plan(
+        theme="Cosmic Alarm",
+        villain="Galactus",
+        hero_team=["Silver Surfer", "Invisible Woman"],
+        desired_session_count=2,
+    )
+
+    result = planner.conclude_session(
+        1,
+        (
+            "Silver Surfer saved the station! "
+            "Invisible Woman uncovered Galactus's beacon? "
+            "The team escaped the collapsing relay."
+        ),
+    )
+
+    assert "Silver Surfer" in result["hero_highlights"]
+    assert "Invisible Woman" in result["hero_highlights"]
+    assert any("uncovered Galactus's beacon" in event for event in result["significant_events"])
+
+
 def test_conclude_session_rejects_out_of_order_progression():
     planner = campaign_planner.CampaignPlanner()
     planner.create_campaign_plan(

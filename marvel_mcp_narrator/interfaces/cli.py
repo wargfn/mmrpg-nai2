@@ -14,7 +14,7 @@ from urllib.parse import urlparse, urlunparse
 import httpx
 
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
-from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase
+from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase, get_campaign_database
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, query_rulebook_database
 
 SYSTEM_PROMPT = (
@@ -175,7 +175,7 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
 
 def get_startup_context(database: CampaignDatabase | None = None) -> str:
     """Return a structured startup context block from persisted campaign memories."""
-    db = database or CampaignDatabase()
+    db = database or get_campaign_database()
     try:
         memories = db.list_memories()
     except (OSError, sqlite3.Error, ValueError):
