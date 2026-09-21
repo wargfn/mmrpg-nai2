@@ -478,32 +478,31 @@ def _parse_attack_command(
         remainder = remainder[: remainder.rfind("[")].rstrip()
     options: dict[str, int | str] = {"edges": 0, "troubles": 0, "target_resource": "health"}
     tokens = remainder.split()
-    positional_tokens: list[str] = []
-    index = 0
-    while index < len(tokens):
-        token = tokens[index]
+    positional_tokens = list(tokens)
+    while positional_tokens:
+        token = positional_tokens[-1]
         if token == "--focus":
             options["target_resource"] = "focus"
-            index += 1
+            positional_tokens.pop()
             continue
         if token == "--health":
             options["target_resource"] = "health"
-            index += 1
+            positional_tokens.pop()
             continue
         if token in {"--edges", "--troubles"}:
-            if index + 1 >= len(tokens):
-                raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
+            raise ValueError(f"Usage: {command_name} <attacker> <ability> <target> [manual d616 roll]")
+        if len(positional_tokens) >= 2 and positional_tokens[-2] in {"--edges", "--troubles"}:
+            option_name = positional_tokens[-2]
             try:
-                value = int(tokens[index + 1])
+                value = int(token)
             except ValueError as exc:
                 raise ValueError("Edges and troubles must be non-negative integers.") from exc
             if value < 0:
                 raise ValueError("Edges and troubles must be non-negative integers.")
-            options["edges" if token == "--edges" else "troubles"] = value
-            index += 2
+            options["edges" if option_name == "--edges" else "troubles"] = value
+            positional_tokens = positional_tokens[:-2]
             continue
-        positional_tokens.append(token)
-        index += 1
+        break
     remainder = " ".join(positional_tokens).strip()
     if "|" in remainder:
         fields = [segment.strip() for segment in remainder.split("|")]

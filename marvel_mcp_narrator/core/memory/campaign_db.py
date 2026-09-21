@@ -132,7 +132,7 @@ class CampaignDatabase:
 
     def _connect(self) -> sqlite3.Connection:
         self.initialize()
-        connection = sqlite3.connect(self.path)
+        connection = sqlite3.connect(self.path, check_same_thread=False)
         connection.row_factory = sqlite3.Row
         return connection
 

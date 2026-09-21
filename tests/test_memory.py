@@ -1,4 +1,5 @@
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -36,6 +37,19 @@ def test_campaign_database_saves_and_loads_memory():
     database.save_memory("session-1-summary", "The Avengers secured the artifact.")
 
     assert database.load_memory("session-1-summary") == "The Avengers secured the artifact."
+
+
+def test_get_campaign_database_singleton_supports_concurrent_writes():
+    def worker(index: int) -> tuple[int, str | None]:
+        database = campaign_db.get_campaign_database()
+        database.save_memory(f"session-{index}", f"Event {index}")
+        return id(database), database.load_memory(f"session-{index}")
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(worker, range(6)))
+
+    assert len({database_id for database_id, _ in results}) == 1
+    assert [content for _, content in results] == [f"Event {index}" for index in range(6)]
 
 
 def test_list_memories_returns_saved_entries_including_timestamps():
