@@ -571,6 +571,24 @@ class CLIStartupContextTests(unittest.TestCase):
         self.assertIn(f"({3} more)", context)
         self.assertNotIn(f"session-{STARTUP_MEMORY_LIMIT + 2}", context)
 
+    def test_get_startup_context_omission_count_includes_budget_and_limit_overflow(self):
+        class MemoryDatabase:
+            def list_memories(self):
+                return [
+                    {
+                        "key": f"session-{index}",
+                        "content": "A" * 80,
+                        "updated_at": "2026-09-21T09:00:00+00:00",
+                    }
+                    for index in range(STARTUP_MEMORY_LIMIT + 4)
+                ]
+
+        with patch('marvel_mcp_narrator.interfaces.cli.STARTUP_CONTEXT_CHAR_BUDGET', 120):
+            context = get_startup_context(MemoryDatabase())
+
+        self.assertIn("Additional memories omitted", context)
+        self.assertIn(f"({STARTUP_MEMORY_LIMIT + 4} more)", context)
+
     def test_get_startup_context_handles_database_errors_gracefully(self):
         class BrokenDatabase:
             def list_memories(self):

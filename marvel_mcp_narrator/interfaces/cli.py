@@ -187,16 +187,17 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
         return "Campaign Memory Context:\n- " + STARTUP_CONTEXT_EMPTY_NOTE
 
     lines = ["Campaign Memory Context:"]
-    omitted_count = max(0, len(memories) - STARTUP_MEMORY_LIMIT)
+    rendered_count = 0
     for memory in memories[:STARTUP_MEMORY_LIMIT]:
         key = str(memory.get("key", "")).strip() or "memory"
         content = str(memory.get("content", "")).strip()
         updated_at = str(memory.get("updated_at", "")).strip()
         entry = f"- [{updated_at}] {key}: {content}" if updated_at else f"- {key}: {content}"
         if sum(len(line) + 1 for line in lines) + len(entry) + 1 > STARTUP_CONTEXT_CHAR_BUDGET:
-            omitted_count += len(memories[:STARTUP_MEMORY_LIMIT]) - (len(lines) - 1)
             break
         lines.append(entry)
+        rendered_count += 1
+    omitted_count = len(memories) - rendered_count
     if omitted_count:
         lines.append(f"- Additional memories omitted to keep startup context concise ({omitted_count} more).")
     return "\n".join(lines)
