@@ -16,12 +16,13 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
 1. CLI flags: `--model`, `--host`, `--api-key`
 2. Environment: `NARRATOR_MODEL`, `NARRATOR_OPEN_WEBUI_HOST`, `NARRATOR_API_KEY`
 3. Config file: `--config <path>` or `./narrator_config.toml`
-4. Defaults: model `gemma2:9b`, host `http://127.0.0.1:3000`
+4. Defaults: model `qwen2.5:14b-instruct`, host `http://127.0.0.1:3000`
 
 ### Open WebUI host behavior
 
 - The CLI sends chat requests to `<host>/api/chat/completions`.
 - You can set `host` to a base URL like `http://localhost:3000` or to a custom base path.
+- On startup, the CLI injects persisted SQLite campaign memories from `data/campaign.db` into the initial system prompt so the model begins with prior session continuity.
 
 ## CLI commands and shutdown
 

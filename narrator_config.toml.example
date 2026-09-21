@@ -5,7 +5,7 @@ host = "http://127.0.0.1:3000"
 # base_url = "http://127.0.0.1:11434/v1"
 
 # Default model used by the CLI if --model is not passed
-model = "gemma2:9b"
+model = "qwen2.5:14b-instruct"
 
 # Optional API key used as Authorization header when set
 api_key = ""

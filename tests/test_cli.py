@@ -9,8 +9,13 @@ from unittest.mock import patch
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError
 from marvel_mcp_narrator.interfaces.cli import (
     CLI_COMMANDS_HELP,
+    DEFAULT_MODEL,
+    STARTUP_CONTEXT_EMPTY_NOTE,
+    STARTUP_CONTEXT_UNAVAILABLE_NOTE,
     _tool_injection,
+    build_startup_system_prompt,
     build_open_webui_chat_endpoint,
+    get_startup_context,
     load_cli_config,
     main,
     normalize_open_webui_host,
@@ -90,6 +95,20 @@ class CLIToolInjectionTests(unittest.TestCase):
 
 
 class CLIRunLoopTests(unittest.TestCase):
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=['hello narrator', 'exit'])
+    @patch('marvel_mcp_narrator.interfaces.cli.get_startup_context', return_value='Campaign Memory Context:\n- session-1: Avengers assembled.')
+    def test_run_cli_injects_startup_memory_into_system_prompt(self, _mock_context, _mock_input, mock_request_chat):
+        mock_request_chat.return_value = 'hi'
+
+        run_cli(model='fake-model')
+
+        call_messages = mock_request_chat.call_args.kwargs['messages']
+        self.assertEqual(call_messages[0]['role'], 'system')
+        self.assertIn('Campaign Memory Context:', call_messages[0]['content'])
+        self.assertIn('Avengers assembled.', call_messages[0]['content'])
+        self.assertIn('Marvel Multiverse RPG narrator copilot', call_messages[0]['content'])
+
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=[' /HELP ', 'exit'])
     def test_help_command_does_not_call_chat_backend(self, _mock_input, mock_request_chat):
@@ -205,7 +224,7 @@ class CLIMainTests(unittest.TestCase):
     def test_main_uses_default_model(self, mock_run_cli):
         main()
         mock_run_cli.assert_called_once_with(
-            model='gemma2:9b',
+            model=DEFAULT_MODEL,
             host='http://127.0.0.1:3000',
             base_url='http://127.0.0.1:3000',
             api_key=None,
@@ -229,7 +248,7 @@ class CLIMainTests(unittest.TestCase):
     def test_main_passes_custom_host_and_api_key(self, mock_run_cli):
         main()
         mock_run_cli.assert_called_once_with(
-            model='gemma2:9b',
+            model=DEFAULT_MODEL,
             host='http://remote:11434',
             base_url='http://remote:11434',
             api_key='abc123',
@@ -241,7 +260,7 @@ class CLIMainTests(unittest.TestCase):
     def test_main_passes_custom_base_url(self, mock_run_cli):
         main()
         mock_run_cli.assert_called_once_with(
-            model='gemma2:9b',
+            model=DEFAULT_MODEL,
             host='http://127.0.0.1:3000',
             base_url='http://localhost:11434/v1',
             api_key=None,
@@ -455,7 +474,7 @@ class OpenWebUIRequestTests(unittest.TestCase):
         }
         response = request_open_webui_chat(
             host='http://localhost:3000',
-            model='gemma2:9b',
+            model=DEFAULT_MODEL,
             messages=[{'role': 'user', 'content': 'hi'}],
             api_key='token',
         )
@@ -475,7 +494,7 @@ class OpenWebUIRequestTests(unittest.TestCase):
         }
         request_open_webui_chat(
             base_url='http://localhost:11434/v1',
-            model='gemma2:9b',
+            model=DEFAULT_MODEL,
             messages=[{'role': 'user', 'content': 'hi'}],
         )
         self.assertEqual(
@@ -492,13 +511,66 @@ class OpenWebUIRequestTests(unittest.TestCase):
         config = load_cli_config()
         request_open_webui_chat(
             base_url=config['base_url'],
-            model='gemma2:9b',
+            model=DEFAULT_MODEL,
             messages=[{'role': 'user', 'content': 'hi'}],
         )
         self.assertEqual(
             mock_post.call_args.args[0],
             'http://localhost:11434/v1/chat/completions',
         )
+
+
+class CLIStartupContextTests(unittest.TestCase):
+    def test_get_startup_context_uses_fresh_campaign_note_when_memory_is_empty(self):
+        class EmptyDatabase:
+            def list_memories(self):
+                return []
+
+        context = get_startup_context(EmptyDatabase())
+
+        self.assertIn("Campaign Memory Context:", context)
+        self.assertIn(STARTUP_CONTEXT_EMPTY_NOTE, context)
+
+    def test_get_startup_context_formats_saved_memories(self):
+        class MemoryDatabase:
+            def list_memories(self):
+                return [
+                    {
+                        "key": "session-2",
+                        "content": "Doctor Doom escaped with the artifact.",
+                        "updated_at": "2026-09-21T09:00:00+00:00",
+                    },
+                    {
+                        "key": "session-1",
+                        "content": "The Fantastic Four reached Latveria.",
+                        "updated_at": "2026-09-20T09:00:00+00:00",
+                    },
+                ]
+
+        context = get_startup_context(MemoryDatabase())
+
+        self.assertIn("[2026-09-21T09:00:00+00:00] session-2: Doctor Doom escaped with the artifact.", context)
+        self.assertIn("[2026-09-20T09:00:00+00:00] session-1: The Fantastic Four reached Latveria.", context)
+
+    def test_get_startup_context_handles_database_errors_gracefully(self):
+        class BrokenDatabase:
+            def list_memories(self):
+                raise OSError("database unavailable")
+
+        context = get_startup_context(BrokenDatabase())
+
+        self.assertIn(STARTUP_CONTEXT_UNAVAILABLE_NOTE, context)
+
+    def test_build_startup_system_prompt_prepends_memory_context(self):
+        class MemoryDatabase:
+            def list_memories(self):
+                return [{"key": "session-1", "content": "Hydra infiltrated the Helicarrier.", "updated_at": ""}]
+
+        prompt = build_startup_system_prompt(MemoryDatabase())
+
+        self.assertTrue(prompt.startswith("Campaign Memory Context:"))
+        self.assertIn("Hydra infiltrated the Helicarrier.", prompt)
+        self.assertIn("Marvel Multiverse RPG narrator copilot", prompt)
 
 
 class PackagingEntryPointTests(unittest.TestCase):

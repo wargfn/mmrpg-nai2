@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -13,13 +14,14 @@ from urllib.parse import urlparse, urlunparse
 import httpx
 
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
+from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, query_rulebook_database
 
 SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "
     "Use deterministic tool outputs provided in context for dice and rules."
 )
-DEFAULT_MODEL = "gemma2:9b"
+DEFAULT_MODEL = "qwen2.5:14b-instruct"
 DEFAULT_OPEN_WEBUI_HOST = "http://127.0.0.1:3000"
 CLI_COMMANDS_HELP = "\n".join(
     [
@@ -31,6 +33,14 @@ CLI_COMMANDS_HELP = "\n".join(
         "",
         "You can also press Ctrl+C or Ctrl+D to shut down the CLI safely.",
     ]
+)
+STARTUP_CONTEXT_EMPTY_NOTE = (
+    "No prior campaign memories were found in SQLite campaign memory. "
+    "Treat this as a fresh campaign start until new session details are established."
+)
+STARTUP_CONTEXT_UNAVAILABLE_NOTE = (
+    "SQLite campaign memory could not be loaded at startup. "
+    "Continue narrating with the live session context only."
 )
 
 
@@ -163,6 +173,32 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
     return config
 
 
+def get_startup_context(database: CampaignDatabase | None = None) -> str:
+    """Return a structured startup context block from persisted campaign memories."""
+    db = database or CampaignDatabase()
+    try:
+        memories = db.list_memories()
+    except (OSError, sqlite3.Error, ValueError):
+        return "Campaign Memory Context:\n- " + STARTUP_CONTEXT_UNAVAILABLE_NOTE
+
+    if not memories:
+        return "Campaign Memory Context:\n- " + STARTUP_CONTEXT_EMPTY_NOTE
+
+    lines = ["Campaign Memory Context:"]
+    for memory in memories:
+        key = str(memory.get("key", "")).strip() or "memory"
+        content = str(memory.get("content", "")).strip()
+        updated_at = str(memory.get("updated_at", "")).strip()
+        entry = f"- [{updated_at}] {key}: {content}" if updated_at else f"- {key}: {content}"
+        lines.append(entry)
+    return "\n".join(lines)
+
+
+def build_startup_system_prompt(database: CampaignDatabase | None = None) -> str:
+    """Build the initial system prompt with injected persistent campaign memory."""
+    return get_startup_context(database) + "\n\n" + SYSTEM_PROMPT
+
+
 def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str | None]:
     """Parse slash commands and return (tool_name, tool_output)."""
     stripped = user_input.strip()
@@ -235,12 +271,13 @@ def run_cli(
     host: str = DEFAULT_OPEN_WEBUI_HOST,
     base_url: str | None = None,
     api_key: str | None = None,
+    database: CampaignDatabase | None = None,
 ) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
     print("Marvel MCP Narrator CLI")
     print("Type '/help' for commands and 'exit' to quit.\n")
 
-    messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages: list[dict[str, str]] = [{"role": "system", "content": build_startup_system_prompt(database)}]
 
     while True:
         try:
