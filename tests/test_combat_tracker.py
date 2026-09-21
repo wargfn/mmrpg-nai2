@@ -48,6 +48,12 @@ class CombatTrackerTests(unittest.TestCase):
         self.assertTrue(payload["is_fantastic"])
         self.assertTrue(payload["success"])
 
+    def test_resolve_manual_roll_marks_botch_as_failure_without_target_number(self):
+        payload = self.tracker.resolve_manual_roll(dice_values=[1, 1, 1], marvel_index=2)
+
+        self.assertTrue(payload["is_botch"])
+        self.assertFalse(payload["success"])
+
     @patch("marvel_mcp_narrator.core.combat_tracker.resolve_d616_roll")
     def test_resolve_npc_action_auto_applies_health_damage(self, mock_roll):
         character_roster.create_or_load(

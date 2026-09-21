@@ -119,13 +119,11 @@ class CombatTracker:
         is_ultimate = marvel_die == 1 and standards == [6, 6]
         is_fantastic = marvel_die == 1 and not is_botch
         total_score = standards[0] + standards[1] + (6 if marvel_die == 1 else marvel_die) + ability_modifier
-        success = True
+        success = not is_botch
         if target_number is not None:
-            if is_botch:
-                success = False
-            elif is_ultimate:
+            if is_ultimate:
                 success = True
-            else:
+            elif not is_botch:
                 success = total_score >= target_number
         return {
             "source": "manual",

@@ -16,7 +16,7 @@ SEARCH_RESULT_LIMIT = 10
 
 def _default_database_path() -> Path:
     """Return the default persistent campaign database path."""
-    return Path(__file__).resolve().parent.parent.parent.parent / "data" / "campaign.db"
+    return Path(__file__).resolve().parent.parent.parent / "data" / "campaign.db"
 
 
 def _configure_connection(connection: sqlite3.Connection) -> sqlite3.Connection:
@@ -80,6 +80,9 @@ class CampaignDatabase:
                     "CREATE INDEX IF NOT EXISTS idx_entities_category_name ON entities (category, name COLLATE NOCASE)"
                 )
                 connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_memories_updated_at_key ON memories (updated_at DESC, key ASC)"
+                )
+                connection.execute(
                     """
                     CREATE TABLE IF NOT EXISTS plot_logs (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,6 +91,9 @@ class CampaignDatabase:
                         timestamp TEXT NOT NULL
                     )
                     """
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_plot_logs_timestamp ON plot_logs (timestamp DESC)"
                 )
                 connection.execute(
                     """
@@ -122,6 +128,14 @@ class CampaignDatabase:
                         UNIQUE (campaign_id, session_number)
                     )
                     """
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_campaign_sessions_campaign_session "
+                    "ON campaign_sessions (campaign_id, session_number)"
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_campaign_sessions_campaign_status "
+                    "ON campaign_sessions (campaign_id, status)"
                 )
                 connection.execute(
                     """
