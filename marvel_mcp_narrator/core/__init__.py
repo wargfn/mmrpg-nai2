@@ -2,6 +2,7 @@
 
 from .d616_engine import D616ConfigurationError, resolve_d616_roll, roll_d616
 from .character_state import Character, CharacterRoster, character_roster
+from .combat_tracker import CombatTracker, combat_tracker
 from .character_creation import (
     ARCHETYPE_TEMPLATES,
     export_character_json,
@@ -36,6 +37,8 @@ __all__ = [
     "Character",
     "CharacterRoster",
     "character_roster",
+    "CombatTracker",
+    "combat_tracker",
     "ARCHETYPE_TEMPLATES",
     "validate_character_build",
     "validate_power_selection",

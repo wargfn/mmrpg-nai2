@@ -16,6 +16,7 @@ import httpx
 
 from marvel_mcp_narrator.core.character_creation import ABILITY_FIELDS
 from marvel_mcp_narrator.core.character_state import character_roster
+from marvel_mcp_narrator.core.combat_tracker import combat_tracker
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, resolve_d616_roll, roll_d616
 from marvel_mcp_narrator.core.memory.campaign_db import (
     CampaignDatabase,
@@ -23,13 +24,12 @@ from marvel_mcp_narrator.core.memory.campaign_db import (
     list_memories as list_campaign_memories,
 )
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database, query_rulebook_database
-from marvel_mcp_narrator.mcp_servers.narrator_tools import (
-    clear_combat_state,
-    get_combat_state,
-    resolve_manual_d616_roll,
-    resolve_npc_action,
-    resolve_player_attack,
-)
+
+clear_combat_state = combat_tracker.clear
+get_combat_state = combat_tracker.get_combat_state
+resolve_manual_d616_roll = combat_tracker.resolve_manual_roll
+resolve_player_attack = combat_tracker.resolve_player_attack
+resolve_npc_action = combat_tracker.resolve_npc_action
 
 SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "

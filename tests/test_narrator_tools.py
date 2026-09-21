@@ -195,7 +195,7 @@ class NarratorToolsTests(unittest.TestCase):
         self.assertEqual(len(payload["combatants"]), 1)
         self.assertEqual(payload["combatants"][0]["name"], "Storm")
 
-    @patch("marvel_mcp_narrator.mcp_servers.narrator_tools.resolve_d616_roll_core")
+    @patch("marvel_mcp_narrator.core.combat_tracker.resolve_d616_roll")
     def test_resolve_npc_action_auto_rolls_and_applies_damage(self, mock_roll):
         narrator_tools.create_character(
             name="Hydra",
