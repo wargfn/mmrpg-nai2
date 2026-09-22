@@ -56,6 +56,14 @@ class GameSessionControllerTests(unittest.TestCase):
         self.assertEqual(payload["target"]["current_health"], 63)
         self.assertEqual(payload["applied"]["health"]["damage"], 12)
 
+    def test_apply_combat_damage_rejects_invalid_rank(self):
+        with self.assertRaisesRegex(ValueError, "Rank must be a positive integer"):
+            self.controller.apply_combat_damage("Hydra Agent", rank=0, marvel_die_value=4)
+
+    def test_apply_combat_damage_rejects_invalid_marvel_die_value(self):
+        with self.assertRaisesRegex(ValueError, "Marvel die value must be between 1 and 6"):
+            self.controller.apply_combat_damage("Hydra Agent", rank=3, marvel_die_value=7)
+
     def test_get_session_status_returns_combatants_health_pools_and_memories(self):
         character_roster.create_or_load(
             name="Hydra Agent",

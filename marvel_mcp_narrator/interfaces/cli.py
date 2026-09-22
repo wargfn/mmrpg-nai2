@@ -48,7 +48,7 @@ def clear_combat_state() -> None:
 
 
 def get_combat_state() -> dict[str, Any]:
-    return {"combatants": get_game_session_controller().get_session_status()["combatants"]}
+    return get_game_session_controller().get_combat_state()
 
 
 def list_campaign_memories(limit: int | None = None) -> list[dict[str, Any]]:

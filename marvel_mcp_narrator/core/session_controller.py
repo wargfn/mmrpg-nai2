@@ -64,28 +64,22 @@ class GameSessionController:
             ),
             None,
         )
-        tracked_side = "npc" if tracked_target is None else str(tracked_target["side"])
-        self.combat_tracker.track_combatant(target_name, side=tracked_side)
-
         total_damage = int(rank) * int(marvel_die_value)
-        applied = self.combat_tracker._roster.apply_damage(target_name, health_damage=total_damage)
-        combat_state = self.combat_tracker.get_combat_state()
-        target_state = next(
-            combatant
-            for combatant in combat_state["combatants"]
-            if str(combatant["name"]).strip().casefold() == str(target_name).strip().casefold()
+        damage_update = self.combat_tracker.apply_damage(
+            target_name,
+            health_damage=total_damage,
+            default_side="npc" if tracked_target is None else str(tracked_target["side"]),
         )
-
         return {
-            "target": target_state,
+            "target": damage_update["target"],
             "damage": {
                 "rank": int(rank),
                 "marvel_die_value": int(marvel_die_value),
                 "damage_formula": "rank * marvel_die_value",
                 "total_damage": total_damage,
             },
-            "applied": applied,
-            "combat_state": combat_state,
+            "applied": damage_update["applied"],
+            "combat_state": damage_update["combat_state"],
         }
 
     def get_session_status(self) -> dict[str, Any]:
@@ -115,6 +109,10 @@ class GameSessionController:
     def clear_combat_state(self) -> None:
         """Clear tracked combatants for the active session."""
         self.combat_tracker.clear()
+
+    def get_combat_state(self) -> dict[str, Any]:
+        """Return tracked combatants without campaign-memory context."""
+        return self.combat_tracker.get_combat_state()
 
     def resolve_manual_roll(
         self,
