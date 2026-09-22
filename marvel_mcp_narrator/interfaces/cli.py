@@ -16,20 +16,100 @@ import httpx
 
 from marvel_mcp_narrator.core.character_creation import ABILITY_FIELDS
 from marvel_mcp_narrator.core.character_state import character_roster
-from marvel_mcp_narrator.core.combat_tracker import combat_tracker
-from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, resolve_d616_roll, roll_d616
+from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
 from marvel_mcp_narrator.core.memory.campaign_db import (
     CampaignDatabase,
     get_campaign_database,
-    list_memories as list_campaign_memories,
 )
-from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database, query_rulebook_database
+from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database
+from marvel_mcp_narrator.core.session_controller import get_game_session_controller
 
-clear_combat_state = combat_tracker.clear
-get_combat_state = combat_tracker.get_combat_state
-resolve_manual_d616_roll = combat_tracker.resolve_manual_roll
-resolve_player_attack = combat_tracker.resolve_player_attack
-resolve_npc_action = combat_tracker.resolve_npc_action
+
+def resolve_d616_roll(
+    ability_modifier: int = 0,
+    target_number: int | None = None,
+    edges: int = 0,
+    troubles: int = 0,
+) -> dict[str, Any]:
+    return get_game_session_controller().roll_action(
+        ability_modifier=ability_modifier,
+        target_number=target_number,
+        edges=edges,
+        troubles=troubles,
+    )
+
+
+def query_rulebook_database(query: str) -> str:
+    return get_game_session_controller().look_up_rule(query)
+
+
+def clear_combat_state() -> None:
+    get_game_session_controller().clear_combat_state()
+
+
+def get_combat_state() -> dict[str, Any]:
+    return {"combatants": get_game_session_controller().get_session_status()["combatants"]}
+
+
+def list_campaign_memories(limit: int | None = None) -> list[dict[str, Any]]:
+    return get_game_session_controller().list_campaign_memories(limit=limit)
+
+
+def resolve_manual_d616_roll(
+    *,
+    dice_values: list[int],
+    marvel_index: int = 1,
+    ability_modifier: int = 0,
+    target_number: int | None = None,
+) -> dict[str, Any]:
+    return get_game_session_controller().resolve_manual_roll(
+        dice_values=dice_values,
+        marvel_index=marvel_index,
+        ability_modifier=ability_modifier,
+        target_number=target_number,
+    )
+
+
+def resolve_player_attack(
+    *,
+    attacker_name: str,
+    target_name: str,
+    ability: str,
+    dice_values: list[int] | None = None,
+    marvel_index: int = 1,
+    target_resource: str = "health",
+    edges: int = 0,
+    troubles: int = 0,
+) -> dict[str, Any]:
+    return get_game_session_controller().resolve_player_attack(
+        attacker_name=attacker_name,
+        target_name=target_name,
+        ability=ability,
+        dice_values=dice_values,
+        marvel_index=marvel_index,
+        target_resource=target_resource,
+        edges=edges,
+        troubles=troubles,
+    )
+
+
+def resolve_npc_action(
+    *,
+    attacker_name: str,
+    target_name: str,
+    ability: str,
+    target_resource: str = "health",
+    edges: int = 0,
+    troubles: int = 0,
+) -> dict[str, Any]:
+    return get_game_session_controller().resolve_npc_action(
+        attacker_name=attacker_name,
+        target_name=target_name,
+        ability=ability,
+        target_resource=target_resource,
+        edges=edges,
+        troubles=troubles,
+    )
 
 SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "

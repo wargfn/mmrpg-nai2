@@ -30,6 +30,7 @@ from .rules_database import (
     lookup_rule_reference,
     query_rulebook_database,
 )
+from .session_controller import GameSessionController, get_game_session_controller
 
 __all__ = [
     "roll_d616",
@@ -61,4 +62,6 @@ __all__ = [
     "RulesDatabase",
     "D616ConfigurationError",
     "RulesLookupError",
+    "GameSessionController",
+    "get_game_session_controller",
 ]
