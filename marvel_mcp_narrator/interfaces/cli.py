@@ -45,6 +45,14 @@ def _get_session_controller() -> GameSessionController:
     return _DEFAULT_SESSION_CONTROLLER
 
 
+def _run_with_session_controller(controller: GameSessionController, callback, *args, **kwargs):
+    token = _ACTIVE_SESSION_CONTROLLER.set(controller)
+    try:
+        return callback(*args, **kwargs)
+    finally:
+        _ACTIVE_SESSION_CONTROLLER.reset(token)
+
+
 def resolve_d616_roll(
     ability_modifier: int,
     target_number: int | None = None,
@@ -906,106 +914,102 @@ def run_cli(
         campaign_database=database if database is not None else get_campaign_database()
     )
     session_database = session_controller.campaign_database
-    controller_token = _ACTIVE_SESSION_CONTROLLER.set(session_controller)
-    try:
-        print("Marvel MCP Narrator CLI")
-        print("Type '/help' for commands and 'exit' to quit.\n")
+    print("Marvel MCP Narrator CLI")
+    print("Type '/help' for commands and 'exit' to quit.\n")
 
-        rules_context = get_rules_startup_context()
-        campaign_memory_context = get_startup_context(session_database)
-        messages: list[dict[str, str]] = [
-            {
-                "role": "system",
-                "content": build_startup_system_prompt(
+    rules_context = get_rules_startup_context()
+    campaign_memory_context = get_startup_context(session_database)
+    messages: list[dict[str, str]] = [
+        {
+            "role": "system",
+            "content": build_startup_system_prompt(
+                session_database,
+                rules_context=rules_context,
+                campaign_memory_context=campaign_memory_context,
+            ),
+        }
+    ]
+    prompt_context_dirty = False
+
+    while True:
+        try:
+            user_input = input("you> ").strip()
+        except EOFError:
+            print("Goodbye.")
+            return
+        except KeyboardInterrupt:
+            print("\nGoodbye.")
+            return
+        if not user_input:
+            continue
+        if user_input.lower() == "/help":
+            print(CLI_COMMANDS_HELP)
+            continue
+        if _is_exit_command(user_input):
+            print("Goodbye.")
+            return
+
+        turn_start_index = len(messages)
+        try:
+            routed = _run_with_session_controller(session_controller, _route_intent_command, user_input)
+            if routed is not None:
+                tool_name, formatted_output = routed
+                print(f"{tool_name}> {formatted_output}")
+                messages.append({"role": "user", "content": user_input})
+                messages.append(
+                    {
+                        "role": "tool",
+                        "content": f"Deterministic router output ({tool_name}): {formatted_output}",
+                    }
+                )
+                prompt_context_dirty = True
+                continue
+            tool_name, tool_output = _run_with_session_controller(session_controller, _tool_injection, user_input)
+            if tool_name and tool_output is not None:
+                payload = tool_output if isinstance(tool_output, str) else json.dumps(tool_output, ensure_ascii=False)
+                print(f"tool[{tool_name}]> {payload}")
+                messages.append(
+                    {
+                        "role": "tool",
+                        "content": f"Tool output ({tool_name}): {payload}",
+                    }
+                )
+                prompt_context_dirty = True
+            else:
+                messages.append({"role": "user", "content": user_input})
+        except (ValueError, D616ConfigurationError, RulesLookupError, OSError) as exc:
+            print(f"tool_error> {exc}")
+            continue
+
+        try:
+            if prompt_context_dirty:
+                campaign_memory_context = get_startup_context(session_database)
+                messages[0]["content"] = build_startup_system_prompt(
                     session_database,
                     rules_context=rules_context,
                     campaign_memory_context=campaign_memory_context,
-                ),
-            }
-        ]
-        prompt_context_dirty = False
-
-        while True:
-            try:
-                user_input = input("you> ").strip()
-            except EOFError:
-                print("Goodbye.")
-                return
-            except KeyboardInterrupt:
-                print("\nGoodbye.")
-                return
-            if not user_input:
-                continue
-            if user_input.lower() == "/help":
-                print(CLI_COMMANDS_HELP)
-                continue
-            if _is_exit_command(user_input):
-                print("Goodbye.")
-                return
-
-            turn_start_index = len(messages)
-            try:
-                routed = _route_intent_command(user_input)
-                if routed is not None:
-                    tool_name, formatted_output = routed
-                    print(f"{tool_name}> {formatted_output}")
-                    messages.append({"role": "user", "content": user_input})
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "content": f"Deterministic router output ({tool_name}): {formatted_output}",
-                        }
-                    )
-                    prompt_context_dirty = True
-                    continue
-                tool_name, tool_output = _tool_injection(user_input)
-                if tool_name and tool_output is not None:
-                    payload = tool_output if isinstance(tool_output, str) else json.dumps(tool_output, ensure_ascii=False)
-                    print(f"tool[{tool_name}]> {payload}")
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "content": f"Tool output ({tool_name}): {payload}",
-                        }
-                    )
-                    prompt_context_dirty = True
-                else:
-                    messages.append({"role": "user", "content": user_input})
-            except (ValueError, D616ConfigurationError, RulesLookupError, OSError) as exc:
-                print(f"tool_error> {exc}")
-                continue
-
-            try:
-                if prompt_context_dirty:
-                    campaign_memory_context = get_startup_context(session_database)
-                    messages[0]["content"] = build_startup_system_prompt(
-                        session_database,
-                        rules_context=rules_context,
-                        campaign_memory_context=campaign_memory_context,
-                    )
-                    prompt_context_dirty = False
-                final_content = _request_open_webui_chat_with_fallback(
-                    host=host,
-                    base_url=base_url or host,
-                    model=model,
-                    messages=list(messages),
-                    api_key=api_key,
-                    timeout=timeout,
                 )
-                print(f"assistant> {final_content}")
-                if final_content:
-                    messages.append({"role": "assistant", "content": final_content})
-            except (httpx.HTTPError, ValueError, TypeError, RuntimeError) as exc:
-                del messages[turn_start_index:]
-                message = str(exc)
-                if "connection refused" in message.lower():
-                    print("chat_error> Connection refused. Is Open WebUI running?")
-                elif "405" in message:
-                    print("chat_error> Method not allowed. Verify your Open WebUI host endpoint.")
-                else:
-                    print(f"chat_error> {exc}")
-    finally:
-        _ACTIVE_SESSION_CONTROLLER.reset(controller_token)
+                prompt_context_dirty = False
+            final_content = _request_open_webui_chat_with_fallback(
+                host=host,
+                base_url=base_url or host,
+                model=model,
+                messages=list(messages),
+                api_key=api_key,
+                timeout=timeout,
+            )
+            print(f"assistant> {final_content}")
+            if final_content:
+                messages.append({"role": "assistant", "content": final_content})
+        except (httpx.HTTPError, ValueError, TypeError, RuntimeError) as exc:
+            del messages[turn_start_index:]
+            message = str(exc)
+            if "connection refused" in message.lower():
+                print("chat_error> Connection refused. Is Open WebUI running?")
+            elif "405" in message:
+                print("chat_error> Method not allowed. Verify your Open WebUI host endpoint.")
+            else:
+                print(f"chat_error> {exc}")
 
 
 def main() -> None:
