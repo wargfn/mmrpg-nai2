@@ -174,6 +174,8 @@ class GameSessionController:
 
     def list_campaign_memories(self, limit: int | None = None) -> list[dict[str, Any]]:
         """Return stored campaign memories, optionally limited to a recent subset."""
+        if limit is not None and limit < 0:
+            raise ValueError("Memory limit must be a non-negative integer.")
         memories = self.campaign_database.list_memories()
         if limit is None:
             return memories

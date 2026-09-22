@@ -142,6 +142,10 @@ class GameSessionControllerTests(unittest.TestCase):
         self.assertEqual(payload["campaign_context"]["active_session_number"], 1)
         self.assertEqual(payload["campaign_context"]["session"]["title"], "The Helicarrier Falls")
 
+    def test_list_campaign_memories_rejects_negative_limit(self):
+        with self.assertRaisesRegex(ValueError, "Memory limit must be a non-negative integer"):
+            self.controller.list_campaign_memories(limit=-1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,13 +23,13 @@ from marvel_mcp_narrator.core.memory.campaign_db import (
     get_campaign_database,
 )
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database
-from marvel_mcp_narrator.core.session_controller import get_game_session_controller
+from marvel_mcp_narrator.core.session_controller import GameSessionController
 
 _ACTIVE_SESSION_CONTROLLER: ContextVar[Any | None] = ContextVar("cli_session_controller", default=None)
 
 
 def _get_session_controller():
-    return _ACTIVE_SESSION_CONTROLLER.get() or get_game_session_controller()
+    return _ACTIVE_SESSION_CONTROLLER.get() or GameSessionController()
 
 
 def resolve_d616_roll(
@@ -840,7 +840,7 @@ def run_cli(
     database: CampaignDatabase | None = None,
 ) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
-    session_controller = get_game_session_controller(
+    session_controller = GameSessionController(
         campaign_database=database if database is not None else get_campaign_database()
     )
     session_database = session_controller.campaign_database
