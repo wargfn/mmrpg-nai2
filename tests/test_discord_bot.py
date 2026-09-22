@@ -35,9 +35,10 @@ class _FakeTyping:
 
 
 class _FakeChannel:
-    def __init__(self, channel_id: int, *, parent_id: int | None = None):
+    def __init__(self, channel_id: int, *, parent_id: int | None = None, guild=object()):
         self.id = channel_id
         self.parent_id = parent_id
+        self.guild = guild
         self.sent_messages: list[dict] = []
 
     async def send(self, content=None, embed=None):
@@ -192,7 +193,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
     def test_is_campaign_channel_accepts_parent_thread(self):
         bot = create_discord_bot(self.config, controller=self.controller)
-        self.assertTrue(bot.is_campaign_channel(SimpleNamespace(id=42, parent_id=None)))
+        self.assertTrue(bot.is_campaign_channel(SimpleNamespace(id=42, parent_id=None, guild=object())))
         self.assertTrue(bot.is_campaign_channel(_FakeThread(99, parent_id=42)))
         self.assertTrue(bot.is_campaign_channel(_FakeThread(99, parent_id=None, parent=SimpleNamespace(id=42))))
         self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=99, parent_id=42)))
@@ -210,7 +211,11 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
     def test_is_campaign_channel_requires_explicit_configuration(self):
         config = DiscordBotConfig(token="test-token", campaign_channel_id=None)
         bot = create_discord_bot(config, controller=self.controller)
-        self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=42, parent_id=None)))
+        self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=42, parent_id=None, guild=object())))
+
+    def test_is_campaign_channel_rejects_non_guild_direct_match(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=42, parent_id=None, guild=None)))
 
     async def test_setup_hook_adds_cog_without_syncing_tree(self):
         bot = create_discord_bot(self.config, controller=self.controller)

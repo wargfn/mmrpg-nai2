@@ -334,6 +334,18 @@ class DiscordNarratorBot(commands.Bot):
         await self.add_cog(NarratorDiscordCog(self))
 
     @staticmethod
+    def _is_supported_campaign_root_channel(channel: Any) -> bool:
+        if getattr(channel, "guild", None) is None:
+            return False
+        channel_type = getattr(channel, "type", None)
+        if channel_type is None:
+            return True
+        return channel_type in {
+            discord.ChannelType.text,
+            discord.ChannelType.news,
+        }
+
+    @staticmethod
     def _is_supported_campaign_thread(channel: Any) -> bool:
         channel_type = getattr(channel, "type", None)
         if channel_type is not None:
@@ -357,7 +369,7 @@ class DiscordNarratorBot(commands.Bot):
         if self.campaign_channel_id is None:
             return False
         channel_id = getattr(channel, "id", None)
-        if channel_id == self.campaign_channel_id:
+        if channel_id == self.campaign_channel_id and self._is_supported_campaign_root_channel(channel):
             return True
         if not self._is_supported_campaign_thread(channel):
             return False
