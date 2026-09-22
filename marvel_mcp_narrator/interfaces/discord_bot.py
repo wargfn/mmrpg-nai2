@@ -146,19 +146,19 @@ def load_discord_bot_config(
     history_limit_value = discord_block.get("history_limit", DEFAULT_DISCORD_HISTORY_LIMIT)
     history_limit = _coerce_positive_int(history_limit_value, field_name="Discord history limit")
 
-    token_override = _normalize_token(os.getenv("NARRATOR_DISCORD_BOT_TOKEN") or os.getenv("DISCORD_BOT_TOKEN"))
-    prefix_override = os.getenv("NARRATOR_DISCORD_COMMAND_PREFIX")
-    channel_override = os.getenv("NARRATOR_DISCORD_CAMPAIGN_CHANNEL_ID")
-    history_limit_override = os.getenv("NARRATOR_DISCORD_HISTORY_LIMIT")
+    env_token_override = _normalize_token(os.getenv("NARRATOR_DISCORD_BOT_TOKEN") or os.getenv("DISCORD_BOT_TOKEN"))
+    env_prefix_override = os.getenv("NARRATOR_DISCORD_COMMAND_PREFIX")
+    env_channel_override = os.getenv("NARRATOR_DISCORD_CAMPAIGN_CHANNEL_ID")
+    env_history_limit_override = os.getenv("NARRATOR_DISCORD_HISTORY_LIMIT")
 
-    if token_override is not None:
-        token = token_override
-    if prefix_override is not None:
-        command_prefix = _normalize_command_prefix(prefix_override, source_name="Discord environment")
-    if channel_override is not None:
-        campaign_channel_id = _coerce_optional_int(channel_override, field_name="Discord campaign channel id")
-    if history_limit_override is not None:
-        history_limit = _coerce_positive_int(history_limit_override, field_name="Discord history limit")
+    if env_token_override is not None:
+        token = env_token_override
+    if env_prefix_override is not None:
+        command_prefix = _normalize_command_prefix(env_prefix_override, source_name="Discord environment")
+    if env_channel_override is not None:
+        campaign_channel_id = _coerce_optional_int(env_channel_override, field_name="Discord campaign channel id")
+    if env_history_limit_override is not None:
+        history_limit = _coerce_positive_int(env_history_limit_override, field_name="Discord history limit")
     if token_override is not None:
         token = _normalize_token(token_override)
     if campaign_channel_id_override is not None:
