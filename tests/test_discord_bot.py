@@ -550,6 +550,19 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(session.history), 1)
         self.assertIs(bot.channel_histories[42], session.history)
 
+    async def test_clear_history_in_root_channel_resets_author_session(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        cog = NarratorDiscordCog(bot)
+        channel = _FakeChannel(42)
+        session = bot.get_user_session(42)
+        session.history.append({"role": "user", "content": "Old message"})
+        ctx = _FakeContext(author_id=42, channel=channel)
+
+        await cog.clear_history.callback(cog, ctx, limit=10)
+
+        self.assertEqual(len(session.history), 1)
+        self.assertIs(bot.channel_histories[42], session.history)
+
     def test_sessions_use_isolated_campaign_databases(self):
         with TemporaryDirectory() as tmpdir:
             shared_path = Path(tmpdir) / "campaign.db"

@@ -17,7 +17,7 @@ import discord
 from discord.ext import commands
 
 from marvel_mcp_narrator.core.character_state import CharacterRoster
-from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase
+from marvel_mcp_narrator.core.memory.campaign_db import CAMPAIGN_DB_PATH, CampaignDatabase
 from marvel_mcp_narrator.core.rules_database import RulesLookupError
 from marvel_mcp_narrator.core.session_controller import GameSessionController
 from marvel_mcp_narrator.interfaces.cli import (
@@ -349,7 +349,7 @@ class DiscordNarratorBot(commands.Bot):
 
     @staticmethod
     def _user_campaign_database_path(user_id: int) -> Path:
-        return CampaignDatabase().path.parent / "discord_sessions" / f"campaign_user_{user_id}.db"
+        return CAMPAIGN_DB_PATH.parent / "discord_sessions" / f"campaign_user_{user_id}.db"
 
     def _campaign_database_for_user(self, user_id: int) -> CampaignDatabase:
         if self._campaign_database is None:
@@ -585,6 +585,8 @@ class NarratorDiscordCog(commands.Cog):
             await message.delete()
             deleted += 1
         session = self.bot.get_session_for_channel(ctx.channel)
+        if session is None and self.bot.is_campaign_channel(ctx.channel):
+            session = self.bot.get_user_session(self._author_id(ctx.author))
         if session is not None:
             self.bot.reset_session_history(session)
         await ctx.send(f"Cleared {deleted} non-pinned messages.")

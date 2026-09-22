@@ -13,8 +13,8 @@ api_key = ""
 # Optional HTTP timeout in seconds for chat requests
 # timeout = 120
 
-# Preferred LLM timeout in milliseconds for CLI and Discord requests
-llm_timeout_ms = 220
+# Optional LLM timeout in milliseconds for CLI and Discord requests
+# llm_timeout_ms = 220
 
 [discord]
 # Preferred command prefix for text commands
