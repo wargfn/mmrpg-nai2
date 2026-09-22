@@ -979,7 +979,11 @@ def run_cli(
 
         turn_start_index = len(messages)
         try:
-            routed = _route_intent_command(user_input, session_controller=session_controller)
+            route_token = _ACTIVE_SESSION_CONTROLLER.set(session_controller)
+            try:
+                routed = _route_intent_command(user_input)
+            finally:
+                _ACTIVE_SESSION_CONTROLLER.reset(route_token)
             if routed is not None:
                 tool_name, formatted_output = routed
                 print(f"{tool_name}> {formatted_output}")
@@ -992,7 +996,11 @@ def run_cli(
                 )
                 prompt_context_dirty = True
                 continue
-            tool_name, tool_output = _tool_injection(user_input, session_controller=session_controller)
+            tool_token = _ACTIVE_SESSION_CONTROLLER.set(session_controller)
+            try:
+                tool_name, tool_output = _tool_injection(user_input)
+            finally:
+                _ACTIVE_SESSION_CONTROLLER.reset(tool_token)
             if tool_name and tool_output is not None:
                 payload = tool_output if isinstance(tool_output, str) else json.dumps(tool_output, ensure_ascii=False)
                 print(f"tool[{tool_name}]> {payload}")
