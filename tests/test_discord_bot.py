@@ -373,6 +373,21 @@ class DiscordBotServiceTests(unittest.TestCase):
             self.assertTrue(mock_popen.call_args.kwargs["start_new_session"])
             self.assertEqual(mock_popen.call_args.kwargs["env"][BACKGROUND_SERVICE_ENV], "1")
 
+    def test_start_background_service_creates_missing_log_directory(self):
+        with TemporaryDirectory() as tmpdir:
+            pid_path = Path(tmpdir) / "discord.pid"
+            log_path = Path(tmpdir) / "logs" / "nested" / "discord.log"
+            fake_process = SimpleNamespace(pid=4321)
+
+            with patch("marvel_mcp_narrator.interfaces.discord_bot.subprocess.Popen", return_value=fake_process):
+                start_background_service(
+                    config_path="/tmp/narrator.toml",
+                    pid_file=str(pid_path),
+                    log_file=str(log_path),
+                )
+
+            self.assertTrue(log_path.parent.exists())
+
     @patch("marvel_mcp_narrator.interfaces.discord_bot.start_background_service", return_value=9999)
     @patch("marvel_mcp_narrator.interfaces.discord_bot.load_discord_bot_config")
     def test_main_background_mode_launches_service_without_running_bot(self, mock_load_config, mock_start_background):

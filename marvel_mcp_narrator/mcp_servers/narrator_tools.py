@@ -629,6 +629,8 @@ def start_background_service(*, pid_file: str | None = None, log_file: str | Non
     env[BACKGROUND_SERVICE_ENV] = "1"
 
     log_path = os.devnull if log_file is None else str(Path(log_file).expanduser())
+    if log_file is not None:
+        Path(log_path).parent.mkdir(parents=True, exist_ok=True)
     log_handle = open(log_path, "a", encoding="utf-8")
     try:
         process = subprocess.Popen(
