@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import atexit
 import argparse
+import os
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import gettempdir
@@ -45,6 +49,7 @@ from marvel_mcp_narrator.core.rules_database import lookup_rule_reference
 
 
 mcp = FastMCP("mmrpg-narrator")
+BACKGROUND_SERVICE_ENV = "NARRATOR_TOOLS_BACKGROUND_SERVICE"
 _TOOL_HELP_ENTRIES = [
     ("roll_d616", "Resolve a d616 check with optional edge, trouble, and target number."),
     ("lookup_rule", "Look up an exact mechanics or power reference from the rule database."),
@@ -595,6 +600,53 @@ def format_tool_help() -> str:
     return "\n".join(lines)
 
 
+def _write_pid_file(pid_file: str | None, *, pid: int | None = None) -> None:
+    if not pid_file:
+        return
+    Path(pid_file).expanduser().write_text(str(os.getpid() if pid is None else pid), encoding="utf-8")
+
+
+def _cleanup_pid_file(pid_file: str | None) -> None:
+    if not pid_file:
+        return
+    path = Path(pid_file).expanduser()
+    try:
+        if path.read_text(encoding="utf-8").strip() == str(os.getpid()):
+            path.unlink()
+    except FileNotFoundError:
+        return
+
+
+def start_background_service(*, pid_file: str | None = None, log_file: str | None = None) -> int:
+    """Launch the FastMCP narrator server as a detached background process."""
+    command = [sys.executable, "-m", "marvel_mcp_narrator.mcp_servers.narrator_tools"]
+    if pid_file:
+        command.extend(["--pid-file", pid_file])
+    if log_file:
+        command.extend(["--log-file", log_file])
+
+    env = os.environ.copy()
+    env[BACKGROUND_SERVICE_ENV] = "1"
+
+    log_path = os.devnull if log_file is None else str(Path(log_file).expanduser())
+    log_handle = open(log_path, "a", encoding="utf-8")
+    try:
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+            env=env,
+        )
+    except Exception:
+        log_handle.close()
+        raise
+    _write_pid_file(pid_file, pid=process.pid)
+    return int(process.pid)
+
+
 def build_argument_parser() -> argparse.ArgumentParser:
     """Build a small CLI for starting or inspecting the FastMCP narrator server."""
     parser = argparse.ArgumentParser(
@@ -613,6 +665,21 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the exposed FastMCP narrator tools and exit.",
     )
+    parser.add_argument(
+        "--background",
+        action="store_true",
+        help="Launch the FastMCP narrator server as a detached background service.",
+    )
+    parser.add_argument(
+        "--pid-file",
+        default=None,
+        help="Optional pid file path for foreground or background server runs.",
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        help="Optional log file for background service stdout/stderr (defaults to os.devnull).",
+    )
     return parser
 
 
@@ -623,6 +690,12 @@ def main(argv: list[str] | None = None) -> None:
     if args.list_tools:
         print(format_tool_help())
         return
+    if args.background and os.getenv(BACKGROUND_SERVICE_ENV) != "1":
+        start_background_service(pid_file=args.pid_file, log_file=args.log_file)
+        return
+    if args.pid_file:
+        _write_pid_file(args.pid_file)
+        atexit.register(_cleanup_pid_file, args.pid_file)
     mcp.run()
 
 

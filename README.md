@@ -46,7 +46,13 @@ The repository also includes a Discord interface that mirrors the shared `GameSe
   - `/attack` with arguments `target`, `rank`, and `marvel_die` (text form: `!attack <target> <rank> <marvel_die>`)
 - Natural messages in the designated campaign channel (or its threads) are forwarded through the same Open WebUI chat backend, with conversation history maintained per Discord channel/thread.
 
-## CLI commands and shutdown
+  ## FastMCP narrator server
+
+  - Start the FastMCP narrator server with `python -m marvel_mcp_narrator.mcp_servers.narrator_tools`.
+  - List exposed tools with `python -m marvel_mcp_narrator.mcp_servers.narrator_tools --list-tools`.
+  - To run it as a detached background service, use `python -m marvel_mcp_narrator.mcp_servers.narrator_tools --background --log-file /path/to/narrator-tools.log --pid-file /path/to/narrator-tools.pid`.
+
+  ## CLI commands and shutdown
 
 - Run `marvel-narrator-cli --help` to see CLI flags and interactive command help.
 - During a session:
