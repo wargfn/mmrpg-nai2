@@ -307,6 +307,22 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         bot.invoke.assert_awaited_once_with(ctx)
         self.assertEqual(command_message.channel.sent_messages, [])
 
+    async def test_on_message_reports_chat_backend_errors(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        bot.get_context = AsyncMock(return_value=SimpleNamespace(valid=False))
+        bot.generate_channel_reply = AsyncMock(side_effect=ConnectionError("offline"))
+        cog = NarratorDiscordCog(bot)
+        channel = _FakeChannel(42)
+        message = SimpleNamespace(
+            author=SimpleNamespace(bot=False, display_name="Storm"),
+            channel=channel,
+            content="Tell me what I see.",
+        )
+
+        await cog.on_message(message)
+
+        self.assertEqual(channel.sent_messages[0]["content"], "chat_error> Connection refused. Is Open WebUI running?")
+
 
 class DiscordBotHelperTests(unittest.TestCase):
     def test_chunk_text_splits_long_messages(self):

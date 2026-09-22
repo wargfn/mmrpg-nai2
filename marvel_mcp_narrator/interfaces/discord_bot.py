@@ -225,6 +225,16 @@ def _build_channel_system_prompt(controller: GameSessionController) -> str:
     )
 
 
+def _format_chat_error(exc: Exception) -> str:
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if isinstance(exc, ConnectionError):
+        return "chat_error> Connection refused. Is Open WebUI running?"
+    if status_code == 405:
+        return "chat_error> Method not allowed. Verify your Open WebUI host endpoint."
+    return f"chat_error> {exc}"
+
+
 def _write_pid_file(pid_file: str | None, *, pid: int | None = None) -> None:
     if not pid_file:
         return
@@ -261,7 +271,8 @@ def start_background_service(
     env[BACKGROUND_SERVICE_ENV] = "1"
 
     log_path = os.devnull if log_file is None else str(Path(log_file).expanduser())
-    with open(log_path, "a", encoding="utf-8") as log_handle:
+    log_handle = open(log_path, "a", encoding="utf-8")
+    try:
         process = subprocess.Popen(
             command,
             stdin=subprocess.DEVNULL,
@@ -271,6 +282,9 @@ def start_background_service(
             close_fds=True,
             env=env,
         )
+    except Exception:
+        log_handle.close()
+        raise
     _write_pid_file(pid_file, pid=process.pid)
     return int(process.pid)
 
@@ -419,8 +433,14 @@ class NarratorDiscordCog(commands.Cog):
             return
         if not self.bot.is_campaign_channel(message.channel):
             return
-        async with message.channel.typing():
-            response = await self.bot.generate_channel_reply(message.channel, message.author.display_name, message.content)
+        try:
+            async with message.channel.typing():
+                response = await self.bot.generate_channel_reply(
+                    message.channel, message.author.display_name, message.content
+                )
+        except Exception as exc:
+            await message.channel.send(_format_chat_error(exc))
+            return
         await self.bot.send_response(message.channel, response)
 
 
