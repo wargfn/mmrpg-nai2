@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-from threading import Lock
 from typing import Any
 
 from marvel_mcp_narrator.core.combat_tracker import CombatTracker
 from marvel_mcp_narrator.core.d616_engine import resolve_d616_roll
-from marvel_mcp_narrator.core.memory.campaign_db import CAMPAIGN_DB_PATH, CampaignDatabase, get_campaign_database
+from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase, get_campaign_database
 from marvel_mcp_narrator.core.rules_database import RulesDatabase
 
 _RECENT_MEMORY_LIMIT = 5
-_DEFAULT_SESSION_CONTROLLER: GameSessionController | None = None
-_DEFAULT_SESSION_CONTROLLER_LOCK = Lock()
 
 
 class GameSessionController:
@@ -64,12 +61,13 @@ class GameSessionController:
             ),
             None,
         )
+        if tracked_target is None:
+            raise KeyError(f"Combatant '{target_name}' is not currently tracked.")
+        if str(tracked_target["side"]) not in {"enemy", "npc"}:
+            raise ValueError("Combat damage can only be applied to tracked enemy or NPC combatants.")
+
         total_damage = int(rank) * int(marvel_die_value)
-        damage_update = self.combat_tracker.apply_damage(
-            target_name,
-            health_damage=total_damage,
-            default_side="npc" if tracked_target is None else str(tracked_target["side"]),
-        )
+        damage_update = self.combat_tracker.apply_damage(target_name, health_damage=total_damage)
         return {
             "target": damage_update["target"],
             "damage": {
@@ -188,19 +186,9 @@ def get_game_session_controller(
     combat_tracker: CombatTracker | None = None,
     campaign_database: CampaignDatabase | None = None,
 ) -> GameSessionController:
-    """Return a reusable default session controller or a custom controller."""
-    global _DEFAULT_SESSION_CONTROLLER
-    if rules_database is not None or combat_tracker is not None or campaign_database is not None:
-        return GameSessionController(
-            rules_database=rules_database,
-            combat_tracker=combat_tracker,
-            campaign_database=campaign_database,
-        )
-
-    with _DEFAULT_SESSION_CONTROLLER_LOCK:
-        if (
-            _DEFAULT_SESSION_CONTROLLER is None
-            or _DEFAULT_SESSION_CONTROLLER.campaign_database.path != CAMPAIGN_DB_PATH
-        ):
-            _DEFAULT_SESSION_CONTROLLER = GameSessionController()
-        return _DEFAULT_SESSION_CONTROLLER
+    """Return a controller instance for an explicit session or request scope."""
+    return GameSessionController(
+        rules_database=rules_database,
+        combat_tracker=combat_tracker,
+        campaign_database=campaign_database,
+    )

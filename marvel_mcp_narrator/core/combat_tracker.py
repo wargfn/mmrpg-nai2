@@ -110,9 +110,7 @@ class CombatTracker:
         *,
         health_damage: int = 0,
         focus_damage: int = 0,
-        default_side: str = "npc",
     ) -> dict[str, Any]:
-        normalized_default_side = self._normalize_side(default_side)
         current_state = self.get_combat_state()
         tracked_target = next(
             (
@@ -122,8 +120,9 @@ class CombatTracker:
             ),
             None,
         )
-        tracked_side = normalized_default_side if tracked_target is None else str(tracked_target["side"])
-        self.track_combatant(target_name, side=tracked_side)
+        if tracked_target is None:
+            raise KeyError(f"Combatant '{target_name}' is not currently tracked.")
+        tracked_side = str(tracked_target["side"])
         applied = self._roster.apply_damage(target_name, health_damage=health_damage, focus_damage=focus_damage)
         updated_target = self._build_combatant_snapshot(target_name, side=tracked_side)
         return {

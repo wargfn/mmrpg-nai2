@@ -90,6 +90,17 @@ class GameSessionControllerTests(unittest.TestCase):
         )
         self.assertIsNone(payload["campaign_context"])
 
+    def test_get_session_status_limits_recent_memories_to_latest_five(self):
+        for index in range(7):
+            self.database.save_memory(f"session-{index}", f"Event {index}")
+
+        payload = self.controller.get_session_status()
+
+        self.assertEqual(
+            [memory["key"] for memory in payload["recent_campaign_memories"]],
+            ["session-6", "session-5", "session-4", "session-3", "session-2"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
