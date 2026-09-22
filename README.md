@@ -33,9 +33,9 @@ The repository also includes a Discord interface that mirrors the shared `GameSe
 
 - Install dependencies and set `NARRATOR_DISCORD_BOT_TOKEN` (preferred) or `DISCORD_BOT_TOKEN`.
 - Optionally add a `[discord]` block to `narrator_config.toml`:
-  - `command_prefix`
-  - `campaign_channel_id` (required to enable freeform narration)
-  - `history_limit`
+  - `command_prefix` (or `NARRATOR_DISCORD_COMMAND_PREFIX`)
+  - `campaign_channel_id` (or `NARRATOR_DISCORD_CAMPAIGN_CHANNEL_ID`; required to enable freeform narration)
+  - `history_limit` (or `NARRATOR_DISCORD_HISTORY_LIMIT`)
   - `token` (environment variables are preferred for secrets)
 - Start the bot with `marvel-narrator-discord` or `python -m marvel_mcp_narrator.interfaces.discord_bot`.
 - Supported environment variables are `NARRATOR_DISCORD_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `NARRATOR_DISCORD_CAMPAIGN_CHANNEL_ID`, `NARRATOR_DISCORD_COMMAND_PREFIX`, and `NARRATOR_DISCORD_HISTORY_LIMIT`.

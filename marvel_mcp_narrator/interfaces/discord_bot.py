@@ -349,7 +349,7 @@ class DiscordNarratorBot(commands.Bot):
 
     @staticmethod
     def _user_campaign_database_path(user_id: int) -> Path:
-        return CampaignDatabase().path.parent / "discord_sessions" / f"user_{user_id}.db"
+        return CampaignDatabase().path.parent / "discord_sessions" / f"campaign_user_{user_id}.db"
 
     def _campaign_database_for_user(self, user_id: int) -> CampaignDatabase:
         if self._campaign_database is None:

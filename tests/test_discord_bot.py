@@ -538,6 +538,13 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first_path.name, "campaign_user_1.db")
         self.assertEqual(second_path.name, "campaign_user_2.db")
 
+    def test_default_user_campaign_database_path_uses_campaign_prefix(self):
+        bot = create_discord_bot(self.config)
+
+        path = bot._user_campaign_database_path(5)
+
+        self.assertEqual(path.name, "campaign_user_5.db")
+
 
 class DiscordBotHelperTests(unittest.TestCase):
     def test_chunk_text_splits_long_messages(self):
