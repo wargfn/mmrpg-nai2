@@ -44,7 +44,7 @@ The repository also includes a Discord interface that mirrors the shared `GameSe
   - `/rule` with argument `query` (text form: `!rule <query>`)
   - `/combat status`
   - `/attack` with arguments `target`, `rank`, and `marvel_die` (text form: `!attack <target> <rank> <marvel_die>`)
-- Natural messages in the designated campaign channel (or its threads) are forwarded through the same Open WebUI chat backend, with conversation history maintained per Discord channel/thread.
+- Natural messages are only forwarded in the configured `campaign_channel_id` (or its threads), with conversation history maintained per Discord channel/thread.
 
 ## FastMCP narrator server
 

@@ -324,7 +324,7 @@ class DiscordNarratorBot(commands.Bot):
 
     def is_campaign_channel(self, channel: discord.abc.GuildChannel | discord.Thread | Any) -> bool:
         if self.campaign_channel_id is None:
-            return True
+            return False
         channel_id = getattr(channel, "id", None)
         parent_id = getattr(channel, "parent_id", None)
         parent = getattr(channel, "parent", None)

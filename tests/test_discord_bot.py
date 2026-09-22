@@ -152,6 +152,11 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(bot.is_campaign_channel(SimpleNamespace(id=99, parent_id=None, parent=SimpleNamespace(id=42))))
         self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=50, parent_id=None)))
 
+    def test_is_campaign_channel_requires_explicit_configuration(self):
+        config = DiscordBotConfig(token="test-token", campaign_channel_id=None)
+        bot = create_discord_bot(config, controller=self.controller)
+        self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=42, parent_id=None)))
+
     async def test_setup_hook_adds_cog_without_syncing_tree(self):
         bot = create_discord_bot(self.config, controller=self.controller)
         bot.add_cog = AsyncMock()
