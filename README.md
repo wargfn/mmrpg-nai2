@@ -33,7 +33,7 @@ The repository also includes a Discord interface that mirrors the shared `GameSe
 - Install dependencies and set `NARRATOR_DISCORD_BOT_TOKEN` (preferred) or `DISCORD_BOT_TOKEN`.
 - Optionally add a `[discord]` block to `narrator_config.toml`:
   - `command_prefix`
-  - `campaign_channel_id`
+  - `campaign_channel_id` (required to enable freeform narration)
   - `history_limit`
   - `token` (environment variables are preferred for secrets)
 - Start the bot with `marvel-narrator-discord` or `python -m marvel_mcp_narrator.interfaces.discord_bot`.
@@ -46,7 +46,7 @@ The repository also includes a Discord interface that mirrors the shared `GameSe
   - `/rule` with argument `query` (text form: `!rule <query>`)
   - `/combat status`
   - `/attack` with arguments `target`, `rank`, and `marvel_die` (text form: `!attack <target> <rank> <marvel_die>`)
-- Natural messages are only forwarded in the configured `campaign_channel_id` (or its threads), with conversation history maintained per Discord channel/thread.
+- Natural messages are only forwarded when `campaign_channel_id` is configured; otherwise slash/text commands still work, but freeform narration is disabled.
 
 ## FastMCP narrator server
 

@@ -16,7 +16,7 @@ api_key = ""
 [discord]
 # Preferred command prefix for text commands
 command_prefix = "!"
-# Optional designated campaign channel id; replies in matching threads are also allowed
+# Designated campaign channel id for freeform narration; replies in matching threads are also allowed
 # campaign_channel_id = 123456789012345678
 # Optional maximum stored messages per channel history (excluding system prompt)
 # history_limit = 24

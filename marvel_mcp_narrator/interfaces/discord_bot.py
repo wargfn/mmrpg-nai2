@@ -506,7 +506,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--campaign-channel-id",
         type=int,
         default=None,
-        help="Discord channel id for freeform campaign narration (overrides environment variables and config file).",
+        help="Discord channel id for freeform campaign narration; if omitted, natural-language narration is disabled.",
     )
     parser.add_argument(
         "--background",
