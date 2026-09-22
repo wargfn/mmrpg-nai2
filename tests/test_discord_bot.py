@@ -63,11 +63,13 @@ class _FakeChannel:
 
 
 class _FakeContext:
-    def __init__(self, *, author_id: int = 42, channel=None, message=None):
+    def __init__(self, *, author_id: int = 42, channel=None, message=None, interaction=None):
         self.sent_messages: list[dict] = []
         self.author = SimpleNamespace(id=author_id, display_name=f"User {author_id}")
         self.channel = channel or _FakeChannel(42)
         self.message = message
+        self.interaction = interaction
+        self.defer = AsyncMock()
 
     async def send(self, content=None, embed=None):
         self.sent_messages.append({"content": content, "embed": embed})
@@ -348,6 +350,17 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         mock_roll.assert_called_once_with(ability_modifier=2, edges=1, troubles=0)
         self.assertIn("Deterministic d616 Roll:", ctx.sent_messages[0]["content"])
 
+    async def test_roll_command_defers_pending_slash_interaction(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        bot.get_user_controller = lambda *_: self.controller
+        cog = NarratorDiscordCog(bot)
+        interaction = SimpleNamespace(response=SimpleNamespace(is_done=lambda: False))
+        ctx = _FakeContext(interaction=interaction)
+
+        await cog.roll.callback(cog, ctx, edges=0, troubles=0, modifier=0)
+
+        ctx.defer.assert_awaited_once_with()
+
     async def test_rule_command_sends_embed(self):
         bot = create_discord_bot(self.config, controller=self.controller)
         bot.get_user_controller = lambda *_: self.controller
@@ -374,6 +387,16 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
         mock_damage.assert_called_once_with("Hydra", rank=3, marvel_die_value=4)
         self.assertIn("3 × 4 = 12", ctx.sent_messages[0]["content"])
+
+    async def test_cog_app_command_error_sends_interaction_response(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        cog = NarratorDiscordCog(bot)
+        response = SimpleNamespace(is_done=lambda: False, send_message=AsyncMock())
+        interaction = SimpleNamespace(response=response, followup=SimpleNamespace(send=AsyncMock()))
+
+        await cog.cog_app_command_error(interaction, ValueError("boom"))
+
+        response.send_message.assert_awaited_once_with("bot_error> boom")
 
     async def test_combat_status_command_formats_tracker_state(self):
         bot = create_discord_bot(self.config, controller=self.controller)

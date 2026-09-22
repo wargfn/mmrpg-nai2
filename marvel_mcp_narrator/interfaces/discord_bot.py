@@ -527,9 +527,53 @@ class NarratorDiscordCog(commands.Cog):
     def _controller_for_actor(self, actor: Any) -> GameSessionController:
         return self.bot.get_user_controller(self._author_id(actor))
 
+    @staticmethod
+    async def _maybe_defer(ctx: commands.Context) -> None:
+        interaction = getattr(ctx, "interaction", None)
+        if interaction is None:
+            return
+        response = getattr(interaction, "response", None)
+        is_done = getattr(response, "is_done", None)
+        if callable(is_done) and is_done():
+            return
+        await ctx.defer()
+
     async def _send_rule_result(self, destination: Any, query: str, result: str) -> None:
         embed = _build_rule_embed(query, result)
         await destination.send(embed=embed)
+
+    @staticmethod
+    def _format_command_error(error: Exception) -> str:
+        if isinstance(error, commands.MissingPermissions):
+            return "bot_error> You do not have permission to use this command."
+        if isinstance(error, commands.NoPrivateMessage):
+            return "bot_error> This command can only be used in a server channel."
+        if isinstance(error, (RulesLookupError, ValueError, KeyError)):
+            return f"bot_error> {error}"
+        return f"bot_error> {error}"
+
+    async def _send_interaction_error(self, interaction: discord.Interaction, content: str) -> None:
+        response = getattr(interaction, "response", None)
+        is_done = getattr(response, "is_done", None)
+        if callable(is_done) and not is_done():
+            await interaction.response.send_message(content)
+            return
+        followup = getattr(interaction, "followup", None)
+        if followup is not None:
+            await followup.send(content)
+
+    async def cog_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
+        resolved = getattr(error, "original", error)
+        message = self._format_command_error(resolved)
+        interaction = getattr(ctx, "interaction", None)
+        if interaction is not None:
+            await self._send_interaction_error(interaction, message)
+            return
+        await ctx.send(message)
+
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError) -> None:
+        resolved = getattr(error, "original", error)
+        await self._send_interaction_error(interaction, self._format_command_error(resolved))
 
     @commands.hybrid_command(name="roll", description="Resolve a deterministic d616 roll.")
     async def roll(
@@ -539,6 +583,7 @@ class NarratorDiscordCog(commands.Cog):
         troubles: int = 0,
         modifier: int = 0,
     ) -> None:
+        await self._maybe_defer(ctx)
         payload = self._controller_for_actor(ctx.author).roll_action(
             ability_modifier=modifier,
             edges=edges,
@@ -548,6 +593,7 @@ class NarratorDiscordCog(commands.Cog):
 
     @commands.hybrid_command(name="rule", description="Look up a rules reference or power.")
     async def rule(self, ctx: commands.Context, *, query: str) -> None:
+        await self._maybe_defer(ctx)
         try:
             result = self._controller_for_actor(ctx.author).look_up_rule(query)
         except RulesLookupError as exc:
@@ -557,6 +603,7 @@ class NarratorDiscordCog(commands.Cog):
 
     @commands.hybrid_command(name="attack", description="Apply rank × Marvel die damage to a tracked target.")
     async def attack(self, ctx: commands.Context, target: str, rank: int, marvel_die: int) -> None:
+        await self._maybe_defer(ctx)
         payload = self._controller_for_actor(ctx.author).apply_combat_damage(target, rank=rank, marvel_die_value=marvel_die)
         await ctx.send(_format_attack_status(payload))
 
@@ -567,12 +614,14 @@ class NarratorDiscordCog(commands.Cog):
 
     @combat.command(name="status", description="Show tracked combatant health pools.", with_app_command=True)
     async def combat_status(self, ctx: commands.Context) -> None:
+        await self._maybe_defer(ctx)
         await ctx.send(_format_combat_state_result(self._controller_for_actor(ctx.author).get_combat_state()))
 
     @commands.hybrid_command(name="clear_history", aliases=["clear"], description="Clear recent channel history.")
     @commands.guild_only()
     @commands.has_permissions(manage_messages=True)
     async def clear_history(self, ctx: commands.Context, limit: int = 100) -> None:
+        await self._maybe_defer(ctx)
         if limit < 1:
             raise ValueError("History clear limit must be a positive integer.")
         deleted = 0
