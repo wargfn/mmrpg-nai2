@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from marvel_mcp_narrator.core.character_state import character_roster
 from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase
-from marvel_mcp_narrator.core.session_controller import GameSessionController
+from marvel_mcp_narrator.core.session_controller import RECENT_MEMORY_LIMIT, GameSessionController
 
 
 class GameSessionControllerTests(unittest.TestCase):
@@ -64,6 +64,23 @@ class GameSessionControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Marvel die value must be between 1 and 6"):
             self.controller.apply_combat_damage("Hydra Agent", rank=3, marvel_die_value=7)
 
+    def test_apply_combat_damage_rejects_tracked_player_target(self):
+        character_roster.create_or_load(
+            name="Captain America",
+            archetype="Protector",
+            rank=4,
+            melee=5,
+            agility=3,
+            resilience=4,
+            vigilance=4,
+            ego=4,
+            logic=3,
+        )
+        self.controller.combat_tracker.track_combatant("Captain America", side="player")
+
+        with self.assertRaisesRegex(ValueError, "tracked enemy or NPC combatants"):
+            self.controller.apply_combat_damage("Captain America", rank=4, marvel_die_value=3)
+
     def test_get_session_status_returns_combatants_health_pools_and_memories(self):
         character_roster.create_or_load(
             name="Hydra Agent",
@@ -98,7 +115,7 @@ class GameSessionControllerTests(unittest.TestCase):
 
         self.assertEqual(
             [memory["key"] for memory in payload["recent_campaign_memories"]],
-            ["session-6", "session-5", "session-4", "session-3", "session-2"],
+            [f"session-{index}" for index in range(6, 6 - RECENT_MEMORY_LIMIT, -1)],
         )
 
     def test_get_session_status_includes_active_campaign_context(self):

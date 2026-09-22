@@ -841,7 +841,7 @@ def run_cli(
 ) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
     session_controller = get_game_session_controller(
-        campaign_database=database or get_campaign_database()
+        campaign_database=database if database is not None else get_campaign_database()
     )
     session_database = session_controller.campaign_database
     controller_token = _ACTIVE_SESSION_CONTROLLER.set(session_controller)

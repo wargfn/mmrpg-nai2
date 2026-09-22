@@ -9,7 +9,7 @@ from marvel_mcp_narrator.core.d616_engine import resolve_d616_roll
 from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase, get_campaign_database
 from marvel_mcp_narrator.core.rules_database import RulesDatabase
 
-_RECENT_MEMORY_LIMIT = 5
+RECENT_MEMORY_LIMIT = 5
 
 
 class GameSessionController:
@@ -84,7 +84,7 @@ class GameSessionController:
         """Return the current combat snapshot and recent campaign memory context."""
         combat_state = self.combat_tracker.get_combat_state()
         combatants = list(combat_state.get("combatants", []))
-        recent_memories = self.campaign_database.list_memories()[:_RECENT_MEMORY_LIMIT]
+        recent_memories = self.campaign_database.list_memories()[:RECENT_MEMORY_LIMIT]
         return {
             "combatants": combatants,
             "health_pools": {
