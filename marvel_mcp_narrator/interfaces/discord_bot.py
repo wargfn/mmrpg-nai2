@@ -230,6 +230,7 @@ class DiscordNarratorBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         await self.add_cog(NarratorDiscordCog(self))
+        await self.tree.sync()
 
     @staticmethod
     def conversation_key(channel: discord.abc.Messageable) -> int:

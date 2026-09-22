@@ -38,10 +38,10 @@ The repository also includes a Discord interface that mirrors the shared `GameSe
   - `token` (environment variables are preferred for secrets)
 - Start the bot with `marvel-narrator-discord` or `python -m marvel_mcp_narrator.interfaces.discord_bot`.
 - The bot supports hybrid slash/text commands for:
-  - `/roll [edges] [troubles] [modifier]`
-  - `/rule [query]`
+  - `/roll` with arguments `edges`, `troubles`, and `modifier` (text form: `!roll [edges] [troubles] [modifier]`)
+  - `/rule` with argument `query` (text form: `!rule <query>`)
   - `/combat status`
-  - `/attack [target] [rank] [marvel_die]`
+  - `/attack` with arguments `target`, `rank`, and `marvel_die` (text form: `!attack <target> <rank> <marvel_die>`)
 - Natural messages in the designated campaign channel (or its threads) are forwarded through the same Open WebUI chat backend, with conversation history maintained per Discord channel/thread.
 
 ## CLI commands and shutdown
