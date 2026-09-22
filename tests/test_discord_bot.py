@@ -239,6 +239,13 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(bot.intents.message_content)
         self.assertEqual(bot.command_prefix, DEFAULT_DISCORD_COMMAND_PREFIX)
 
+    def test_seed_controller_is_not_reused_for_user_sessions(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+
+        session = bot.get_user_session(42)
+
+        self.assertIsNot(session.controller, self.controller)
+
     def test_is_campaign_channel_accepts_parent_thread(self):
         bot = create_discord_bot(self.config, controller=self.controller)
         self.assertTrue(bot.is_campaign_channel(SimpleNamespace(id=42, parent_id=None, guild=object())))
@@ -315,6 +322,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_roll_command_uses_session_controller(self):
         bot = create_discord_bot(self.config, controller=self.controller)
+        bot.get_user_controller = lambda *_: self.controller
         cog = NarratorDiscordCog(bot)
         ctx = _FakeContext()
 
@@ -333,6 +341,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_rule_command_sends_embed(self):
         bot = create_discord_bot(self.config, controller=self.controller)
+        bot.get_user_controller = lambda *_: self.controller
         cog = NarratorDiscordCog(bot)
         ctx = _FakeContext()
 
@@ -344,6 +353,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_attack_command_applies_rank_times_marvel_die_damage(self):
         bot = create_discord_bot(self.config, controller=self.controller)
+        bot.get_user_controller = lambda *_: self.controller
         cog = NarratorDiscordCog(bot)
         ctx = _FakeContext()
 
@@ -358,6 +368,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_combat_status_command_formats_tracker_state(self):
         bot = create_discord_bot(self.config, controller=self.controller)
+        bot.get_user_controller = lambda *_: self.controller
         cog = NarratorDiscordCog(bot)
         ctx = _FakeContext()
 

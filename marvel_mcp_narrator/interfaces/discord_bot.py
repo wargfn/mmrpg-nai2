@@ -342,7 +342,6 @@ class DiscordNarratorBot(commands.Bot):
         self.channel_histories: dict[int, list[dict[str, str]]] = {}
         self._user_sessions: dict[int, DiscordUserSession] = {}
         self._seed_controller = controller
-        self._seed_controller_assigned = False
         self._campaign_database = campaign_database
 
     async def setup_hook(self) -> None:
@@ -360,12 +359,14 @@ class DiscordNarratorBot(commands.Bot):
         return CampaignDatabase(isolated_path)
 
     def _build_controller_for_user(self, user_id: int) -> GameSessionController:
-        if self._seed_controller is not None and not self._seed_controller_assigned:
-            self._seed_controller_assigned = True
-            return self._seed_controller
         roster = CharacterRoster()
         database = self._campaign_database_for_user(user_id)
-        return GameSessionController(campaign_database=database, character_roster_store=roster)
+        rules_database = None if self._seed_controller is None else self._seed_controller.rules_database
+        return GameSessionController(
+            rules_database=rules_database,
+            campaign_database=database,
+            character_roster_store=roster,
+        )
 
     def get_user_session(self, user_id: int) -> DiscordUserSession:
         session = self._user_sessions.get(user_id)
