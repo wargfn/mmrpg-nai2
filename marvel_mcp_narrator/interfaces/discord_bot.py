@@ -353,10 +353,11 @@ class DiscordNarratorBot(commands.Bot):
                 discord.ChannelType.public_thread,
                 discord.ChannelType.news_thread,
             }
-        return any(
+        has_thread_metadata = any(
             getattr(channel, attribute, None) is not None
             for attribute in ("owner_id", "archive_timestamp", "message_count")
         )
+        return has_thread_metadata and "thread" in type(channel).__name__.lower()
 
     @staticmethod
     def conversation_key(channel: discord.abc.Messageable) -> int:
