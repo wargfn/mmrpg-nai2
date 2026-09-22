@@ -951,6 +951,9 @@ def run_cli(
                     print("chat_error> Method not allowed. Verify your Open WebUI host endpoint.")
                 else:
                     print(f"chat_error> {exc}")
+            except Exception as exc:
+                del messages[turn_start_index:]
+                print(f"chat_error> Unexpected error: {exc}")
     finally:
         _ACTIVE_SESSION_CONTROLLER.reset(controller_token)
 
