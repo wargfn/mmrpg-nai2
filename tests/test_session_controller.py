@@ -101,6 +101,30 @@ class GameSessionControllerTests(unittest.TestCase):
             ["session-6", "session-5", "session-4", "session-3", "session-2"],
         )
 
+    def test_get_session_status_includes_active_campaign_context(self):
+        self.database.create_campaign_plan(
+            theme="Hydra Uprising",
+            villain="Red Skull",
+            hero_team=["Captain America", "Black Widow"],
+            sessions=[
+                {
+                    "session_number": 1,
+                    "title": "The Helicarrier Falls",
+                    "objectives": ["Protect civilians"],
+                    "key_npcs": ["Maria Hill"],
+                    "locations": ["Helicarrier"],
+                    "completion_milestone": "Secure the bridge",
+                }
+            ],
+        )
+
+        payload = self.controller.get_session_status()
+
+        self.assertIsNotNone(payload["campaign_context"])
+        self.assertEqual(payload["campaign_context"]["theme"], "Hydra Uprising")
+        self.assertEqual(payload["campaign_context"]["active_session_number"], 1)
+        self.assertEqual(payload["campaign_context"]["session"]["title"], "The Helicarrier Falls")
+
 
 if __name__ == "__main__":
     unittest.main()

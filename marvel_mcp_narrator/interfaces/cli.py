@@ -8,6 +8,7 @@ import os
 import re
 import sqlite3
 import tomllib
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
@@ -24,11 +25,11 @@ from marvel_mcp_narrator.core.memory.campaign_db import (
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database
 from marvel_mcp_narrator.core.session_controller import get_game_session_controller
 
-_ACTIVE_SESSION_CONTROLLER = None
+_ACTIVE_SESSION_CONTROLLER: ContextVar[Any | None] = ContextVar("cli_session_controller", default=None)
 
 
 def _get_session_controller():
-    return _ACTIVE_SESSION_CONTROLLER or get_game_session_controller()
+    return _ACTIVE_SESSION_CONTROLLER.get() or get_game_session_controller()
 
 
 def resolve_d616_roll(
@@ -839,22 +840,23 @@ def run_cli(
     database: CampaignDatabase | None = None,
 ) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
-    global _ACTIVE_SESSION_CONTROLLER
-    _ACTIVE_SESSION_CONTROLLER = get_game_session_controller(
+    session_controller = get_game_session_controller(
         campaign_database=database or get_campaign_database()
     )
+    session_database = session_controller.campaign_database
+    controller_token = _ACTIVE_SESSION_CONTROLLER.set(session_controller)
     try:
         clear_combat_state()
         print("Marvel MCP Narrator CLI")
         print("Type '/help' for commands and 'exit' to quit.\n")
 
         rules_context = get_rules_startup_context()
-        campaign_memory_context = get_startup_context(database)
+        campaign_memory_context = get_startup_context(session_database)
         messages: list[dict[str, str]] = [
             {
                 "role": "system",
                 "content": build_startup_system_prompt(
-                    database,
+                    session_database,
                     rules_context=rules_context,
                     campaign_memory_context=campaign_memory_context,
                 ),
@@ -914,9 +916,9 @@ def run_cli(
 
             try:
                 if prompt_context_dirty:
-                    campaign_memory_context = get_startup_context(database)
+                    campaign_memory_context = get_startup_context(session_database)
                     messages[0]["content"] = build_startup_system_prompt(
-                        database,
+                        session_database,
                         rules_context=rules_context,
                         campaign_memory_context=campaign_memory_context,
                     )
@@ -941,7 +943,7 @@ def run_cli(
                 else:
                     print(f"chat_error> {exc}")
     finally:
-        _ACTIVE_SESSION_CONTROLLER = None
+        _ACTIVE_SESSION_CONTROLLER.reset(controller_token)
 
 
 def main() -> None:
