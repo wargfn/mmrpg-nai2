@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import gettempdir
@@ -44,6 +45,36 @@ from marvel_mcp_narrator.core.rules_database import lookup_rule_reference
 
 
 mcp = FastMCP("mmrpg-narrator")
+_TOOL_HELP_ENTRIES = [
+    ("roll_d616", "Resolve a d616 check with optional edge, trouble, and target number."),
+    ("lookup_rule", "Look up an exact mechanics or power reference from the rule database."),
+    ("create_character", "Create or load a tracked character sheet with explicit stats."),
+    ("get_character", "Fetch a tracked character sheet and mutable combat state."),
+    ("apply_damage_to_character", "Apply health and/or focus damage to a tracked character."),
+    ("calculate_attack", "Calculate rank-based attack damage from a Marvel die result."),
+    ("track_combatant", "Add an existing character to the active combat roster."),
+    ("get_combat_state", "Show all combatants currently tracked in combat."),
+    ("resolve_manual_d616_roll", "Normalize a manually reported d616 roll payload."),
+    ("resolve_player_attack", "Resolve a player attack, optionally from a manual roll."),
+    ("resolve_npc_action", "Auto-resolve an NPC or enemy combat action."),
+    ("create_character_assisted", "Create a character from an archetype template."),
+    ("list_available_archetypes", "List supported archetypes and playstyle summaries."),
+    ("list_available_origins", "List supported origins for character creation."),
+    ("list_available_occupations", "List supported occupations for character creation."),
+    ("list_available_tags", "List supported character tags."),
+    ("export_character", "Write a tracked character sheet to a JSON export file."),
+    ("validate_character_powers", "Validate selected powers against a tracked character rank."),
+    ("save_campaign_memory", "Persist a named campaign memory entry."),
+    ("load_campaign_memory", "Load a named campaign memory entry."),
+    ("create_campaign_plan", "Generate and persist a structured campaign plan."),
+    ("get_next_session_briefing", "Return the active campaign session briefing."),
+    ("wrap_up_current_session", "Conclude the active campaign session and advance progress."),
+    ("remember_entity", "Persist a named campaign entity."),
+    ("recall_entity", "Recall a named entity or search across saved entities."),
+    ("log_campaign_event", "Persist a campaign event in the plot log."),
+    ("remember_npc", "Persist legacy NPC memory details."),
+    ("recall_npc_or_location", "Recall legacy NPC, location, or plot-log memory matches."),
+]
 
 
 def clear_combat_state() -> None:
@@ -556,5 +587,44 @@ def log_campaign_event(summary: str, session: int = 1) -> str:
     return log_event(summary, session=session)
 
 
-if __name__ == "__main__":
+def format_tool_help() -> str:
+    """Render a concise list of exposed FastMCP tools."""
+    lines = ["Available FastMCP narrator tools:"]
+    for name, description in _TOOL_HELP_ENTRIES:
+        lines.append(f"- {name}: {description}")
+    return "\n".join(lines)
+
+
+def build_argument_parser() -> argparse.ArgumentParser:
+    """Build a small CLI for starting or inspecting the FastMCP narrator server."""
+    parser = argparse.ArgumentParser(
+        description="Start the Marvel MCP Narrator FastMCP server.",
+        epilog=(
+            "Examples:\n"
+            "  python -m marvel_mcp_narrator.mcp_servers.narrator_tools\n"
+            "  python -m marvel_mcp_narrator.mcp_servers.narrator_tools --list-tools\n\n"
+            "Use this server with a FastMCP-compatible client. Run with --list-tools to review the "
+            "available narrator tools before connecting."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--list-tools",
+        action="store_true",
+        help="Print the exposed FastMCP narrator tools and exit.",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Run the narrator FastMCP server or print local startup help."""
+    parser = build_argument_parser()
+    args = parser.parse_args(argv)
+    if args.list_tools:
+        print(format_tool_help())
+        return
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

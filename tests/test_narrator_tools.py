@@ -1,3 +1,5 @@
+import contextlib
+import io
 import unittest
 from unittest.mock import patch
 
@@ -124,6 +126,29 @@ class NarratorToolsTests(unittest.TestCase):
         self.assertTrue(callable(narrator_tools.list_available_tags))
         self.assertTrue(callable(narrator_tools.export_character))
         self.assertTrue(callable(narrator_tools.validate_character_powers))
+
+    def test_main_help_includes_fastmcp_startup_guidance(self):
+        stdout = io.StringIO()
+        with self.assertRaises(SystemExit), contextlib.redirect_stdout(stdout):
+            narrator_tools.main(["--help"])
+        help_output = stdout.getvalue()
+        self.assertIn("Start the Marvel MCP Narrator FastMCP server.", help_output)
+        self.assertIn("--list-tools", help_output)
+        self.assertIn("python -m marvel_mcp_narrator.mcp_servers.narrator_tools", help_output)
+
+    def test_list_tools_command_prints_available_tools(self):
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            narrator_tools.main(["--list-tools"])
+        output = stdout.getvalue()
+        self.assertIn("Available FastMCP narrator tools:", output)
+        self.assertIn("roll_d616", output)
+        self.assertIn("create_campaign_plan", output)
+
+    @patch("marvel_mcp_narrator.mcp_servers.narrator_tools.mcp.run")
+    def test_main_without_flags_starts_fastmcp_server(self, mock_run):
+        narrator_tools.main([])
+        mock_run.assert_called_once_with()
 
     def test_create_character_rejects_conflicting_definition(self):
         narrator_tools.create_character(
