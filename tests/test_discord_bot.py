@@ -147,14 +147,16 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(bot.is_campaign_channel(SimpleNamespace(id=99, parent_id=42)))
         self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=50, parent_id=None)))
 
-    async def test_setup_hook_adds_cog_and_syncs_tree(self):
+    async def test_setup_hook_adds_cog_without_syncing_tree(self):
         bot = create_discord_bot(self.config, controller=self.controller)
         bot.add_cog = AsyncMock()
+        bot.tree.sync = AsyncMock()
 
         await bot.setup_hook()
 
         bot.add_cog.assert_awaited_once()
         self.assertIsInstance(bot.add_cog.await_args.args[0], NarratorDiscordCog)
+        bot.tree.sync.assert_not_awaited()
 
     async def test_sync_commands_command_syncs_tree(self):
         bot = create_discord_bot(self.config, controller=self.controller)
