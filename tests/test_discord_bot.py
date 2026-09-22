@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import ANY, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 from unittest.mock import call
 
 import discord
@@ -369,7 +369,8 @@ class DiscordBotServiceTests(unittest.TestCase):
             self.assertEqual(pid, 4321)
             self.assertEqual(pid_path.read_text(encoding="utf-8"), "4321")
             command = mock_popen.call_args.args[0]
-            self.assertEqual(command[:3], [ANY, "-m", "marvel_mcp_narrator.interfaces.discord_bot"])
+            self.assertTrue(command[0])
+            self.assertEqual(command[1:3], ["-m", "marvel_mcp_narrator.interfaces.discord_bot"])
             self.assertIn("--config", command)
             self.assertIn("--pid-file", command)
             self.assertIn("--log-file", command)

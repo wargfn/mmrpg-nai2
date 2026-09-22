@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import ANY, patch
+from unittest.mock import patch
 
 from marvel_mcp_narrator.core.character_state import character_roster
 from marvel_mcp_narrator.mcp_servers import narrator_tools
@@ -167,7 +167,8 @@ class NarratorToolsTests(unittest.TestCase):
             self.assertEqual(pid, 2468)
             self.assertEqual(pid_path.read_text(encoding="utf-8"), "2468")
             command = mock_popen.call_args.args[0]
-            self.assertEqual(command[:3], [ANY, "-m", "marvel_mcp_narrator.mcp_servers.narrator_tools"])
+            self.assertTrue(command[0])
+            self.assertEqual(command[1:3], ["-m", "marvel_mcp_narrator.mcp_servers.narrator_tools"])
             self.assertIn("--pid-file", command)
             self.assertIn("--log-file", command)
             self.assertEqual(mock_popen.call_args.kwargs["stdin"], subprocess.DEVNULL)
