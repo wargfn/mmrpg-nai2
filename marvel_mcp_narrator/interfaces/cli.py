@@ -25,7 +25,9 @@ from marvel_mcp_narrator.core.memory.campaign_db import (
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database
 from marvel_mcp_narrator.core.session_controller import GameSessionController
 
-_ACTIVE_SESSION_CONTROLLER: ContextVar[Any | None] = ContextVar("cli_session_controller", default=None)
+_ACTIVE_SESSION_CONTROLLER: ContextVar[GameSessionController | None] = ContextVar(
+    "cli_session_controller", default=None
+)
 _DEFAULT_SESSION_CONTROLLER: GameSessionController | None = None
 
 
