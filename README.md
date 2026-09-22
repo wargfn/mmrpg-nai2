@@ -26,6 +26,24 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
 - Use `--timeout`, `NARRATOR_TIMEOUT`, or `[open_webui].timeout` to override the default HTTP timeout in seconds.
 - On startup, the CLI injects persisted SQLite campaign memories from `data/campaign.db` into the initial system prompt so the model begins with prior session continuity.
 
+## Discord bot
+
+The repository also includes a Discord interface that mirrors the shared `GameSessionController` backend used by the CLI.
+
+- Install dependencies and set `NARRATOR_DISCORD_BOT_TOKEN` (or `DISCORD_BOT_TOKEN`).
+- Optionally add a `[discord]` block to `narrator_config.toml`:
+  - `command_prefix`
+  - `campaign_channel_id`
+  - `history_limit`
+  - `token` (environment variables are preferred for secrets)
+- Start the bot with `marvel-narrator-discord` or `python -m marvel_mcp_narrator.interfaces.discord_bot`.
+- The bot supports hybrid slash/text commands for:
+  - `/roll [edges] [troubles] [modifier]`
+  - `/rule [query]`
+  - `/combat status`
+  - `/attack [target] [rank] [marvel_die]`
+- Natural messages in the designated campaign channel (or its threads) are forwarded through the same Open WebUI chat backend, with conversation history maintained per Discord channel/thread.
+
 ## CLI commands and shutdown
 
 - Run `marvel-narrator-cli --help` to see CLI flags and interactive command help.

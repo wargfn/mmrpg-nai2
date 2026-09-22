@@ -13,12 +13,14 @@ authors = [
   { name = "wargfn" }
 ]
 dependencies = [
+  "discord.py==2.7.1",
   "fastmcp==4.0.5",
   "httpx==0.28.1"
 ]
 
 [project.scripts]
 marvel-narrator-cli = "marvel_mcp_narrator.interfaces.cli:main"
+marvel-narrator-discord = "marvel_mcp_narrator.interfaces.discord_bot:main"
 
 [tool.setuptools]
 include-package-data = true
