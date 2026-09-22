@@ -1046,6 +1046,9 @@ def run_cli(
                 print("chat_error> Method not allowed. Verify your Open WebUI host endpoint.")
             else:
                 print(f"chat_error> {exc}")
+        except Exception as exc:  # pragma: no cover - defensive CLI loop fallback
+            del messages[turn_start_index:]
+            print(f"chat_error> {exc}")
 
 
 def main() -> None:
