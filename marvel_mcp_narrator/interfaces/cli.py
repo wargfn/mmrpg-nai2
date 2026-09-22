@@ -45,14 +45,6 @@ def _get_session_controller() -> GameSessionController:
     return _DEFAULT_SESSION_CONTROLLER
 
 
-def _run_with_session_controller(controller: GameSessionController, callback, *args, **kwargs):
-    token = _ACTIVE_SESSION_CONTROLLER.set(controller)
-    try:
-        return callback(*args, **kwargs)
-    finally:
-        _ACTIVE_SESSION_CONTROLLER.reset(token)
-
-
 def resolve_d616_roll(
     ability_modifier: int,
     target_number: int | None = None,
@@ -778,8 +770,11 @@ def _parse_attack_command(
     return attacker_name.strip(), ability.strip(), target_name.strip(), manual_roll, options
 
 
-def _route_intent_command(user_input: str) -> tuple[str, str] | None:
+def _route_intent_command(
+    user_input: str, *, session_controller: GameSessionController | None = None
+) -> tuple[str, str] | None:
     """Route deterministic CLI commands without invoking the chat model."""
+    controller = session_controller or _get_session_controller()
     stripped = user_input.strip()
     if not stripped:
         return None
@@ -791,7 +786,11 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
             return None
         dice_values, marvel_index = manual_roll
         return "manual_d616_report", _format_manual_report_result(
-            resolve_manual_d616_roll(dice_values=dice_values, marvel_index=marvel_index)
+            (
+                controller.resolve_manual_roll(dice_values=dice_values, marvel_index=marvel_index)
+                if session_controller is not None
+                else resolve_manual_d616_roll(dice_values=dice_values, marvel_index=marvel_index)
+            )
         )
 
     parts = stripped.split()
@@ -802,31 +801,38 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         query = " ".join(arguments).strip()
         if not query:
             raise ValueError("Usage: /rules <keyword>")
-        return "lookup_rule", query_rulebook_database(query)
+        return "lookup_rule", controller.look_up_rule(query) if session_controller is not None else query_rulebook_database(query)
 
     if command == "/memories":
         if arguments:
             raise ValueError("Usage: /memories")
-        return "list_memories", _format_router_memories_result(list_campaign_memories())
+        memories = controller.list_campaign_memories() if session_controller is not None else list_campaign_memories()
+        return "list_memories", _format_router_memories_result(memories)
 
     if command == "/combat":
         if arguments:
             raise ValueError("Usage: /combat")
-        return "combat_state", _format_combat_state_result(get_combat_state())
+        combat_state = controller.get_combat_state() if session_controller is not None else get_combat_state()
+        return "combat_state", _format_combat_state_result(combat_state)
 
     if command == "/attack":
         attacker_name, ability, target_name, manual_roll, options = _parse_attack_command(
             stripped, command_name="/attack"
         )
-        payload = resolve_player_attack(
-            attacker_name=attacker_name,
-            target_name=target_name,
-            ability=ability,
-            dice_values=manual_roll[0] if manual_roll is not None else None,
-            marvel_index=manual_roll[1] if manual_roll is not None else 1,
-            target_resource=str(options["target_resource"]),
-            edges=int(options["edges"]),
-            troubles=int(options["troubles"]),
+        attack_kwargs = {
+            "attacker_name": attacker_name,
+            "target_name": target_name,
+            "ability": ability,
+            "dice_values": manual_roll[0] if manual_roll is not None else None,
+            "marvel_index": manual_roll[1] if manual_roll is not None else 1,
+            "target_resource": str(options["target_resource"]),
+            "edges": int(options["edges"]),
+            "troubles": int(options["troubles"]),
+        }
+        payload = (
+            controller.resolve_player_attack(**attack_kwargs)
+            if session_controller is not None
+            else resolve_player_attack(**attack_kwargs)
         )
         return "resolve_player_attack", _format_attack_result(payload)
 
@@ -836,22 +842,33 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         )
         if manual_roll is not None:
             raise ValueError("NPC attacks are always automated; omit manual dice values.")
-        return "resolve_npc_action", _format_attack_result(
-            resolve_npc_action(
-                attacker_name=attacker_name,
-                target_name=target_name,
-                ability=ability,
-                target_resource=str(options["target_resource"]),
-                edges=int(options["edges"]),
-                troubles=int(options["troubles"]),
-            )
-        )
+        action_kwargs = {
+            "attacker_name": attacker_name,
+            "target_name": target_name,
+            "ability": ability,
+            "target_resource": str(options["target_resource"]),
+            "edges": int(options["edges"]),
+            "troubles": int(options["troubles"]),
+        }
+        payload = controller.resolve_npc_action(**action_kwargs) if session_controller is not None else resolve_npc_action(**action_kwargs)
+        return "resolve_npc_action", _format_attack_result(payload)
 
     if command == "/roll":
         if any(token.startswith("--") for token in arguments):
             edges, troubles, target_number = _parse_roll_command(parts)
             return "resolve_d616_roll", _format_router_roll_result(
-                resolve_d616_roll(ability_modifier=0, edges=edges, troubles=troubles, target_number=target_number)
+                (
+                    controller.roll_action(
+                        ability_modifier=0,
+                        edges=edges,
+                        troubles=troubles,
+                        target_number=target_number,
+                    )
+                    if session_controller is not None
+                    else resolve_d616_roll(
+                        ability_modifier=0, edges=edges, troubles=troubles, target_number=target_number
+                    )
+                )
             )
 
         if len(arguments) > 2:
@@ -864,14 +881,21 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         if edges < 0 or troubles < 0:
             raise ValueError("Edges and troubles must be non-negative integers.")
         return "resolve_d616_roll", _format_router_roll_result(
-            resolve_d616_roll(ability_modifier=0, edges=edges, troubles=troubles)
+            (
+                controller.roll_action(ability_modifier=0, edges=edges, troubles=troubles)
+                if session_controller is not None
+                else resolve_d616_roll(ability_modifier=0, edges=edges, troubles=troubles)
+            )
         )
 
     return None
 
 
-def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str | None]:
+def _tool_injection(
+    user_input: str, *, session_controller: GameSessionController | None = None
+) -> tuple[str | None, dict[str, Any] | str | None]:
     """Parse slash commands and return (tool_name, tool_output)."""
+    controller = session_controller or _get_session_controller()
     stripped = user_input.strip()
     parts = stripped.split()
     if not parts:
@@ -882,6 +906,10 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
     if command == "/roll":
         edges, troubles, tn = _parse_roll_command(parts)
         if "--edges" in parts or "--troubles" in parts or edges > 1 or troubles > 1:
+            if session_controller is not None:
+                return "resolve_d616_roll", controller.roll_action(
+                    ability_modifier=0, edges=edges, troubles=troubles, target_number=tn
+                )
             return "resolve_d616_roll", resolve_d616_roll(
                 ability_modifier=0, edges=edges, troubles=troubles, target_number=tn
             )
@@ -891,7 +919,7 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
         key = " ".join(parts[1:]).strip()
         if not key:
             raise ValueError("Usage: /rule <keyword>")
-        return "lookup_rule", query_rulebook_database(key)
+        return "lookup_rule", controller.look_up_rule(key) if session_controller is not None else query_rulebook_database(key)
 
     return None, None
 
@@ -951,7 +979,7 @@ def run_cli(
 
         turn_start_index = len(messages)
         try:
-            routed = _run_with_session_controller(session_controller, _route_intent_command, user_input)
+            routed = _route_intent_command(user_input, session_controller=session_controller)
             if routed is not None:
                 tool_name, formatted_output = routed
                 print(f"{tool_name}> {formatted_output}")
@@ -964,7 +992,7 @@ def run_cli(
                 )
                 prompt_context_dirty = True
                 continue
-            tool_name, tool_output = _run_with_session_controller(session_controller, _tool_injection, user_input)
+            tool_name, tool_output = _tool_injection(user_input, session_controller=session_controller)
             if tool_name and tool_output is not None:
                 payload = tool_output if isinstance(tool_output, str) else json.dumps(tool_output, ensure_ascii=False)
                 print(f"tool[{tool_name}]> {payload}")
