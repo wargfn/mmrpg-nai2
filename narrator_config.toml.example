@@ -9,3 +9,6 @@ model = "qwen2.5:14b-instruct"
 
 # Optional API key used as Authorization header when set
 api_key = ""
+
+# Optional HTTP timeout in seconds for chat requests
+# timeout = 120

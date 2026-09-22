@@ -17,6 +17,7 @@ from marvel_mcp_narrator.interfaces.cli import (
     STARTUP_MEMORY_LIMIT,
     STARTUP_CONTEXT_EMPTY_NOTE,
     STARTUP_CONTEXT_UNAVAILABLE_NOTE,
+    DEFAULT_REQUEST_TIMEOUT,
     _parse_manual_roll_text,
     _route_intent_command,
     _tool_injection,
@@ -521,6 +522,17 @@ class CLIRunLoopTests(unittest.TestCase):
         kwargs = mock_request_chat.call_args.kwargs
         self.assertEqual(kwargs['host'], 'http://remote:3000')
         self.assertEqual(kwargs['api_key'], 'secret-token')
+        self.assertEqual(kwargs['timeout'], DEFAULT_REQUEST_TIMEOUT)
+
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=['hello narrator', 'exit'])
+    def test_client_uses_configured_timeout(self, _mock_input, mock_request_chat):
+        mock_request_chat.return_value = 'hi'
+
+        run_cli(model='fake-model', timeout=45.5)
+
+        kwargs = mock_request_chat.call_args.kwargs
+        self.assertEqual(kwargs['timeout'], 45.5)
 
 
 class CLIMainTests(unittest.TestCase):
@@ -534,6 +546,7 @@ class CLIMainTests(unittest.TestCase):
             host='http://127.0.0.1:3000',
             base_url='http://127.0.0.1:3000',
             api_key=None,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -546,6 +559,7 @@ class CLIMainTests(unittest.TestCase):
             host='http://127.0.0.1:3000',
             base_url='http://127.0.0.1:3000',
             api_key=None,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -558,6 +572,7 @@ class CLIMainTests(unittest.TestCase):
             host='http://remote:11434',
             base_url='http://remote:11434',
             api_key='abc123',
+            timeout=DEFAULT_REQUEST_TIMEOUT,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -570,6 +585,20 @@ class CLIMainTests(unittest.TestCase):
             host='http://127.0.0.1:3000',
             base_url='http://localhost:11434/v1',
             api_key=None,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
+        )
+
+    @patch.dict('os.environ', {}, clear=True)
+    @patch('marvel_mcp_narrator.interfaces.cli.run_cli')
+    @patch('sys.argv', ['cli', '--timeout', '30'])
+    def test_main_passes_custom_timeout(self, mock_run_cli):
+        main()
+        mock_run_cli.assert_called_once_with(
+            model=DEFAULT_MODEL,
+            host='http://127.0.0.1:3000',
+            base_url='http://127.0.0.1:3000',
+            api_key=None,
+            timeout=30.0,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -683,6 +712,19 @@ class CLIConfigTests(unittest.TestCase):
         self.assertEqual(config['host'], 'http://remote:11434')
         self.assertEqual(config['base_url'], 'http://remote:11434/v1')
         self.assertEqual(config['api_key'], 'key-from-file')
+        self.assertEqual(config['timeout'], DEFAULT_REQUEST_TIMEOUT)
+
+    def test_load_cli_config_reads_timeout_from_file(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                'timeout = 45.5\n',
+                encoding='utf-8',
+            )
+            config = load_cli_config(str(config_path))
+
+        self.assertEqual(config['timeout'], 45.5)
 
     def test_load_cli_config_accepts_legacy_ollama_file_block(self):
         with TemporaryDirectory() as tmpdir:
@@ -706,6 +748,7 @@ class CLIConfigTests(unittest.TestCase):
             'NARRATOR_MODEL': 'env-model',
             'NARRATOR_OPEN_WEBUI_HOST': 'http://env-host:11434',
             'NARRATOR_API_KEY': 'env-key',
+            'NARRATOR_TIMEOUT': '33',
         },
         clear=True,
     )
@@ -725,6 +768,7 @@ class CLIConfigTests(unittest.TestCase):
         self.assertEqual(config['host'], 'http://env-host:11434')
         self.assertEqual(config['base_url'], 'http://env-host:11434')
         self.assertEqual(config['api_key'], 'env-key')
+        self.assertEqual(config['timeout'], 33.0)
 
     @patch.dict(
         'os.environ',
@@ -771,6 +815,22 @@ class CLIConfigTests(unittest.TestCase):
         config = load_cli_config()
         self.assertEqual(config['base_url'], 'http://openai-host:11434/v1')
 
+    def test_load_cli_config_rejects_invalid_timeout_in_file(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                'timeout = 0\n',
+                encoding='utf-8',
+            )
+            with self.assertRaisesRegex(ValueError, 'Timeout must be a positive number'):
+                load_cli_config(str(config_path))
+
+    @patch.dict('os.environ', {'NARRATOR_TIMEOUT': 'oops'}, clear=True)
+    def test_load_cli_config_rejects_invalid_timeout_env_var(self):
+        with self.assertRaisesRegex(ValueError, 'Timeout must be a positive number'):
+            load_cli_config()
+
 
 class OpenWebUIRequestTests(unittest.TestCase):
     @patch('marvel_mcp_narrator.interfaces.cli.httpx.post')
@@ -792,6 +852,20 @@ class OpenWebUIRequestTests(unittest.TestCase):
             mock_post.call_args.args[0],
             'http://localhost:3000/api/chat/completions',
         )
+        self.assertEqual(kwargs['timeout'], DEFAULT_REQUEST_TIMEOUT)
+
+    @patch('marvel_mcp_narrator.interfaces.cli.httpx.post')
+    def test_request_open_webui_chat_accepts_custom_timeout(self, mock_post):
+        mock_post.return_value.json.return_value = {
+            'choices': [{'message': {'content': 'hello'}}],
+        }
+        request_open_webui_chat(
+            host='http://localhost:3000',
+            model=DEFAULT_MODEL,
+            messages=[{'role': 'user', 'content': 'hi'}],
+            timeout=22.25,
+        )
+        self.assertEqual(mock_post.call_args.kwargs['timeout'], 22.25)
 
     @patch('marvel_mcp_narrator.interfaces.cli.httpx.post')
     def test_request_open_webui_chat_supports_openai_compatible_base_url(self, mock_post):

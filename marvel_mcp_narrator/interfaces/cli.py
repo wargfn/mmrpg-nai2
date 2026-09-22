@@ -133,6 +133,7 @@ SYSTEM_PROMPT = (
 )
 DEFAULT_MODEL = "qwen2.5:14b-instruct"
 DEFAULT_OPEN_WEBUI_HOST = "http://127.0.0.1:3000"
+DEFAULT_REQUEST_TIMEOUT = 120.0
 STARTUP_MEMORY_LIMIT = 12
 STARTUP_CONTEXT_CHAR_BUDGET = 6000
 RULES_CONTEXT_KEYS = (
@@ -221,6 +222,7 @@ def request_open_webui_chat(
     model: str,
     messages: list[dict[str, str]],
     api_key: str | None = None,
+    timeout: float = DEFAULT_REQUEST_TIMEOUT,
 ) -> str:
     """Send a chat request to Open WebUI and return assistant content."""
     endpoint = build_open_webui_chat_endpoint(base_url or host or DEFAULT_OPEN_WEBUI_HOST)
@@ -232,7 +234,7 @@ def request_open_webui_chat(
         endpoint,
         headers=headers,
         json={"model": model, "messages": messages, "stream": False},
-        timeout=120,
+        timeout=timeout,
     )
     response.raise_for_status()
     payload = response.json()
@@ -253,6 +255,7 @@ def _request_open_webui_chat_with_fallback(
     model: str,
     messages: list[dict[str, str]],
     api_key: str | None = None,
+    timeout: float = DEFAULT_REQUEST_TIMEOUT,
 ) -> str:
     """Preserve CLI chat-loop semantics for unexpected request failures."""
     try:
@@ -262,6 +265,7 @@ def _request_open_webui_chat_with_fallback(
             model=model,
             messages=messages,
             api_key=api_key,
+            timeout=timeout,
         )
     except (httpx.HTTPError, ValueError, TypeError, RuntimeError):
         raise
@@ -269,13 +273,14 @@ def _request_open_webui_chat_with_fallback(
         raise RuntimeError(str(exc)) from exc
 
 
-def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
+def load_cli_config(config_path: str | None = None) -> dict[str, str | float | None]:
     """Load CLI config from file and environment variables."""
-    config: dict[str, str | None] = {
+    config: dict[str, str | float | None] = {
         "model": DEFAULT_MODEL,
         "host": DEFAULT_OPEN_WEBUI_HOST,
         "base_url": None,
         "api_key": None,
+        "timeout": DEFAULT_REQUEST_TIMEOUT,
     }
     has_explicit_base_url = False
 
@@ -300,6 +305,7 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
             host = open_webui_block.get("host")
             base_url = open_webui_block.get("base_url")
             api_key = open_webui_block.get("api_key")
+            timeout = open_webui_block.get("timeout")
             if model:
                 config["model"] = str(model)
             if base_url:
@@ -311,11 +317,20 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
                     config["base_url"] = str(host)
             if api_key:
                 config["api_key"] = str(api_key)
+            if timeout is not None:
+                try:
+                    parsed_timeout = float(timeout)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Timeout must be a positive number.") from exc
+                if parsed_timeout <= 0:
+                    raise ValueError("Timeout must be a positive number.")
+                config["timeout"] = parsed_timeout
 
     model_override = os.getenv("NARRATOR_MODEL")
     base_url_override = os.getenv("NARRATOR_BASE_URL") or os.getenv("NARRATOR_OPENAI_BASE_URL")
     host_override = os.getenv("NARRATOR_OPEN_WEBUI_HOST") or os.getenv("NARRATOR_OLLAMA_HOST")
     api_key_override = os.getenv("NARRATOR_API_KEY")
+    timeout_override = os.getenv("NARRATOR_TIMEOUT")
     if model_override:
         config["model"] = model_override
     if base_url_override:
@@ -327,6 +342,14 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
             config["base_url"] = host_override
     if api_key_override:
         config["api_key"] = api_key_override
+    if timeout_override:
+        try:
+            parsed_timeout = float(timeout_override)
+        except ValueError as exc:
+            raise ValueError("Timeout must be a positive number.") from exc
+        if parsed_timeout <= 0:
+            raise ValueError("Timeout must be a positive number.")
+        config["timeout"] = parsed_timeout
     return config
 
 
@@ -869,6 +892,7 @@ def run_cli(
     host: str = DEFAULT_OPEN_WEBUI_HOST,
     base_url: str | None = None,
     api_key: str | None = None,
+    timeout: float = DEFAULT_REQUEST_TIMEOUT,
     database: CampaignDatabase | None = None,
 ) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
@@ -961,6 +985,7 @@ def run_cli(
                     model=model,
                     messages=list(messages),
                     api_key=api_key,
+                    timeout=timeout,
                 )
                 print(f"assistant> {final_content}")
                 if final_content:
@@ -1005,6 +1030,12 @@ def main() -> None:
         help="Optional API key sent in the Authorization header",
     )
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help=f"HTTP timeout in seconds (defaults to config/env or {DEFAULT_REQUEST_TIMEOUT})",
+    )
+    parser.add_argument(
         "--config",
         default=None,
         help="Optional path to TOML config file (default: ./narrator_config.toml if present)",
@@ -1023,7 +1054,13 @@ def main() -> None:
     else:
         base_url = host
     api_key = args.api_key if args.api_key is not None else config["api_key"]
-    run_cli(model=model, host=host, base_url=base_url, api_key=api_key)
+    if args.timeout is not None:
+        timeout = args.timeout
+    else:
+        timeout = config["timeout"] if config["timeout"] is not None else DEFAULT_REQUEST_TIMEOUT
+    if timeout <= 0:
+        parser.error("Timeout must be a positive number.")
+    run_cli(model=model, host=host, base_url=base_url, api_key=api_key, timeout=timeout)
 
 
 if __name__ == "__main__":
