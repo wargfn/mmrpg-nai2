@@ -953,7 +953,7 @@ def run_cli(
                     print(f"chat_error> {exc}")
             except Exception as exc:
                 del messages[turn_start_index:]
-                print(f"chat_error> Unexpected error: {exc}")
+                print(f"chat_error> {exc}")
     finally:
         _ACTIVE_SESSION_CONTROLLER.reset(controller_token)
 
