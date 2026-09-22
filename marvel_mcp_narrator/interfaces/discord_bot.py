@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import atexit
 import argparse
 import asyncio
 import os
+import subprocess
+import sys
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +36,7 @@ from marvel_mcp_narrator.interfaces.cli import (
 DEFAULT_DISCORD_COMMAND_PREFIX = "!"
 DEFAULT_DISCORD_HISTORY_LIMIT = 24
 MAX_DISCORD_MESSAGE_LENGTH = 2000
+BACKGROUND_SERVICE_ENV = "NARRATOR_DISCORD_BACKGROUND_SERVICE"
 
 
 @dataclass(slots=True)
@@ -221,6 +225,56 @@ def _build_channel_system_prompt(controller: GameSessionController) -> str:
     )
 
 
+def _write_pid_file(pid_file: str | None, *, pid: int | None = None) -> None:
+    if not pid_file:
+        return
+    Path(pid_file).expanduser().write_text(str(os.getpid() if pid is None else pid), encoding="utf-8")
+
+
+def _cleanup_pid_file(pid_file: str | None) -> None:
+    if not pid_file:
+        return
+    path = Path(pid_file).expanduser()
+    try:
+        if path.read_text(encoding="utf-8").strip() == str(os.getpid()):
+            path.unlink()
+    except FileNotFoundError:
+        return
+
+
+def start_background_service(
+    *,
+    config_path: str | None = None,
+    pid_file: str | None = None,
+    log_file: str | None = None,
+) -> int:
+    """Launch the Discord bot as a detached background process."""
+    command = [sys.executable, "-m", "marvel_mcp_narrator.interfaces.discord_bot"]
+    if config_path:
+        command.extend(["--config", config_path])
+    if pid_file:
+        command.extend(["--pid-file", pid_file])
+    if log_file:
+        command.extend(["--log-file", log_file])
+
+    env = os.environ.copy()
+    env[BACKGROUND_SERVICE_ENV] = "1"
+
+    log_path = os.devnull if log_file is None else str(Path(log_file).expanduser())
+    with open(log_path, "a", encoding="utf-8") as log_handle:
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+            env=env,
+        )
+    _write_pid_file(pid_file, pid=process.pid)
+    return int(process.pid)
+
+
 class DiscordNarratorBot(commands.Bot):
     """discord.py bot bound to the shared game session controller."""
 
@@ -397,6 +451,21 @@ def build_argument_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional path to TOML config file (default: ./narrator_config.toml if present)",
     )
+    parser.add_argument(
+        "--background",
+        action="store_true",
+        help="Launch the Discord bot as a detached background service.",
+    )
+    parser.add_argument(
+        "--pid-file",
+        default=None,
+        help="Optional pid file path for foreground or background service runs.",
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        help="Optional log file for background service stdout/stderr (defaults to os.devnull).",
+    )
     return parser
 
 
@@ -404,6 +473,12 @@ def main(argv: list[str] | None = None) -> None:
     """Run the Discord narrator bot."""
     parser = build_argument_parser()
     args = parser.parse_args(argv)
+    if args.background and os.getenv(BACKGROUND_SERVICE_ENV) != "1":
+        start_background_service(config_path=args.config, pid_file=args.pid_file, log_file=args.log_file)
+        return
+    if args.pid_file:
+        _write_pid_file(args.pid_file)
+        atexit.register(_cleanup_pid_file, args.pid_file)
     config = load_discord_bot_config(config_path=args.config)
     bot = create_discord_bot(config)
     bot.run(config.token)

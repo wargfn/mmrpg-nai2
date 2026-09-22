@@ -1,8 +1,9 @@
+import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 from unittest.mock import call
 
 import discord
@@ -11,6 +12,7 @@ from marvel_mcp_narrator.core.character_state import character_roster
 from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase
 from marvel_mcp_narrator.core.session_controller import GameSessionController
 from marvel_mcp_narrator.interfaces.discord_bot import (
+    BACKGROUND_SERVICE_ENV,
     DEFAULT_DISCORD_HISTORY_LIMIT,
     DEFAULT_DISCORD_COMMAND_PREFIX,
     DiscordBotConfig,
@@ -19,6 +21,8 @@ from marvel_mcp_narrator.interfaces.discord_bot import (
     _chunk_text,
     create_discord_bot,
     load_discord_bot_config,
+    main,
+    start_background_service,
 )
 
 
@@ -315,3 +319,42 @@ class DiscordBotHelperTests(unittest.TestCase):
         embed = _build_rule_embed("edge", "Rule text")
         self.assertEqual(embed.title, "Rule Lookup: edge")
         self.assertEqual(embed.description, "Rule text")
+
+
+class DiscordBotServiceTests(unittest.TestCase):
+    def test_start_background_service_spawns_detached_process_and_writes_pid(self):
+        with TemporaryDirectory() as tmpdir:
+            pid_path = Path(tmpdir) / "discord.pid"
+            log_path = Path(tmpdir) / "discord.log"
+            fake_process = SimpleNamespace(pid=4321)
+
+            with patch("marvel_mcp_narrator.interfaces.discord_bot.subprocess.Popen", return_value=fake_process) as mock_popen:
+                pid = start_background_service(
+                    config_path="/tmp/narrator.toml",
+                    pid_file=str(pid_path),
+                    log_file=str(log_path),
+                )
+
+            self.assertEqual(pid, 4321)
+            self.assertEqual(pid_path.read_text(encoding="utf-8"), "4321")
+            command = mock_popen.call_args.args[0]
+            self.assertEqual(command[:3], [ANY, "-m", "marvel_mcp_narrator.interfaces.discord_bot"])
+            self.assertIn("--config", command)
+            self.assertIn("--pid-file", command)
+            self.assertIn("--log-file", command)
+            self.assertEqual(mock_popen.call_args.kwargs["stdin"], subprocess.DEVNULL)
+            self.assertEqual(mock_popen.call_args.kwargs["stderr"], subprocess.STDOUT)
+            self.assertTrue(mock_popen.call_args.kwargs["start_new_session"])
+            self.assertEqual(mock_popen.call_args.kwargs["env"][BACKGROUND_SERVICE_ENV], "1")
+
+    @patch("marvel_mcp_narrator.interfaces.discord_bot.start_background_service", return_value=9999)
+    @patch("marvel_mcp_narrator.interfaces.discord_bot.load_discord_bot_config")
+    def test_main_background_mode_launches_service_without_running_bot(self, mock_load_config, mock_start_background):
+        main(["--background", "--config", "/tmp/narrator.toml", "--pid-file", "/tmp/discord.pid", "--log-file", "/tmp/discord.log"])
+
+        mock_start_background.assert_called_once_with(
+            config_path="/tmp/narrator.toml",
+            pid_file="/tmp/discord.pid",
+            log_file="/tmp/discord.log",
+        )
+        mock_load_config.assert_not_called()
