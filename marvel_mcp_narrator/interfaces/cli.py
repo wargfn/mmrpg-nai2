@@ -908,7 +908,6 @@ def run_cli(
     session_database = session_controller.campaign_database
     controller_token = _ACTIVE_SESSION_CONTROLLER.set(session_controller)
     try:
-        clear_combat_state()
         print("Marvel MCP Narrator CLI")
         print("Type '/help' for commands and 'exit' to quit.\n")
 
