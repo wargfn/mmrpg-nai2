@@ -325,7 +325,13 @@ class DiscordNarratorBot(commands.Bot):
             return True
         channel_id = getattr(channel, "id", None)
         parent_id = getattr(channel, "parent_id", None)
-        return channel_id == self.campaign_channel_id or parent_id == self.campaign_channel_id
+        parent = getattr(channel, "parent", None)
+        parent_channel_id = getattr(parent, "id", None)
+        return (
+            channel_id == self.campaign_channel_id
+            or parent_id == self.campaign_channel_id
+            or parent_channel_id == self.campaign_channel_id
+        )
 
     def get_channel_history(self, channel: discord.abc.Messageable) -> list[dict[str, str]]:
         key = self.conversation_key(channel)
