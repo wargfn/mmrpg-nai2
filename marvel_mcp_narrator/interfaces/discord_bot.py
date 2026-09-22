@@ -402,7 +402,7 @@ class DiscordNarratorBot(commands.Bot):
         if getattr(channel, "id", None) != self.campaign_channel_id:
             current_channel_id = getattr(channel, "id", None)
             if session.thread_id is None:
-                if getattr(channel, "owner_id", None) == user_id:
+                if getattr(channel, "owner_id", None) == user_id and self.is_campaign_channel(channel):
                     session.thread_id = current_channel_id
                     return channel
                 raise PermissionError("Use your dedicated session thread for narration.")

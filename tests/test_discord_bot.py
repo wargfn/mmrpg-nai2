@@ -459,6 +459,23 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(other_thread.sent_messages[0]["content"], "Use your dedicated session thread for narration.")
 
+    async def test_on_message_rejects_owned_thread_outside_campaign_channel(self):
+        bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
+        bot.get_context = AsyncMock(return_value=SimpleNamespace(valid=False))
+        bot.invoke = AsyncMock()
+        cog = NarratorDiscordCog(bot)
+        owned_thread = _FakeThread(1003, parent_id=99, owner_id=42)
+        message = SimpleNamespace(
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
+            channel=owned_thread,
+            content="What do I notice?",
+            create_thread=AsyncMock(),
+        )
+
+        await cog.on_message(message)
+
+        self.assertEqual(owned_thread.sent_messages, [])
+
     async def test_on_message_ignores_non_campaign_channels_and_commands(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
         off_ctx = SimpleNamespace(valid=False)
