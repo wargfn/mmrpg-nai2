@@ -420,7 +420,7 @@ class NarratorDiscordCog(commands.Cog):
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
-    @combat.command(name="status", description="Show tracked combatant health pools.")
+    @combat.command(name="status", description="Show tracked combatant health pools.", with_app_command=True)
     async def combat_status(self, ctx: commands.Context) -> None:
         await ctx.send(_format_combat_state_result(self.bot.controller.get_combat_state()))
 
