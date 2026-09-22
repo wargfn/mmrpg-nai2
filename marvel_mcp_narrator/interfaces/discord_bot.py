@@ -334,6 +334,19 @@ class DiscordNarratorBot(commands.Bot):
         await self.add_cog(NarratorDiscordCog(self))
 
     @staticmethod
+    def _is_supported_campaign_thread(channel: Any) -> bool:
+        channel_type = getattr(channel, "type", None)
+        if channel_type is not None:
+            return channel_type in {
+                discord.ChannelType.public_thread,
+                discord.ChannelType.news_thread,
+            }
+        return any(
+            getattr(channel, attribute, None) is not None
+            for attribute in ("owner_id", "archive_timestamp", "message_count")
+        )
+
+    @staticmethod
     def conversation_key(channel: discord.abc.Messageable) -> int:
         channel_id = getattr(channel, "id", None)
         if channel_id is None:
@@ -346,6 +359,8 @@ class DiscordNarratorBot(commands.Bot):
         channel_id = getattr(channel, "id", None)
         if channel_id == self.campaign_channel_id:
             return True
+        if not self._is_supported_campaign_thread(channel):
+            return False
         parent_id = getattr(channel, "parent_id", None)
         parent = getattr(channel, "parent", None)
         parent_channel_id = getattr(parent, "id", None)
