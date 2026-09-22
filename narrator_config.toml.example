@@ -20,5 +20,5 @@ command_prefix = "!"
 # campaign_channel_id = 123456789012345678
 # Optional maximum stored messages per channel history (excluding system prompt)
 # history_limit = 24
-# Discord bot token (prefer setting NARRATOR_DISCORD_BOT_TOKEN in the environment)
+# Discord bot token (prefer NARRATOR_DISCORD_BOT_TOKEN; DISCORD_BOT_TOKEN is also supported)
 # token = ""

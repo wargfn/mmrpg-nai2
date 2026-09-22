@@ -30,7 +30,7 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
 
 The repository also includes a Discord interface that mirrors the shared `GameSessionController` backend used by the CLI.
 
-- Install dependencies and set `NARRATOR_DISCORD_BOT_TOKEN` (or `DISCORD_BOT_TOKEN`).
+- Install dependencies and set `NARRATOR_DISCORD_BOT_TOKEN` (preferred) or `DISCORD_BOT_TOKEN`.
 - Optionally add a `[discord]` block to `narrator_config.toml`:
   - `command_prefix`
   - `campaign_channel_id`

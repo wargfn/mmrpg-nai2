@@ -247,6 +247,21 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(off_channel.sent_messages, [])
         self.assertEqual(command_channel.sent_messages, [])
 
+    async def test_on_message_routes_prefixed_commands_to_processor(self):
+        bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
+        bot.process_commands = AsyncMock()
+        cog = NarratorDiscordCog(bot)
+        command_message = SimpleNamespace(
+            author=SimpleNamespace(bot=False, display_name="Storm"),
+            channel=_FakeChannel(42),
+            content="!roll 1 0 2",
+        )
+
+        await cog.on_message(command_message)
+
+        bot.process_commands.assert_awaited_once_with(command_message)
+        self.assertEqual(command_message.channel.sent_messages, [])
+
 
 class DiscordBotHelperTests(unittest.TestCase):
     def test_chunk_text_splits_long_messages(self):
