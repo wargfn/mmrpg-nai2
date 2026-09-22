@@ -285,6 +285,7 @@ def start_background_service(
     except Exception:
         log_handle.close()
         raise
+    log_handle.close()
     _write_pid_file(pid_file, pid=process.pid)
     return int(process.pid)
 
@@ -410,7 +411,8 @@ class NarratorDiscordCog(commands.Cog):
 
     @commands.hybrid_group(name="combat", description="Combat state commands.")
     async def combat(self, ctx: commands.Context) -> None:
-        await ctx.send(_format_combat_state_result(self.bot.controller.get_combat_state()))
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
 
     @combat.command(name="status", description="Show tracked combatant health pools.")
     async def combat_status(self, ctx: commands.Context) -> None:

@@ -643,6 +643,7 @@ def start_background_service(*, pid_file: str | None = None, log_file: str | Non
     except Exception:
         log_handle.close()
         raise
+    log_handle.close()
     _write_pid_file(pid_file, pid=process.pid)
     return int(process.pid)
 

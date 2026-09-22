@@ -242,6 +242,15 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Active Combat State:", ctx.sent_messages[0]["content"])
         self.assertIn("Hydra", ctx.sent_messages[0]["content"])
 
+    async def test_combat_group_without_subcommand_shows_help(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        cog = NarratorDiscordCog(bot)
+        ctx = SimpleNamespace(invoked_subcommand=None, command=object(), send_help=AsyncMock())
+
+        await cog.combat.callback(cog, ctx)
+
+        ctx.send_help.assert_awaited_once_with(ctx.command)
+
     async def test_on_message_routes_narration_in_designated_channel(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
         bot.get_context = AsyncMock(return_value=SimpleNamespace(valid=False))
