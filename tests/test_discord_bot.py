@@ -63,10 +63,11 @@ class _FakeChannel:
 
 
 class _FakeContext:
-    def __init__(self, *, author_id: int = 42, channel=None):
+    def __init__(self, *, author_id: int = 42, channel=None, message=None):
         self.sent_messages: list[dict] = []
         self.author = SimpleNamespace(id=author_id, display_name=f"User {author_id}")
         self.channel = channel or _FakeChannel(42)
+        self.message = message
 
     async def send(self, content=None, embed=None):
         self.sent_messages.append({"content": content, "embed": embed})
@@ -492,23 +493,39 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         bot = create_discord_bot(self.config, controller=self.controller)
         cog = NarratorDiscordCog(bot)
         channel = _FakeThread(1042, parent_id=42, parent=SimpleNamespace(id=42, guild=object()))
+        command_message = SimpleNamespace(pinned=False, delete=AsyncMock())
         channel._history_messages = [
-            SimpleNamespace(pinned=False, delete=AsyncMock()),
+            command_message,
             SimpleNamespace(pinned=True, delete=AsyncMock()),
             SimpleNamespace(pinned=False, delete=AsyncMock()),
         ]
         session = bot.get_user_session(42)
         session.thread_id = channel.id
         session.history.append({"role": "user", "content": "Old message"})
-        ctx = _FakeContext(author_id=42, channel=channel)
+        ctx = _FakeContext(author_id=42, channel=channel, message=command_message)
 
         await cog.clear_history.callback(cog, ctx, limit=10)
 
-        self.assertEqual(ctx.sent_messages[0]["content"], "Cleared 2 non-pinned messages.")
-        self.assertEqual(channel._history_messages[0].delete.await_count, 1)
+        self.assertEqual(ctx.sent_messages[0]["content"], "Cleared 1 non-pinned messages.")
+        self.assertEqual(channel._history_messages[0].delete.await_count, 0)
         self.assertEqual(channel._history_messages[1].delete.await_count, 0)
         self.assertEqual(channel._history_messages[2].delete.await_count, 1)
         self.assertEqual(len(session.history), 1)
+
+    def test_sessions_use_isolated_campaign_databases(self):
+        with TemporaryDirectory() as tmpdir:
+            shared_path = Path(tmpdir) / "campaign.db"
+            bot = create_discord_bot(
+                self.config,
+                campaign_database=CampaignDatabase(shared_path),
+            )
+
+            first_path = bot.get_user_controller(1).campaign_database.path
+            second_path = bot.get_user_controller(2).campaign_database.path
+
+        self.assertNotEqual(first_path, second_path)
+        self.assertEqual(first_path.name, "campaign_user_1.db")
+        self.assertEqual(second_path.name, "campaign_user_2.db")
 
 
 class DiscordBotHelperTests(unittest.TestCase):

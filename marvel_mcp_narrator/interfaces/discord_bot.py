@@ -352,12 +352,19 @@ class DiscordNarratorBot(commands.Bot):
     def _user_campaign_database_path(user_id: int) -> Path:
         return Path(__file__).resolve().parent.parent / "data" / "discord_sessions" / f"user_{user_id}.db"
 
+    def _campaign_database_for_user(self, user_id: int) -> CampaignDatabase:
+        if self._campaign_database is None:
+            return CampaignDatabase(self._user_campaign_database_path(user_id))
+        base_path = self._campaign_database.path
+        isolated_path = base_path.with_name(f"{base_path.stem}_user_{user_id}{base_path.suffix}")
+        return CampaignDatabase(isolated_path)
+
     def _build_controller_for_user(self, user_id: int) -> GameSessionController:
         if self._seed_controller is not None and not self._seed_controller_assigned:
             self._seed_controller_assigned = True
             return self._seed_controller
         roster = CharacterRoster()
-        database = self._campaign_database or CampaignDatabase(self._user_campaign_database_path(user_id))
+        database = self._campaign_database_for_user(user_id)
         return GameSessionController(campaign_database=database, character_roster_store=roster)
 
     def get_user_session(self, user_id: int) -> DiscordUserSession:
@@ -562,7 +569,10 @@ class NarratorDiscordCog(commands.Cog):
         if limit < 1:
             raise ValueError("History clear limit must be a positive integer.")
         deleted = 0
+        command_message = getattr(ctx, "message", None)
         async for message in ctx.channel.history(limit=limit):
+            if command_message is not None and message is command_message:
+                continue
             if getattr(message, "pinned", False):
                 continue
             await message.delete()
