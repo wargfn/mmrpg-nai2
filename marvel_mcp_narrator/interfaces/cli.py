@@ -26,10 +26,17 @@ from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules
 from marvel_mcp_narrator.core.session_controller import GameSessionController
 
 _ACTIVE_SESSION_CONTROLLER: ContextVar[Any | None] = ContextVar("cli_session_controller", default=None)
+_DEFAULT_SESSION_CONTROLLER: GameSessionController | None = None
 
 
 def _get_session_controller():
-    return _ACTIVE_SESSION_CONTROLLER.get() or GameSessionController()
+    controller = _ACTIVE_SESSION_CONTROLLER.get()
+    if controller is not None:
+        return controller
+    global _DEFAULT_SESSION_CONTROLLER
+    if _DEFAULT_SESSION_CONTROLLER is None:
+        _DEFAULT_SESSION_CONTROLLER = GameSessionController()
+    return _DEFAULT_SESSION_CONTROLLER
 
 
 def resolve_d616_roll(

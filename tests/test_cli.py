@@ -8,7 +8,10 @@ from unittest.mock import patch
 
 from marvel_mcp_narrator.core.character_state import character_roster
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError
+from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase
+from marvel_mcp_narrator.core.session_controller import GameSessionController
 from marvel_mcp_narrator.interfaces.cli import (
+    _ACTIVE_SESSION_CONTROLLER,
     CLI_COMMANDS_HELP,
     DEFAULT_MODEL,
     STARTUP_MEMORY_LIMIT,
@@ -17,12 +20,14 @@ from marvel_mcp_narrator.interfaces.cli import (
     _parse_manual_roll_text,
     _route_intent_command,
     _tool_injection,
+    get_combat_state,
     get_active_character_context,
     get_active_combat_context,
     get_rules_startup_context,
     build_startup_system_prompt,
     build_open_webui_chat_endpoint,
     get_startup_context,
+    list_campaign_memories,
     load_cli_config,
     main,
     normalize_open_webui_host,
@@ -224,6 +229,42 @@ class CLIToolInjectionTests(unittest.TestCase):
         self.assertIn('Active Combat State:', context)
         self.assertIn('Hydra', context)
         self.assertIn('30/50', context)
+
+    def test_context_local_session_controller_isolates_cli_wrappers(self):
+        with TemporaryDirectory() as temp_dir:
+            db1 = CampaignDatabase(Path(temp_dir) / "campaign-1.db")
+            db2 = CampaignDatabase(Path(temp_dir) / "campaign-2.db")
+            controller1 = GameSessionController(campaign_database=db1)
+            controller2 = GameSessionController(campaign_database=db2)
+
+            character_roster.create_or_load(
+                name="Hydra",
+                archetype="Striker",
+                rank=2,
+                melee=4,
+                agility=2,
+                resilience=3,
+                vigilance=2,
+                ego=1,
+                logic=1,
+            )
+            controller1.combat_tracker.track_combatant("Hydra", side="enemy")
+            db1.save_memory("session-1", "Hydra attacked.")
+            db2.save_memory("session-2", "Avengers regrouped.")
+
+            token1 = _ACTIVE_SESSION_CONTROLLER.set(controller1)
+            try:
+                self.assertEqual(get_combat_state()["combatants"][0]["name"], "Hydra")
+                self.assertEqual(list_campaign_memories()[0]["key"], "session-1")
+            finally:
+                _ACTIVE_SESSION_CONTROLLER.reset(token1)
+
+            token2 = _ACTIVE_SESSION_CONTROLLER.set(controller2)
+            try:
+                self.assertEqual(get_combat_state()["combatants"], [])
+                self.assertEqual(list_campaign_memories()[0]["key"], "session-2")
+            finally:
+                _ACTIVE_SESSION_CONTROLLER.reset(token2)
 
     def test_roll_command_returns_tool_payload(self):
         name, payload = _tool_injection('/roll --tn 10')
