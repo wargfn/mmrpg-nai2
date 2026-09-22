@@ -120,7 +120,12 @@ def _load_toml_config(config_path: str | None = None) -> dict[str, Any]:
         return tomllib.load(handle)
 
 
-def load_discord_bot_config(config_path: str | None = None) -> DiscordBotConfig:
+def load_discord_bot_config(
+    config_path: str | None = None,
+    *,
+    token_override: str | None = None,
+    campaign_channel_id_override: int | None = None,
+) -> DiscordBotConfig:
     """Load Discord bot and shared Open WebUI settings."""
     shared_config = load_cli_config(config_path=config_path)
     raw_config = _load_toml_config(config_path=config_path)
@@ -154,6 +159,13 @@ def load_discord_bot_config(config_path: str | None = None) -> DiscordBotConfig:
         campaign_channel_id = _coerce_optional_int(channel_override, field_name="Discord campaign channel id")
     if history_limit_override is not None:
         history_limit = _coerce_positive_int(history_limit_override, field_name="Discord history limit")
+    if token_override is not None:
+        token = _normalize_token(token_override)
+    if campaign_channel_id_override is not None:
+        campaign_channel_id = _coerce_optional_int(
+            campaign_channel_id_override,
+            field_name="Discord campaign channel id",
+        )
 
     if token is None:
         raise ValueError(
@@ -255,6 +267,8 @@ def _cleanup_pid_file(pid_file: str | None) -> None:
 def start_background_service(
     *,
     config_path: str | None = None,
+    token: str | None = None,
+    campaign_channel_id: int | None = None,
     pid_file: str | None = None,
     log_file: str | None = None,
 ) -> int:
@@ -262,6 +276,10 @@ def start_background_service(
     command = [sys.executable, "-m", "marvel_mcp_narrator.interfaces.discord_bot"]
     if config_path:
         command.extend(["--config", config_path])
+    if token:
+        command.extend(["--token", token])
+    if campaign_channel_id is not None:
+        command.extend(["--campaign-channel-id", str(campaign_channel_id)])
     if pid_file:
         command.extend(["--pid-file", pid_file])
     if log_file:
@@ -486,6 +504,17 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Optional path to TOML config file (default: ./narrator_config.toml if present)",
     )
     parser.add_argument(
+        "--token",
+        default=None,
+        help="Discord bot token (overrides environment variables and config file).",
+    )
+    parser.add_argument(
+        "--campaign-channel-id",
+        type=int,
+        default=None,
+        help="Discord channel id for freeform campaign narration (overrides environment variables and config file).",
+    )
+    parser.add_argument(
         "--background",
         action="store_true",
         help="Launch the Discord bot as a detached background service.",
@@ -508,12 +537,22 @@ def main(argv: list[str] | None = None) -> None:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
     if args.background and os.getenv(BACKGROUND_SERVICE_ENV) != "1":
-        start_background_service(config_path=args.config, pid_file=args.pid_file, log_file=args.log_file)
+        start_background_service(
+            config_path=args.config,
+            token=args.token,
+            campaign_channel_id=args.campaign_channel_id,
+            pid_file=args.pid_file,
+            log_file=args.log_file,
+        )
         return
     if args.pid_file:
         _write_pid_file(args.pid_file)
         atexit.register(_cleanup_pid_file, args.pid_file)
-    config = load_discord_bot_config(config_path=args.config)
+    config = load_discord_bot_config(
+        config_path=args.config,
+        token_override=args.token,
+        campaign_channel_id_override=args.campaign_channel_id,
+    )
     bot = create_discord_bot(config)
     bot.run(config.token)
 

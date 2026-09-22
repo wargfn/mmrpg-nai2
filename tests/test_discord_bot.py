@@ -64,6 +64,17 @@ class _FakeThread:
 
 
 class DiscordBotConfigTests(unittest.TestCase):
+    def test_main_help_includes_token_and_channel_flags(self):
+        import contextlib
+        import io
+
+        stdout = io.StringIO()
+        with self.assertRaises(SystemExit), contextlib.redirect_stdout(stdout):
+            main(["--help"])
+        help_output = stdout.getvalue()
+        self.assertIn("--token", help_output)
+        self.assertIn("--campaign-channel-id", help_output)
+
     def test_load_discord_bot_config_reads_file_and_shared_openwebui_settings(self):
         with TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "narrator_config.toml"
@@ -127,6 +138,32 @@ class DiscordBotConfigTests(unittest.TestCase):
     def test_load_discord_bot_config_requires_token(self):
         with self.assertRaisesRegex(ValueError, "Discord bot token is required"):
             load_discord_bot_config()
+
+    @patch.dict(
+        "os.environ",
+        {
+            "DISCORD_BOT_TOKEN": "env-token",
+            "NARRATOR_DISCORD_CAMPAIGN_CHANNEL_ID": "777",
+        },
+        clear=True,
+    )
+    def test_load_discord_bot_config_prefers_cli_over_env_and_file(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "narrator_config.toml"
+            config_path.write_text(
+                '[discord]\n'
+                'token = "file-token"\n'
+                'campaign_channel_id = 12\n',
+                encoding="utf-8",
+            )
+            config = load_discord_bot_config(
+                str(config_path),
+                token_override="cli-token",
+                campaign_channel_id_override=999,
+            )
+
+        self.assertEqual(config.token, "cli-token")
+        self.assertEqual(config.campaign_channel_id, 999)
 
 
 class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
@@ -371,6 +408,8 @@ class DiscordBotServiceTests(unittest.TestCase):
             with patch("marvel_mcp_narrator.interfaces.discord_bot.subprocess.Popen", return_value=fake_process) as mock_popen:
                 pid = start_background_service(
                     config_path="/tmp/narrator.toml",
+                    token="cli-token",
+                    campaign_channel_id=42,
                     pid_file=str(pid_path),
                     log_file=str(log_path),
                 )
@@ -381,6 +420,8 @@ class DiscordBotServiceTests(unittest.TestCase):
             self.assertTrue(command[0])
             self.assertEqual(command[1:3], ["-m", "marvel_mcp_narrator.interfaces.discord_bot"])
             self.assertIn("--config", command)
+            self.assertIn("--token", command)
+            self.assertIn("--campaign-channel-id", command)
             self.assertIn("--pid-file", command)
             self.assertIn("--log-file", command)
             self.assertEqual(mock_popen.call_args.kwargs["stdin"], subprocess.DEVNULL)
@@ -397,6 +438,8 @@ class DiscordBotServiceTests(unittest.TestCase):
             with patch("marvel_mcp_narrator.interfaces.discord_bot.subprocess.Popen", return_value=fake_process):
                 start_background_service(
                     config_path="/tmp/narrator.toml",
+                    token="cli-token",
+                    campaign_channel_id=42,
                     pid_file=str(pid_path),
                     log_file=str(log_path),
                 )
@@ -406,11 +449,43 @@ class DiscordBotServiceTests(unittest.TestCase):
     @patch("marvel_mcp_narrator.interfaces.discord_bot.start_background_service", return_value=9999)
     @patch("marvel_mcp_narrator.interfaces.discord_bot.load_discord_bot_config")
     def test_main_background_mode_launches_service_without_running_bot(self, mock_load_config, mock_start_background):
-        main(["--background", "--config", "/tmp/narrator.toml", "--pid-file", "/tmp/discord.pid", "--log-file", "/tmp/discord.log"])
+        main([
+            "--background",
+            "--config",
+            "/tmp/narrator.toml",
+            "--token",
+            "cli-token",
+            "--campaign-channel-id",
+            "42",
+            "--pid-file",
+            "/tmp/discord.pid",
+            "--log-file",
+            "/tmp/discord.log",
+        ])
 
         mock_start_background.assert_called_once_with(
             config_path="/tmp/narrator.toml",
+            token="cli-token",
+            campaign_channel_id=42,
             pid_file="/tmp/discord.pid",
             log_file="/tmp/discord.log",
         )
         mock_load_config.assert_not_called()
+
+    @patch("marvel_mcp_narrator.interfaces.discord_bot.create_discord_bot")
+    @patch("marvel_mcp_narrator.interfaces.discord_bot.load_discord_bot_config")
+    def test_main_passes_cli_overrides_to_config_loader(self, mock_load_config, mock_create_bot):
+        mock_load_config.return_value = DiscordBotConfig(token="cli-token", campaign_channel_id=42)
+        mock_bot = SimpleNamespace(run=lambda token: None)
+        mock_create_bot.return_value = mock_bot
+
+        with patch.object(mock_bot, "run") as mock_run:
+            main(["--token", "cli-token", "--campaign-channel-id", "42"])
+
+        mock_load_config.assert_called_once_with(
+            config_path=None,
+            token_override="cli-token",
+            campaign_channel_id_override=42,
+        )
+        mock_create_bot.assert_called_once()
+        mock_run.assert_called_once_with("cli-token")
