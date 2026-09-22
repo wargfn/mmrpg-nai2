@@ -942,7 +942,7 @@ def run_cli(
                 print(f"assistant> {final_content}")
                 if final_content:
                     messages.append({"role": "assistant", "content": final_content})
-            except (httpx.HTTPError, ValueError, TypeError) as exc:
+            except (httpx.HTTPError, ValueError, TypeError, RuntimeError) as exc:
                 del messages[turn_start_index:]
                 message = str(exc)
                 if "connection refused" in message.lower():
