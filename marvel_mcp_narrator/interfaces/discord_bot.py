@@ -326,14 +326,14 @@ class DiscordNarratorBot(commands.Bot):
         if self.campaign_channel_id is None:
             return False
         channel_id = getattr(channel, "id", None)
+        if channel_id == self.campaign_channel_id:
+            return True
+        if not isinstance(channel, discord.Thread):
+            return False
         parent_id = getattr(channel, "parent_id", None)
         parent = getattr(channel, "parent", None)
         parent_channel_id = getattr(parent, "id", None)
-        return (
-            channel_id == self.campaign_channel_id
-            or parent_id == self.campaign_channel_id
-            or parent_channel_id == self.campaign_channel_id
-        )
+        return parent_id == self.campaign_channel_id or parent_channel_id == self.campaign_channel_id
 
     def get_channel_history(self, channel: discord.abc.Messageable) -> list[dict[str, str]]:
         key = self.conversation_key(channel)
