@@ -64,6 +64,12 @@ class GameSessionControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Marvel die value must be between 1 and 6"):
             self.controller.apply_combat_damage("Hydra Agent", rank=3, marvel_die_value=7)
 
+    def test_apply_combat_damage_rejects_non_integer_inputs(self):
+        with self.assertRaisesRegex(ValueError, "Rank must be a positive integer"):
+            self.controller.apply_combat_damage("Hydra Agent", rank=1.5, marvel_die_value=4)
+        with self.assertRaisesRegex(ValueError, "Marvel die value must be an integer between 1 and 6"):
+            self.controller.apply_combat_damage("Hydra Agent", rank=3, marvel_die_value=4.5)
+
     def test_apply_combat_damage_rejects_tracked_player_target(self):
         character_roster.create_or_load(
             name="Captain America",

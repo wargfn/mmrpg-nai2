@@ -47,6 +47,10 @@ class GameSessionController:
 
     def apply_combat_damage(self, target_name: str, rank: int, marvel_die_value: int) -> dict[str, Any]:
         """Apply direct health damage to an active NPC or enemy combatant."""
+        if not isinstance(rank, int):
+            raise ValueError("Rank must be a positive integer.")
+        if not isinstance(marvel_die_value, int):
+            raise ValueError("Marvel die value must be an integer between 1 and 6.")
         if rank < 1:
             raise ValueError("Rank must be a positive integer.")
         if not 1 <= marvel_die_value <= 6:
@@ -71,8 +75,8 @@ class GameSessionController:
         return {
             "target": damage_update["target"],
             "damage": {
-                "rank": int(rank),
-                "marvel_die_value": int(marvel_die_value),
+                "rank": rank,
+                "marvel_die_value": marvel_die_value,
                 "damage_formula": "rank * marvel_die_value",
                 "total_damage": total_damage,
             },
