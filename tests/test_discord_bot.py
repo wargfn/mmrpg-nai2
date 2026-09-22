@@ -227,6 +227,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_on_message_ignores_non_campaign_channels_and_commands(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
+        bot.process_commands = AsyncMock()
         cog = NarratorDiscordCog(bot)
         off_channel = _FakeChannel(99)
         command_channel = _FakeChannel(42)
@@ -246,6 +247,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(off_channel.sent_messages, [])
         self.assertEqual(command_channel.sent_messages, [])
+        bot.process_commands.assert_awaited_once_with(command_message)
 
     async def test_on_message_routes_prefixed_commands_to_processor(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
