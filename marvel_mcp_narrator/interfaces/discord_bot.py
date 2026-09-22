@@ -402,8 +402,10 @@ class DiscordNarratorBot(commands.Bot):
         if getattr(channel, "id", None) != self.campaign_channel_id:
             current_channel_id = getattr(channel, "id", None)
             if session.thread_id is None:
-                session.thread_id = current_channel_id
-                return channel
+                if getattr(channel, "owner_id", None) == user_id:
+                    session.thread_id = current_channel_id
+                    return channel
+                raise PermissionError("Use your dedicated session thread for narration.")
             if session.thread_id == current_channel_id:
                 return channel
             existing_thread = self.get_channel(session.thread_id)
@@ -474,6 +476,10 @@ class DiscordNarratorBot(commands.Bot):
         preserved_system = history[0]
         trimmed_tail = history[-self.config.history_limit :]
         history[:] = [preserved_system, *trimmed_tail]
+
+    def reset_session_history(self, session: DiscordUserSession) -> None:
+        session.history[:] = [{"role": "system", "content": _build_channel_system_prompt(session.controller)}]
+        self.channel_histories[session.user_id] = session.history
 
     async def generate_channel_reply(
         self,
@@ -580,7 +586,7 @@ class NarratorDiscordCog(commands.Cog):
             deleted += 1
         session = self.bot.get_session_for_channel(ctx.channel)
         if session is not None:
-            session.history[:] = [{"role": "system", "content": _build_channel_system_prompt(session.controller)}]
+            self.bot.reset_session_history(session)
         await ctx.send(f"Cleared {deleted} non-pinned messages.")
 
     @commands.command(name="sync-commands", hidden=True)

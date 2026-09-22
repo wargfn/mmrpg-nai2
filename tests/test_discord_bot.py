@@ -74,12 +74,21 @@ class _FakeContext:
 
 
 class _FakeThread:
-    def __init__(self, channel_id: int, *, parent_id: int | None = None, parent=None, guild=object(), name: str = "Session"):
+    def __init__(
+        self,
+        channel_id: int,
+        *,
+        parent_id: int | None = None,
+        parent=None,
+        guild=object(),
+        name: str = "Session",
+        owner_id: int = 1,
+    ):
         self.id = channel_id
         self.parent_id = parent_id
         self.parent = parent
         self.guild = guild
-        self.owner_id = 1
+        self.owner_id = owner_id
         self.name = name
         self.sent_messages: list[dict] = []
         self._history_messages: list[SimpleNamespace] = []
@@ -417,7 +426,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
         bot.get_context = AsyncMock(return_value=SimpleNamespace(valid=False))
         bot.invoke = AsyncMock()
-        existing_thread = _FakeThread(1001, parent_id=42)
+        existing_thread = _FakeThread(1001, parent_id=42, owner_id=42)
         session = bot.get_user_session(42)
         session.thread_id = existing_thread.id
         bot.get_channel = lambda channel_id: existing_thread if channel_id == existing_thread.id else None
@@ -432,6 +441,23 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         await cog.on_message(message)
 
         self.assertEqual(existing_thread.sent_messages[0]["content"], "Narrator response")
+
+    async def test_on_message_rejects_other_users_thread_without_existing_session(self):
+        bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
+        bot.get_context = AsyncMock(return_value=SimpleNamespace(valid=False))
+        bot.invoke = AsyncMock()
+        cog = NarratorDiscordCog(bot)
+        other_thread = _FakeThread(1002, parent_id=42, owner_id=7)
+        message = SimpleNamespace(
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
+            channel=other_thread,
+            content="What do I notice?",
+            create_thread=AsyncMock(),
+        )
+
+        await cog.on_message(message)
+
+        self.assertEqual(other_thread.sent_messages[0]["content"], "Use your dedicated session thread for narration.")
 
     async def test_on_message_ignores_non_campaign_channels_and_commands(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
@@ -522,6 +548,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(channel._history_messages[1].delete.await_count, 0)
         self.assertEqual(channel._history_messages[2].delete.await_count, 1)
         self.assertEqual(len(session.history), 1)
+        self.assertIs(bot.channel_histories[42], session.history)
 
     def test_sessions_use_isolated_campaign_databases(self):
         with TemporaryDirectory() as tmpdir:
