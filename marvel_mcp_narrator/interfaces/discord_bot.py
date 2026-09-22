@@ -327,7 +327,7 @@ class NarratorDiscordCog(commands.Cog):
         payload = self.bot.controller.apply_combat_damage(target, rank=rank, marvel_die_value=marvel_die)
         await ctx.send(_format_attack_status(payload))
 
-    @commands.hybrid_group(name="combat", description="Combat state commands.", fallback="status")
+    @commands.hybrid_group(name="combat", description="Combat state commands.")
     async def combat(self, ctx: commands.Context) -> None:
         await ctx.send(_format_combat_state_result(self.bot.controller.get_combat_state()))
 
