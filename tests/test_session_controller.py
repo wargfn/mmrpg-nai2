@@ -151,6 +151,8 @@ class GameSessionControllerTests(unittest.TestCase):
     def test_list_campaign_memories_rejects_negative_limit(self):
         with self.assertRaisesRegex(ValueError, "Memory limit must be a non-negative integer"):
             self.controller.list_campaign_memories(limit=-1)
+        with self.assertRaisesRegex(ValueError, "Memory limit must be a non-negative integer"):
+            self.controller.list_campaign_memories(limit=1.5)
 
 
 if __name__ == "__main__":

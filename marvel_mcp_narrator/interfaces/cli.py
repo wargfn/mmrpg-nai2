@@ -29,7 +29,7 @@ _ACTIVE_SESSION_CONTROLLER: ContextVar[Any | None] = ContextVar("cli_session_con
 _DEFAULT_SESSION_CONTROLLER: GameSessionController | None = None
 
 
-def _get_session_controller():
+def _get_session_controller() -> GameSessionController:
     controller = _ACTIVE_SESSION_CONTROLLER.get()
     if controller is not None:
         return controller
