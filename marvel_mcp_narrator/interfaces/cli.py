@@ -10,6 +10,7 @@ import sqlite3
 import tomllib
 from contextvars import ContextVar
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -29,6 +30,7 @@ _ACTIVE_SESSION_CONTROLLER: ContextVar[GameSessionController | None] = ContextVa
     "cli_session_controller", default=None
 )
 _DEFAULT_SESSION_CONTROLLER: GameSessionController | None = None
+_DEFAULT_SESSION_CONTROLLER_LOCK = Lock()
 
 
 def _get_session_controller() -> GameSessionController:
@@ -37,7 +39,9 @@ def _get_session_controller() -> GameSessionController:
         return controller
     global _DEFAULT_SESSION_CONTROLLER
     if _DEFAULT_SESSION_CONTROLLER is None:
-        _DEFAULT_SESSION_CONTROLLER = GameSessionController()
+        with _DEFAULT_SESSION_CONTROLLER_LOCK:
+            if _DEFAULT_SESSION_CONTROLLER is None:
+                _DEFAULT_SESSION_CONTROLLER = GameSessionController()
     return _DEFAULT_SESSION_CONTROLLER
 
 
@@ -342,7 +346,7 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | float | N
             config["base_url"] = host_override
     if api_key_override:
         config["api_key"] = api_key_override
-    if timeout_override:
+    if timeout_override is not None:
         try:
             parsed_timeout = float(timeout_override)
         except ValueError as exc:

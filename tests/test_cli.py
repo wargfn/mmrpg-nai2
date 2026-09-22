@@ -831,6 +831,11 @@ class CLIConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Timeout must be a positive number'):
             load_cli_config()
 
+    @patch.dict('os.environ', {'NARRATOR_TIMEOUT': '0'}, clear=True)
+    def test_load_cli_config_rejects_zero_timeout_env_var(self):
+        with self.assertRaisesRegex(ValueError, 'Timeout must be a positive number'):
+            load_cli_config()
+
 
 class OpenWebUIRequestTests(unittest.TestCase):
     @patch('marvel_mcp_narrator.interfaces.cli.httpx.post')
