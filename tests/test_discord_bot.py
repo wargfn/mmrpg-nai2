@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+from unittest.mock import call
 
 import discord
 
@@ -223,6 +224,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_on_message_routes_narration_in_designated_channel(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
+        bot.process_commands = AsyncMock()
         cog = NarratorDiscordCog(bot)
         channel = _FakeChannel(42)
         message = SimpleNamespace(
@@ -233,6 +235,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
         await cog.on_message(message)
 
+        bot.process_commands.assert_awaited_once_with(message)
         self.assertEqual(channel.sent_messages[0]["content"], "Narrator response")
         self.assertIn(42, bot.channel_histories)
 
@@ -258,7 +261,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(off_channel.sent_messages, [])
         self.assertEqual(command_channel.sent_messages, [])
-        bot.process_commands.assert_awaited_once_with(command_message)
+        self.assertEqual(bot.process_commands.await_args_list, [call(off_message), call(command_message)])
 
     async def test_on_message_routes_prefixed_commands_to_processor(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")

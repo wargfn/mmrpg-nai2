@@ -340,8 +340,8 @@ class NarratorDiscordCog(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
+        await self.bot.process_commands(message)
         if message.content.startswith(self.bot.command_prefix):
-            await self.bot.process_commands(message)
             return
         if not self.bot.is_campaign_channel(message.channel):
             return
