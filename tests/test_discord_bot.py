@@ -57,10 +57,11 @@ class _FakeContext:
 
 
 class _FakeThread:
-    def __init__(self, channel_id: int, *, parent_id: int | None = None, parent=None):
+    def __init__(self, channel_id: int, *, parent_id: int | None = None, parent=None, guild=object()):
         self.id = channel_id
         self.parent_id = parent_id
         self.parent = parent
+        self.guild = guild
         self.owner_id = 1
 
 
@@ -195,7 +196,7 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         bot = create_discord_bot(self.config, controller=self.controller)
         self.assertTrue(bot.is_campaign_channel(SimpleNamespace(id=42, parent_id=None, guild=object())))
         self.assertTrue(bot.is_campaign_channel(_FakeThread(99, parent_id=42)))
-        self.assertTrue(bot.is_campaign_channel(_FakeThread(99, parent_id=None, parent=SimpleNamespace(id=42))))
+        self.assertTrue(bot.is_campaign_channel(_FakeThread(99, parent_id=None, parent=SimpleNamespace(id=42, guild=object()))))
         self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=99, parent_id=42)))
         self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=50, parent_id=None)))
 
@@ -204,9 +205,14 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         private_thread = SimpleNamespace(
             id=99,
             parent_id=42,
+            guild=object(),
             type=discord.ChannelType.private_thread,
         )
         self.assertFalse(bot.is_campaign_channel(private_thread))
+
+    def test_is_campaign_channel_rejects_non_guild_thread(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        self.assertFalse(bot.is_campaign_channel(_FakeThread(99, parent_id=42, guild=None, parent=SimpleNamespace(id=42, guild=None))))
 
     def test_is_campaign_channel_requires_explicit_configuration(self):
         config = DiscordBotConfig(token="test-token", campaign_channel_id=None)

@@ -375,6 +375,8 @@ class DiscordNarratorBot(commands.Bot):
             return False
         parent_id = getattr(channel, "parent_id", None)
         parent = getattr(channel, "parent", None)
+        if getattr(channel, "guild", None) is None and getattr(parent, "guild", None) is None:
+            return False
         parent_channel_id = getattr(parent, "id", None)
         return parent_id == self.campaign_channel_id or parent_channel_id == self.campaign_channel_id
 
