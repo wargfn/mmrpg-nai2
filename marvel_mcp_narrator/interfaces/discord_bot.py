@@ -328,7 +328,11 @@ class DiscordNarratorBot(commands.Bot):
         channel_id = getattr(channel, "id", None)
         if channel_id == self.campaign_channel_id:
             return True
-        if not isinstance(channel, discord.Thread):
+        thread_like = any(
+            getattr(channel, attribute, None) is not None
+            for attribute in ("owner_id", "archive_timestamp", "message_count")
+        )
+        if not thread_like:
             return False
         parent_id = getattr(channel, "parent_id", None)
         parent = getattr(channel, "parent", None)

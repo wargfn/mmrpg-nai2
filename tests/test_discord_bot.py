@@ -60,6 +60,7 @@ class _FakeThread:
         self.id = channel_id
         self.parent_id = parent_id
         self.parent = parent
+        self.owner_id = 1
 
 
 class DiscordBotConfigTests(unittest.TestCase):
@@ -154,12 +155,11 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
     def test_is_campaign_channel_accepts_parent_thread(self):
         bot = create_discord_bot(self.config, controller=self.controller)
-        with patch("marvel_mcp_narrator.interfaces.discord_bot.discord.Thread", _FakeThread):
-            self.assertTrue(bot.is_campaign_channel(SimpleNamespace(id=42, parent_id=None)))
-            self.assertTrue(bot.is_campaign_channel(_FakeThread(99, parent_id=42)))
-            self.assertTrue(bot.is_campaign_channel(_FakeThread(99, parent_id=None, parent=SimpleNamespace(id=42))))
-            self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=99, parent_id=42)))
-            self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=50, parent_id=None)))
+        self.assertTrue(bot.is_campaign_channel(SimpleNamespace(id=42, parent_id=None)))
+        self.assertTrue(bot.is_campaign_channel(_FakeThread(99, parent_id=42)))
+        self.assertTrue(bot.is_campaign_channel(_FakeThread(99, parent_id=None, parent=SimpleNamespace(id=42))))
+        self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=99, parent_id=42)))
+        self.assertFalse(bot.is_campaign_channel(SimpleNamespace(id=50, parent_id=None)))
 
     def test_is_campaign_channel_requires_explicit_configuration(self):
         config = DiscordBotConfig(token="test-token", campaign_channel_id=None)
