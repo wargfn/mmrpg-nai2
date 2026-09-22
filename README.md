@@ -38,7 +38,7 @@ The repository also includes a Discord interface that mirrors the shared `GameSe
   - `history_limit`
   - `token` (environment variables are preferred for secrets)
 - Start the bot with `marvel-narrator-discord` or `python -m marvel_mcp_narrator.interfaces.discord_bot`.
-- Supported environment variables are `NARRATOR_DISCORD_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, and `NARRATOR_DISCORD_CAMPAIGN_CHANNEL_ID`.
+- Supported environment variables are `NARRATOR_DISCORD_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `NARRATOR_DISCORD_CAMPAIGN_CHANNEL_ID`, `NARRATOR_DISCORD_COMMAND_PREFIX`, and `NARRATOR_DISCORD_HISTORY_LIMIT`.
 - You can also pass `--token <discord-bot-token>` and `--campaign-channel-id <channel-id>` on the command line; these override environment variables and config file values.
 - To run it as a detached background service, use `marvel-narrator-discord --background --token <discord-bot-token> --campaign-channel-id <channel-id> --log-file /path/to/discord.log --pid-file /path/to/discord.pid`.
 - Run `!sync-commands` once from a Discord server administrator account to sync slash commands when needed.
