@@ -89,6 +89,17 @@ def _normalize_token(value: object) -> str | None:
     return token or None
 
 
+def _normalize_command_prefix(value: object, *, source_name: str, default: str | None = None) -> str:
+    if value is None:
+        if default is None:
+            raise ValueError(f"{source_name} command prefix is required.")
+        return default
+    prefix = str(value).strip()
+    if not prefix:
+        raise ValueError(f"{source_name} command prefix must not be empty.")
+    return prefix
+
+
 def _load_toml_config(config_path: str | None = None) -> dict[str, Any]:
     path: Path | None = None
     if config_path:
@@ -114,7 +125,12 @@ def load_discord_bot_config(config_path: str | None = None) -> DiscordBotConfig:
         discord_block = {}
 
     token = _normalize_token(discord_block.get("token"))
-    command_prefix = str(discord_block.get("command_prefix", DEFAULT_DISCORD_COMMAND_PREFIX)).strip()
+    if "command_prefix" in discord_block:
+        command_prefix = _normalize_command_prefix(
+            discord_block.get("command_prefix"), source_name="Discord config"
+        )
+    else:
+        command_prefix = DEFAULT_DISCORD_COMMAND_PREFIX
     campaign_channel_id = _coerce_optional_int(
         discord_block.get("campaign_channel_id"), field_name="Discord campaign channel id"
     )
@@ -128,8 +144,8 @@ def load_discord_bot_config(config_path: str | None = None) -> DiscordBotConfig:
 
     if token_override is not None:
         token = token_override
-    if prefix_override is not None and prefix_override.strip():
-        command_prefix = prefix_override.strip()
+    if prefix_override is not None:
+        command_prefix = _normalize_command_prefix(prefix_override, source_name="Discord environment")
     if channel_override is not None:
         campaign_channel_id = _coerce_optional_int(channel_override, field_name="Discord campaign channel id")
     if history_limit_override is not None:
@@ -139,9 +155,6 @@ def load_discord_bot_config(config_path: str | None = None) -> DiscordBotConfig:
         raise ValueError(
             "Discord bot token is required. Set NARRATOR_DISCORD_BOT_TOKEN, DISCORD_BOT_TOKEN, or [discord].token."
         )
-
-    if not command_prefix:
-        command_prefix = DEFAULT_DISCORD_COMMAND_PREFIX
 
     base_url = shared_config["base_url"] if shared_config["base_url"] is not None else str(shared_config["host"])
     timeout = _coerce_positive_float(shared_config["timeout"], field_name="Discord/Open WebUI timeout")
@@ -230,7 +243,6 @@ class DiscordNarratorBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         await self.add_cog(NarratorDiscordCog(self))
-        await self.tree.sync()
 
     @staticmethod
     def conversation_key(channel: discord.abc.Messageable) -> int:
@@ -336,12 +348,20 @@ class NarratorDiscordCog(commands.Cog):
     async def combat_status(self, ctx: commands.Context) -> None:
         await ctx.send(_format_combat_state_result(self.bot.controller.get_combat_state()))
 
+    @commands.command(name="sync-commands", hidden=True)
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def sync_commands(self, ctx: commands.Context) -> None:
+        synced = await self.bot.tree.sync()
+        await ctx.send(f"Synced {len(synced)} application commands.")
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
-        await self.bot.process_commands(message)
-        if message.content.startswith(self.bot.command_prefix):
+        ctx = await self.bot.get_context(message)
+        if ctx.valid:
+            await self.bot.invoke(ctx)
             return
         if not self.bot.is_campaign_channel(message.channel):
             return

@@ -37,6 +37,7 @@ The repository also includes a Discord interface that mirrors the shared `GameSe
   - `history_limit`
   - `token` (environment variables are preferred for secrets)
 - Start the bot with `marvel-narrator-discord` or `python -m marvel_mcp_narrator.interfaces.discord_bot`.
+- Run `!sync-commands` once from a Discord server administrator account to sync slash commands when needed.
 - The bot supports hybrid slash/text commands for:
   - `/roll` with arguments `edges`, `troubles`, and `modifier` (text form: `!roll [edges] [troubles] [modifier]`)
   - `/rule` with argument `query` (text form: `!rule <query>`)

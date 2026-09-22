@@ -106,6 +106,11 @@ class DiscordBotConfigTests(unittest.TestCase):
         self.assertEqual(config.history_limit, 9)
         self.assertEqual(config.timeout, 33.0)
 
+    @patch.dict("os.environ", {"DISCORD_BOT_TOKEN": "env-token", "NARRATOR_DISCORD_COMMAND_PREFIX": "   "}, clear=True)
+    def test_load_discord_bot_config_rejects_blank_env_prefix(self):
+        with self.assertRaisesRegex(ValueError, "Discord environment command prefix must not be empty"):
+            load_discord_bot_config()
+
     @patch.dict("os.environ", {}, clear=True)
     def test_load_discord_bot_config_requires_token(self):
         with self.assertRaisesRegex(ValueError, "Discord bot token is required"):
@@ -145,13 +150,22 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
     async def test_setup_hook_adds_cog_and_syncs_tree(self):
         bot = create_discord_bot(self.config, controller=self.controller)
         bot.add_cog = AsyncMock()
-        bot.tree.sync = AsyncMock()
 
         await bot.setup_hook()
 
         bot.add_cog.assert_awaited_once()
         self.assertIsInstance(bot.add_cog.await_args.args[0], NarratorDiscordCog)
+
+    async def test_sync_commands_command_syncs_tree(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        bot.tree.sync = AsyncMock(return_value=[object(), object()])
+        cog = NarratorDiscordCog(bot)
+        ctx = _FakeContext()
+
+        await cog.sync_commands.callback(cog, ctx)
+
         bot.tree.sync.assert_awaited_once_with()
+        self.assertEqual(ctx.sent_messages[0]["content"], "Synced 2 application commands.")
 
     async def test_generate_channel_reply_maintains_history_per_channel(self):
         channel = _FakeChannel(42)
@@ -224,7 +238,8 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_on_message_routes_narration_in_designated_channel(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
-        bot.process_commands = AsyncMock()
+        bot.get_context = AsyncMock(return_value=SimpleNamespace(valid=False))
+        bot.invoke = AsyncMock()
         cog = NarratorDiscordCog(bot)
         channel = _FakeChannel(42)
         message = SimpleNamespace(
@@ -235,13 +250,17 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
         await cog.on_message(message)
 
-        bot.process_commands.assert_awaited_once_with(message)
+        bot.get_context.assert_awaited_once_with(message)
+        bot.invoke.assert_not_awaited()
         self.assertEqual(channel.sent_messages[0]["content"], "Narrator response")
         self.assertIn(42, bot.channel_histories)
 
     async def test_on_message_ignores_non_campaign_channels_and_commands(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
-        bot.process_commands = AsyncMock()
+        off_ctx = SimpleNamespace(valid=False)
+        command_ctx = SimpleNamespace(valid=True)
+        bot.get_context = AsyncMock(side_effect=[off_ctx, command_ctx])
+        bot.invoke = AsyncMock()
         cog = NarratorDiscordCog(bot)
         off_channel = _FakeChannel(99)
         command_channel = _FakeChannel(42)
@@ -261,11 +280,14 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(off_channel.sent_messages, [])
         self.assertEqual(command_channel.sent_messages, [])
-        self.assertEqual(bot.process_commands.await_args_list, [call(off_message), call(command_message)])
+        self.assertEqual(bot.get_context.await_args_list, [call(off_message), call(command_message)])
+        bot.invoke.assert_awaited_once_with(command_ctx)
 
     async def test_on_message_routes_prefixed_commands_to_processor(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
-        bot.process_commands = AsyncMock()
+        ctx = SimpleNamespace(valid=True)
+        bot.get_context = AsyncMock(return_value=ctx)
+        bot.invoke = AsyncMock()
         cog = NarratorDiscordCog(bot)
         command_message = SimpleNamespace(
             author=SimpleNamespace(bot=False, display_name="Storm"),
@@ -275,7 +297,8 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
         await cog.on_message(command_message)
 
-        bot.process_commands.assert_awaited_once_with(command_message)
+        bot.get_context.assert_awaited_once_with(command_message)
+        bot.invoke.assert_awaited_once_with(ctx)
         self.assertEqual(command_message.channel.sent_messages, [])
 
 
