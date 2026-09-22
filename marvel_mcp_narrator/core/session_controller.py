@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from marvel_mcp_narrator.core.character_state import CharacterRoster, character_roster
 from marvel_mcp_narrator.core.combat_tracker import CombatTracker
 from marvel_mcp_narrator.core.d616_engine import resolve_d616_roll
 from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase, get_campaign_database
@@ -21,9 +22,12 @@ class GameSessionController:
         rules_database: RulesDatabase | None = None,
         combat_tracker: CombatTracker | None = None,
         campaign_database: CampaignDatabase | None = None,
+        character_roster_store: CharacterRoster | None = None,
     ) -> None:
+        roster = character_roster_store or character_roster
         self.rules_database = rules_database or RulesDatabase()
-        self.combat_tracker = combat_tracker or CombatTracker()
+        self.character_roster = roster
+        self.combat_tracker = combat_tracker or CombatTracker(roster=roster)
         self.campaign_database = campaign_database or get_campaign_database()
 
     def roll_action(
@@ -193,10 +197,12 @@ def get_game_session_controller(
     rules_database: RulesDatabase | None = None,
     combat_tracker: CombatTracker | None = None,
     campaign_database: CampaignDatabase | None = None,
+    character_roster_store: CharacterRoster | None = None,
 ) -> GameSessionController:
     """Return a controller instance for an explicit session or request scope."""
     return GameSessionController(
         rules_database=rules_database,
         combat_tracker=combat_tracker,
         campaign_database=campaign_database,
+        character_roster_store=character_roster_store,
     )

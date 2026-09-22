@@ -40,6 +40,8 @@ class _FakeChannel:
         self.parent_id = parent_id
         self.guild = guild
         self.sent_messages: list[dict] = []
+        self.created_threads: list = []
+        self._history_messages: list[SimpleNamespace] = []
 
     async def send(self, content=None, embed=None):
         self.sent_messages.append({"content": content, "embed": embed})
@@ -47,22 +49,52 @@ class _FakeChannel:
     def typing(self):
         return _FakeTyping()
 
+    async def create_thread(self, *, name: str):
+        thread = _FakeThread(self.id + 1000, parent_id=self.id, parent=self, guild=self.guild, name=name)
+        self.created_threads.append(thread)
+        return thread
+
+    def history(self, *, limit: int):
+        async def _iterate():
+            for message in self._history_messages[:limit]:
+                yield message
+
+        return _iterate()
+
 
 class _FakeContext:
-    def __init__(self):
+    def __init__(self, *, author_id: int = 42, channel=None):
         self.sent_messages: list[dict] = []
+        self.author = SimpleNamespace(id=author_id, display_name=f"User {author_id}")
+        self.channel = channel or _FakeChannel(42)
 
     async def send(self, content=None, embed=None):
         self.sent_messages.append({"content": content, "embed": embed})
 
 
 class _FakeThread:
-    def __init__(self, channel_id: int, *, parent_id: int | None = None, parent=None, guild=object()):
+    def __init__(self, channel_id: int, *, parent_id: int | None = None, parent=None, guild=object(), name: str = "Session"):
         self.id = channel_id
         self.parent_id = parent_id
         self.parent = parent
         self.guild = guild
         self.owner_id = 1
+        self.name = name
+        self.sent_messages: list[dict] = []
+        self._history_messages: list[SimpleNamespace] = []
+
+    async def send(self, content=None, embed=None):
+        self.sent_messages.append({"content": content, "embed": embed})
+
+    def typing(self):
+        return _FakeTyping()
+
+    def history(self, *, limit: int):
+        async def _iterate():
+            for message in self._history_messages[:limit]:
+                yield message
+
+        return _iterate()
 
 
 class DiscordBotConfigTests(unittest.TestCase):
@@ -84,7 +116,7 @@ class DiscordBotConfigTests(unittest.TestCase):
                 '[open_webui]\n'
                 'model = "qwen2.5-coder"\n'
                 'host = "http://remote:3000"\n'
-                'timeout = 45\n'
+                'llm_timeout_ms = 220\n'
                 '[discord]\n'
                 'token = "file-token"\n'
                 'campaign_channel_id = 12345\n'
@@ -97,7 +129,7 @@ class DiscordBotConfigTests(unittest.TestCase):
         self.assertEqual(config.token, "file-token")
         self.assertEqual(config.campaign_channel_id, 12345)
         self.assertEqual(config.command_prefix, "?")
-        self.assertEqual(config.timeout, 45.0)
+        self.assertEqual(config.timeout, 0.22)
         self.assertEqual(config.model, "qwen2.5-coder")
         self.assertEqual(config.history_limit, 12)
 
@@ -130,6 +162,20 @@ class DiscordBotConfigTests(unittest.TestCase):
         self.assertEqual(config.command_prefix, "$")
         self.assertEqual(config.history_limit, 9)
         self.assertEqual(config.timeout, 33.0)
+
+    def test_load_discord_bot_config_reads_legacy_timeout_when_llm_timeout_missing(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "narrator_config.toml"
+            config_path.write_text(
+                '[open_webui]\n'
+                'timeout = 45\n'
+                '[discord]\n'
+                'token = "file-token"\n',
+                encoding="utf-8",
+            )
+            config = load_discord_bot_config(str(config_path))
+
+        self.assertEqual(config.timeout, 45.0)
 
     @patch.dict("os.environ", {"DISCORD_BOT_TOKEN": "env-token", "NARRATOR_DISCORD_COMMAND_PREFIX": "   "}, clear=True)
     def test_load_discord_bot_config_rejects_blank_env_prefix(self):
@@ -249,12 +295,22 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         channel = _FakeChannel(42)
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator reply")
 
-        response = await bot.generate_channel_reply(channel, "Peter", "We investigate the lab.")
+        response = await bot.generate_channel_reply(channel, 42, "Peter", "We investigate the lab.")
 
         self.assertEqual(response, "Narrator reply")
         history = bot.channel_histories[42]
         self.assertEqual(history[1]["content"], "Peter: We investigate the lab.")
         self.assertEqual(history[2]["content"], "Narrator reply")
+
+    async def test_get_user_session_isolates_controllers_and_histories(self):
+        bot = create_discord_bot(self.config, chat_request=lambda **_: "Narrator reply")
+
+        first = bot.get_user_session(1001)
+        second = bot.get_user_session(1002)
+
+        self.assertIsNot(first.controller, second.controller)
+        self.assertIsNot(first.controller.character_roster, second.controller.character_roster)
+        self.assertIsNot(first.history, second.history)
 
     async def test_roll_command_uses_session_controller(self):
         bot = create_discord_bot(self.config, controller=self.controller)
@@ -327,20 +383,43 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
         bot.get_context = AsyncMock(return_value=SimpleNamespace(valid=False))
         bot.invoke = AsyncMock()
+        bot.get_channel = lambda channel_id: None
         cog = NarratorDiscordCog(bot)
         channel = _FakeChannel(42)
         message = SimpleNamespace(
-            author=SimpleNamespace(bot=False, display_name="Storm"),
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
             channel=channel,
             content="What do I notice?",
+            create_thread=channel.create_thread,
         )
 
         await cog.on_message(message)
 
         bot.get_context.assert_awaited_once_with(message)
         bot.invoke.assert_not_awaited()
-        self.assertEqual(channel.sent_messages[0]["content"], "Narrator response")
+        self.assertEqual(channel.created_threads[0].sent_messages[0]["content"], "Narrator response")
         self.assertIn(42, bot.channel_histories)
+        self.assertEqual(bot.get_user_session(42).thread_id, channel.created_threads[0].id)
+
+    async def test_on_message_redirects_user_to_existing_thread(self):
+        bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
+        bot.get_context = AsyncMock(return_value=SimpleNamespace(valid=False))
+        bot.invoke = AsyncMock()
+        existing_thread = _FakeThread(1001, parent_id=42)
+        session = bot.get_user_session(42)
+        session.thread_id = existing_thread.id
+        bot.get_channel = lambda channel_id: existing_thread if channel_id == existing_thread.id else None
+        cog = NarratorDiscordCog(bot)
+        message = SimpleNamespace(
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
+            channel=_FakeThread(1002, parent_id=42),
+            content="What do I notice?",
+            create_thread=AsyncMock(),
+        )
+
+        await cog.on_message(message)
+
+        self.assertEqual(existing_thread.sent_messages[0]["content"], "Narrator response")
 
     async def test_on_message_ignores_non_campaign_channels_and_commands(self):
         bot = create_discord_bot(self.config, controller=self.controller, chat_request=lambda **_: "Narrator response")
@@ -352,14 +431,16 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         off_channel = _FakeChannel(99)
         command_channel = _FakeChannel(42)
         off_message = SimpleNamespace(
-            author=SimpleNamespace(bot=False, display_name="Storm"),
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
             channel=off_channel,
             content="Hello there",
+            create_thread=off_channel.create_thread,
         )
         command_message = SimpleNamespace(
-            author=SimpleNamespace(bot=False, display_name="Storm"),
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
             channel=command_channel,
             content="!roll",
+            create_thread=command_channel.create_thread,
         )
 
         await cog.on_message(off_message)
@@ -377,9 +458,10 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         bot.invoke = AsyncMock()
         cog = NarratorDiscordCog(bot)
         command_message = SimpleNamespace(
-            author=SimpleNamespace(bot=False, display_name="Storm"),
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
             channel=_FakeChannel(42),
             content="!roll 1 0 2",
+            create_thread=AsyncMock(),
         )
 
         await cog.on_message(command_message)
@@ -392,17 +474,41 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         bot = create_discord_bot(self.config, controller=self.controller)
         bot.get_context = AsyncMock(return_value=SimpleNamespace(valid=False))
         bot.generate_channel_reply = AsyncMock(side_effect=ConnectionError("offline"))
+        bot.get_channel = lambda channel_id: None
         cog = NarratorDiscordCog(bot)
         channel = _FakeChannel(42)
         message = SimpleNamespace(
-            author=SimpleNamespace(bot=False, display_name="Storm"),
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
             channel=channel,
             content="Tell me what I see.",
+            create_thread=channel.create_thread,
         )
 
         await cog.on_message(message)
 
         self.assertEqual(channel.sent_messages[0]["content"], "chat_error> Connection refused. Is Open WebUI running?")
+
+    async def test_clear_history_preserves_pinned_messages(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        cog = NarratorDiscordCog(bot)
+        channel = _FakeThread(1042, parent_id=42, parent=SimpleNamespace(id=42, guild=object()))
+        channel._history_messages = [
+            SimpleNamespace(pinned=False, delete=AsyncMock()),
+            SimpleNamespace(pinned=True, delete=AsyncMock()),
+            SimpleNamespace(pinned=False, delete=AsyncMock()),
+        ]
+        session = bot.get_user_session(42)
+        session.thread_id = channel.id
+        session.history.append({"role": "user", "content": "Old message"})
+        ctx = _FakeContext(author_id=42, channel=channel)
+
+        await cog.clear_history.callback(cog, ctx, limit=10)
+
+        self.assertEqual(ctx.sent_messages[0]["content"], "Cleared 2 non-pinned messages.")
+        self.assertEqual(channel._history_messages[0].delete.await_count, 1)
+        self.assertEqual(channel._history_messages[1].delete.await_count, 0)
+        self.assertEqual(channel._history_messages[2].delete.await_count, 1)
+        self.assertEqual(len(session.history), 1)
 
 
 class DiscordBotHelperTests(unittest.TestCase):

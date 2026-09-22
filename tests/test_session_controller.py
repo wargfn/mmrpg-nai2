@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from marvel_mcp_narrator.core.character_state import character_roster
+from marvel_mcp_narrator.core.character_state import CharacterRoster, character_roster
 from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase
 from marvel_mcp_narrator.core.session_controller import RECENT_MEMORY_LIMIT, GameSessionController
 
@@ -153,6 +153,27 @@ class GameSessionControllerTests(unittest.TestCase):
             self.controller.list_campaign_memories(limit=-1)
         with self.assertRaisesRegex(ValueError, "Memory limit must be a non-negative integer"):
             self.controller.list_campaign_memories(limit=1.5)
+
+    def test_controllers_can_isolate_character_rosters(self):
+        first_roster = CharacterRoster()
+        second_roster = CharacterRoster()
+        first_controller = GameSessionController(campaign_database=self.database, character_roster_store=first_roster)
+        second_controller = GameSessionController(campaign_database=self.database, character_roster_store=second_roster)
+
+        first_roster.create_or_load(
+            name="Storm",
+            archetype="Blaster",
+            rank=4,
+            melee=2,
+            agility=4,
+            resilience=3,
+            vigilance=5,
+            ego=5,
+            logic=3,
+        )
+
+        with self.assertRaisesRegex(KeyError, "Character 'Storm' was not found"):
+            second_controller.character_roster.get_sheet("Storm")
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
   - `model`
   - `api_key`
   - `timeout`
+  - `llm_timeout_ms`
 
 ### Config precedence
 
@@ -23,7 +24,7 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
 
 - The CLI sends chat requests to `<host>/api/chat/completions`.
 - You can set `host` to a base URL like `http://localhost:3000` or to a custom base path.
-- Use `--timeout`, `NARRATOR_TIMEOUT`, or `[open_webui].timeout` to override the default HTTP timeout in seconds.
+- Use `--timeout`, `NARRATOR_TIMEOUT`, `[open_webui].timeout`, or `[open_webui].llm_timeout_ms` to control HTTP request timeouts.
 - On startup, the CLI injects persisted SQLite campaign memories from `data/campaign.db` into the initial system prompt so the model begins with prior session continuity.
 
 ## Discord bot
@@ -46,7 +47,10 @@ The repository also includes a Discord interface that mirrors the shared `GameSe
   - `/rule` with argument `query` (text form: `!rule <query>`)
   - `/combat status`
   - `/attack` with arguments `target`, `rank`, and `marvel_die` (text form: `!attack <target> <rank> <marvel_die>`)
+  - `/clear_history [limit]` (text form: `!clear [limit]`) clears recent non-pinned messages in the active channel or thread
 - Natural messages are only forwarded when `campaign_channel_id` is configured; otherwise slash/text commands still work, but freeform narration is disabled.
+- Each Discord user gets an isolated game session, character roster, combat tracker, and conversation history.
+- A freeform prompt in the configured campaign channel is automatically routed into that user's dedicated Discord thread.
 
 ## FastMCP narrator server
 

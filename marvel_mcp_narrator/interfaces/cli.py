@@ -17,7 +17,7 @@ from urllib.parse import urlparse, urlunparse
 import httpx
 
 from marvel_mcp_narrator.core.character_creation import ABILITY_FIELDS
-from marvel_mcp_narrator.core.character_state import character_roster
+from marvel_mcp_narrator.core.character_state import CharacterRoster, character_roster
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
 from marvel_mcp_narrator.core.memory.campaign_db import (
     CampaignDatabase,
@@ -138,6 +138,7 @@ SYSTEM_PROMPT = (
 DEFAULT_MODEL = "qwen2.5:14b-instruct"
 DEFAULT_OPEN_WEBUI_HOST = "http://127.0.0.1:3000"
 DEFAULT_REQUEST_TIMEOUT = 120.0
+DEFAULT_LLM_TIMEOUT_MS = 220
 STARTUP_MEMORY_LIMIT = 12
 STARTUP_CONTEXT_CHAR_BUDGET = 6000
 RULES_CONTEXT_KEYS = (
@@ -309,6 +310,7 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | float | N
             host = open_webui_block.get("host")
             base_url = open_webui_block.get("base_url")
             api_key = open_webui_block.get("api_key")
+            llm_timeout_ms = open_webui_block.get("llm_timeout_ms")
             timeout = open_webui_block.get("timeout")
             if model:
                 config["model"] = str(model)
@@ -321,7 +323,15 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | float | N
                     config["base_url"] = str(host)
             if api_key:
                 config["api_key"] = str(api_key)
-            if timeout is not None:
+            if llm_timeout_ms is not None:
+                try:
+                    parsed_timeout_ms = float(llm_timeout_ms)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("llm_timeout_ms must be a positive number.") from exc
+                if parsed_timeout_ms <= 0:
+                    raise ValueError("llm_timeout_ms must be a positive number.")
+                config["timeout"] = parsed_timeout_ms / 1000.0
+            elif timeout is not None:
                 try:
                     parsed_timeout = float(timeout)
                 except (TypeError, ValueError) as exc:
@@ -447,9 +457,9 @@ def get_rules_startup_context() -> str:
     return "\n".join(lines)
 
 
-def get_active_character_context() -> str:
+def get_active_character_context(roster: CharacterRoster | None = None) -> str:
     """Return derived-stat context for the currently active tracked character."""
-    active_sheet = character_roster.get_active_sheet()
+    active_sheet = (roster or character_roster).get_active_sheet()
     if active_sheet is None:
         return "Active Character Context:\n- No active character is currently loaded."
 

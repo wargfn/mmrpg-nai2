@@ -9,13 +9,14 @@ import os
 import subprocess
 import sys
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
 import discord
 from discord.ext import commands
 
+from marvel_mcp_narrator.core.character_state import CharacterRoster
 from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase
 from marvel_mcp_narrator.core.rules_database import RulesLookupError
 from marvel_mcp_narrator.core.session_controller import GameSessionController
@@ -52,6 +53,14 @@ class DiscordBotConfig:
     api_key: str | None = None
     timeout: float = DEFAULT_REQUEST_TIMEOUT
     history_limit: int = DEFAULT_DISCORD_HISTORY_LIMIT
+
+
+@dataclass(slots=True)
+class DiscordUserSession:
+    user_id: int
+    controller: GameSessionController
+    history: list[dict[str, str]] = field(default_factory=list)
+    thread_id: int | None = None
 
 
 def _coerce_positive_float(value: object, *, field_name: str) -> float:
@@ -230,7 +239,7 @@ def _build_channel_system_prompt(controller: GameSessionController) -> str:
         [
             SYSTEM_PROMPT,
             get_rules_startup_context(),
-            get_active_character_context(),
+            get_active_character_context(controller.character_roster),
             _format_combat_state_result(controller.get_combat_state()),
             get_startup_context(controller.campaign_database),
         ]
@@ -240,6 +249,8 @@ def _build_channel_system_prompt(controller: GameSessionController) -> str:
 def _format_chat_error(exc: Exception) -> str:
     response = getattr(exc, "response", None)
     status_code = getattr(response, "status_code", None)
+    if isinstance(exc, PermissionError):
+        return str(exc)
     if isinstance(exc, ConnectionError):
         return "chat_error> Connection refused. Is Open WebUI running?"
     if status_code == 405:
@@ -325,13 +336,81 @@ class DiscordNarratorBot(commands.Bot):
         intents.message_content = True
         super().__init__(command_prefix=config.command_prefix, intents=intents)
         self.config = config
-        self.controller = controller or GameSessionController(campaign_database=campaign_database)
+        self.controller = controller
         self.chat_request = chat_request
-        self.channel_histories: dict[int, list[dict[str, str]]] = {}
         self.campaign_channel_id = config.campaign_channel_id
+        self.channel_histories: dict[int, list[dict[str, str]]] = {}
+        self._user_sessions: dict[int, DiscordUserSession] = {}
+        self._seed_controller = controller
+        self._seed_controller_assigned = False
+        self._campaign_database = campaign_database
 
     async def setup_hook(self) -> None:
         await self.add_cog(NarratorDiscordCog(self))
+
+    @staticmethod
+    def _user_campaign_database_path(user_id: int) -> Path:
+        return Path(__file__).resolve().parent.parent / "data" / "discord_sessions" / f"user_{user_id}.db"
+
+    def _build_controller_for_user(self, user_id: int) -> GameSessionController:
+        if self._seed_controller is not None and not self._seed_controller_assigned:
+            self._seed_controller_assigned = True
+            return self._seed_controller
+        roster = CharacterRoster()
+        database = self._campaign_database or CampaignDatabase(self._user_campaign_database_path(user_id))
+        return GameSessionController(campaign_database=database, character_roster_store=roster)
+
+    def get_user_session(self, user_id: int) -> DiscordUserSession:
+        session = self._user_sessions.get(user_id)
+        if session is None:
+            controller = self._build_controller_for_user(user_id)
+            session = DiscordUserSession(
+                user_id=user_id,
+                controller=controller,
+                history=[{"role": "system", "content": _build_channel_system_prompt(controller)}],
+            )
+            self._user_sessions[user_id] = session
+            self.channel_histories[user_id] = session.history
+        else:
+            session.history[0]["content"] = _build_channel_system_prompt(session.controller)
+        return session
+
+    def get_user_controller(self, user_id: int) -> GameSessionController:
+        return self.get_user_session(user_id).controller
+
+    def get_session_for_channel(self, channel: discord.abc.Messageable | Any) -> DiscordUserSession | None:
+        channel_id = getattr(channel, "id", None)
+        if channel_id is None:
+            return None
+        for session in self._user_sessions.values():
+            if session.thread_id == channel_id:
+                return session
+        return None
+
+    async def ensure_user_thread(self, message: discord.Message) -> discord.abc.Messageable:
+        user_id = int(message.author.id)
+        session = self.get_user_session(user_id)
+        channel = message.channel
+        if getattr(channel, "id", None) != self.campaign_channel_id:
+            current_channel_id = getattr(channel, "id", None)
+            if session.thread_id is None:
+                session.thread_id = current_channel_id
+                return channel
+            if session.thread_id == current_channel_id:
+                return channel
+            existing_thread = self.get_channel(session.thread_id)
+            if existing_thread is not None:
+                return existing_thread
+            raise PermissionError("Use your dedicated session thread for narration.")
+
+        if session.thread_id is not None:
+            existing_thread = self.get_channel(session.thread_id)
+            if existing_thread is not None:
+                return existing_thread
+
+        thread = await message.create_thread(name=f"{message.author.display_name} Session")
+        session.thread_id = getattr(thread, "id", None)
+        return thread
 
     @staticmethod
     def _is_supported_campaign_root_channel(channel: Any) -> bool:
@@ -381,16 +460,6 @@ class DiscordNarratorBot(commands.Bot):
         parent_channel_id = getattr(parent, "id", None)
         return parent_id == self.campaign_channel_id or parent_channel_id == self.campaign_channel_id
 
-    def get_channel_history(self, channel: discord.abc.Messageable) -> list[dict[str, str]]:
-        key = self.conversation_key(channel)
-        history = self.channel_histories.get(key)
-        if history is None:
-            history = [{"role": "system", "content": _build_channel_system_prompt(self.controller)}]
-            self.channel_histories[key] = history
-        else:
-            history[0]["content"] = _build_channel_system_prompt(self.controller)
-        return history
-
     def _trim_history(self, history: list[dict[str, str]]) -> None:
         if len(history) <= self.config.history_limit + 1:
             return
@@ -398,8 +467,15 @@ class DiscordNarratorBot(commands.Bot):
         trimmed_tail = history[-self.config.history_limit :]
         history[:] = [preserved_system, *trimmed_tail]
 
-    async def generate_channel_reply(self, channel: discord.abc.Messageable, user_name: str, content: str) -> str:
-        history = self.get_channel_history(channel)
+    async def generate_channel_reply(
+        self,
+        channel: discord.abc.Messageable,
+        user_id: int,
+        user_name: str,
+        content: str,
+    ) -> str:
+        session = self.get_user_session(user_id)
+        history = session.history
         history.append({"role": "user", "content": f"{user_name}: {content}"})
         self._trim_history(history)
         try:
@@ -430,6 +506,13 @@ class NarratorDiscordCog(commands.Cog):
     def __init__(self, bot: DiscordNarratorBot) -> None:
         self.bot = bot
 
+    @staticmethod
+    def _author_id(actor: Any) -> int:
+        return int(getattr(actor, "id"))
+
+    def _controller_for_actor(self, actor: Any) -> GameSessionController:
+        return self.bot.get_user_controller(self._author_id(actor))
+
     async def _send_rule_result(self, destination: Any, query: str, result: str) -> None:
         embed = _build_rule_embed(query, result)
         await destination.send(embed=embed)
@@ -442,7 +525,7 @@ class NarratorDiscordCog(commands.Cog):
         troubles: int = 0,
         modifier: int = 0,
     ) -> None:
-        payload = self.bot.controller.roll_action(
+        payload = self._controller_for_actor(ctx.author).roll_action(
             ability_modifier=modifier,
             edges=edges,
             troubles=troubles,
@@ -452,7 +535,7 @@ class NarratorDiscordCog(commands.Cog):
     @commands.hybrid_command(name="rule", description="Look up a rules reference or power.")
     async def rule(self, ctx: commands.Context, *, query: str) -> None:
         try:
-            result = self.bot.controller.look_up_rule(query)
+            result = self._controller_for_actor(ctx.author).look_up_rule(query)
         except RulesLookupError as exc:
             await ctx.send(str(exc))
             return
@@ -460,7 +543,7 @@ class NarratorDiscordCog(commands.Cog):
 
     @commands.hybrid_command(name="attack", description="Apply rank × Marvel die damage to a tracked target.")
     async def attack(self, ctx: commands.Context, target: str, rank: int, marvel_die: int) -> None:
-        payload = self.bot.controller.apply_combat_damage(target, rank=rank, marvel_die_value=marvel_die)
+        payload = self._controller_for_actor(ctx.author).apply_combat_damage(target, rank=rank, marvel_die_value=marvel_die)
         await ctx.send(_format_attack_status(payload))
 
     @commands.hybrid_group(name="combat", description="Combat state commands.")
@@ -470,7 +553,24 @@ class NarratorDiscordCog(commands.Cog):
 
     @combat.command(name="status", description="Show tracked combatant health pools.", with_app_command=True)
     async def combat_status(self, ctx: commands.Context) -> None:
-        await ctx.send(_format_combat_state_result(self.bot.controller.get_combat_state()))
+        await ctx.send(_format_combat_state_result(self._controller_for_actor(ctx.author).get_combat_state()))
+
+    @commands.hybrid_command(name="clear_history", aliases=["clear"], description="Clear recent channel history.")
+    @commands.guild_only()
+    @commands.has_permissions(manage_messages=True)
+    async def clear_history(self, ctx: commands.Context, limit: int = 100) -> None:
+        if limit < 1:
+            raise ValueError("History clear limit must be a positive integer.")
+        deleted = 0
+        async for message in ctx.channel.history(limit=limit):
+            if getattr(message, "pinned", False):
+                continue
+            await message.delete()
+            deleted += 1
+        session = self.bot.get_session_for_channel(ctx.channel)
+        if session is not None:
+            session.history[:] = [{"role": "system", "content": _build_channel_system_prompt(session.controller)}]
+        await ctx.send(f"Cleared {deleted} non-pinned messages.")
 
     @commands.command(name="sync-commands", hidden=True)
     @commands.guild_only()
@@ -490,14 +590,18 @@ class NarratorDiscordCog(commands.Cog):
         if not self.bot.is_campaign_channel(message.channel):
             return
         try:
-            async with message.channel.typing():
+            target_channel = await self.bot.ensure_user_thread(message)
+            async with target_channel.typing():
                 response = await self.bot.generate_channel_reply(
-                    message.channel, message.author.display_name, message.content
+                    target_channel,
+                    self._author_id(message.author),
+                    message.author.display_name,
+                    message.content,
                 )
         except Exception as exc:
             await message.channel.send(_format_chat_error(exc))
             return
-        await self.bot.send_response(message.channel, response)
+        await self.bot.send_response(target_channel, response)
 
 
 def create_discord_bot(

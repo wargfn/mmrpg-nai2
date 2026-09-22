@@ -14,6 +14,7 @@ from marvel_mcp_narrator.interfaces.cli import (
     _ACTIVE_SESSION_CONTROLLER,
     CLI_COMMANDS_HELP,
     DEFAULT_MODEL,
+    DEFAULT_LLM_TIMEOUT_MS,
     STARTUP_MEMORY_LIMIT,
     STARTUP_CONTEXT_EMPTY_NOTE,
     STARTUP_CONTEXT_UNAVAILABLE_NOTE,
@@ -726,6 +727,31 @@ class CLIConfigTests(unittest.TestCase):
 
         self.assertEqual(config['timeout'], 45.5)
 
+    def test_load_cli_config_reads_llm_timeout_ms_from_file(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                f'llm_timeout_ms = {DEFAULT_LLM_TIMEOUT_MS}\n',
+                encoding='utf-8',
+            )
+            config = load_cli_config(str(config_path))
+
+        self.assertEqual(config['timeout'], DEFAULT_LLM_TIMEOUT_MS / 1000.0)
+
+    def test_load_cli_config_prefers_llm_timeout_ms_over_legacy_timeout(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                'llm_timeout_ms = 220\n'
+                'timeout = 45.5\n',
+                encoding='utf-8',
+            )
+            config = load_cli_config(str(config_path))
+
+        self.assertEqual(config['timeout'], 0.22)
+
     def test_load_cli_config_accepts_legacy_ollama_file_block(self):
         with TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / 'narrator_config.toml'
@@ -824,6 +850,17 @@ class CLIConfigTests(unittest.TestCase):
                 encoding='utf-8',
             )
             with self.assertRaisesRegex(ValueError, 'Timeout must be a positive number'):
+                load_cli_config(str(config_path))
+
+    def test_load_cli_config_rejects_invalid_llm_timeout_ms_in_file(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                'llm_timeout_ms = 0\n',
+                encoding='utf-8',
+            )
+            with self.assertRaisesRegex(ValueError, 'llm_timeout_ms must be a positive number'):
                 load_cli_config(str(config_path))
 
     @patch.dict('os.environ', {'NARRATOR_TIMEOUT': 'oops'}, clear=True)
