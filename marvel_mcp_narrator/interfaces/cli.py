@@ -42,7 +42,7 @@ def _get_session_controller() -> GameSessionController:
 
 
 def resolve_d616_roll(
-    ability_modifier: int = 0,
+    ability_modifier: int,
     target_number: int | None = None,
     edges: int = 0,
     troubles: int = 0,
@@ -839,7 +839,7 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         if any(token.startswith("--") for token in arguments):
             edges, troubles, target_number = _parse_roll_command(parts)
             return "resolve_d616_roll", _format_router_roll_result(
-                resolve_d616_roll(edges=edges, troubles=troubles, target_number=target_number)
+                resolve_d616_roll(ability_modifier=0, edges=edges, troubles=troubles, target_number=target_number)
             )
 
         if len(arguments) > 2:
@@ -852,7 +852,7 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         if edges < 0 or troubles < 0:
             raise ValueError("Edges and troubles must be non-negative integers.")
         return "resolve_d616_roll", _format_router_roll_result(
-            resolve_d616_roll(edges=edges, troubles=troubles)
+            resolve_d616_roll(ability_modifier=0, edges=edges, troubles=troubles)
         )
 
     return None
@@ -870,7 +870,9 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
     if command == "/roll":
         edges, troubles, tn = _parse_roll_command(parts)
         if "--edges" in parts or "--troubles" in parts or edges > 1 or troubles > 1:
-            return "resolve_d616_roll", resolve_d616_roll(edges=edges, troubles=troubles, target_number=tn)
+            return "resolve_d616_roll", resolve_d616_roll(
+                ability_modifier=0, edges=edges, troubles=troubles, target_number=tn
+            )
         return "roll_d616", roll_d616(edge=bool(edges), trouble=bool(troubles), target_number=tn)
 
     if command == "/rule":

@@ -70,7 +70,7 @@ class CLIToolInjectionTests(unittest.TestCase):
         }) as mock_roll:
             name, payload = _route_intent_command('/roll 2 1')
         self.assertEqual(name, 'resolve_d616_roll')
-        mock_roll.assert_called_once_with(edges=2, troubles=1)
+        mock_roll.assert_called_once_with(ability_modifier=0, edges=2, troubles=1)
         self.assertIn('Deterministic d616 Roll:', payload)
         self.assertIn('Total Score: 10', payload)
 
@@ -285,7 +285,7 @@ class CLIToolInjectionTests(unittest.TestCase):
     def test_roll_command_supports_counted_edge_and_trouble_flags(self, mock_roll):
         name, payload = _tool_injection('/roll --edges 2 --troubles 1 --tn 12')
         self.assertEqual(name, 'resolve_d616_roll')
-        mock_roll.assert_called_once_with(edges=2, troubles=1, target_number=12)
+        mock_roll.assert_called_once_with(ability_modifier=0, edges=2, troubles=1, target_number=12)
         self.assertEqual(payload['target_number'], 12)
 
     def test_rule_command_returns_search_results(self):
