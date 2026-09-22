@@ -246,6 +246,29 @@ def request_open_webui_chat(
     raise ValueError("No assistant content returned from Open WebUI.")
 
 
+def _request_open_webui_chat_with_fallback(
+    *,
+    host: str | None = None,
+    base_url: str | None = None,
+    model: str,
+    messages: list[dict[str, str]],
+    api_key: str | None = None,
+) -> str:
+    """Preserve CLI chat-loop semantics for unexpected request failures."""
+    try:
+        return request_open_webui_chat(
+            host=host,
+            base_url=base_url,
+            model=model,
+            messages=messages,
+            api_key=api_key,
+        )
+    except (httpx.HTTPError, ValueError, TypeError, RuntimeError):
+        raise
+    except Exception as exc:  # pragma: no cover - defensive fallback for interactive use
+        raise RuntimeError(str(exc)) from exc
+
+
 def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
     """Load CLI config from file and environment variables."""
     config: dict[str, str | None] = {
@@ -932,7 +955,7 @@ def run_cli(
                         campaign_memory_context=campaign_memory_context,
                     )
                     prompt_context_dirty = False
-                final_content = request_open_webui_chat(
+                final_content = _request_open_webui_chat_with_fallback(
                     host=host,
                     base_url=base_url or host,
                     model=model,
