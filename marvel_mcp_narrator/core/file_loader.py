@@ -13,12 +13,18 @@ from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase, get_ca
 NOTEBOOK_EXTENSIONS = {".md", ".markdown", ".txt", ".text"}
 DEFAULT_NOTEBOOK_DIRECTORY = Path(__file__).resolve().parent.parent / "data" / "notebooks"
 DEFAULT_DATA_DIRECTORY = Path(__file__).resolve().parent.parent / "data"
-MAX_CONTEXT_BLOCKS = 4
-MAX_NOTEBOOK_EXCERPT = 500
+MAX_CONTEXT_BLOCKS = 6
+MAX_NOTEBOOK_EXCERPT = 700
+MAX_AUTOMATED_RULE_CITATIONS = 3
+MAX_AUTOMATED_NOTEBOOK_CITATIONS = 2
 
 
 def _normalize_query_tokens(query: str) -> list[str]:
     return [token for token in re.findall(r"[a-z0-9][a-z0-9'_-]*", query.casefold()) if len(token) > 2]
+
+
+def _normalize_phrase(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", str(text).casefold()))
 
 
 class UnifiedContextInjector:
@@ -65,30 +71,263 @@ class UnifiedContextInjector:
                 continue
         return payload
 
+    def scan_prompt_for_keywords(self, query: str) -> dict[str, list[dict[str, str]]]:
+        """Aggressively scan a prompt for rules and notebook keyword hits."""
+        query_text = str(query).strip()
+        if not query_text:
+            return {"rules": [], "notebooks": []}
+
+        normalized_query = _normalize_phrase(query_text)
+        tokens = _normalize_query_tokens(query_text)
+        return {
+            "rules": self._match_rule_citations(normalized_query, tokens),
+            "notebooks": self._match_notebook_citations(normalized_query, tokens),
+        }
+
     def build_context_block(self, query: str) -> str:
         """Return structured context blocks relevant to the current user prompt."""
-        blocks: list[str] = []
-        tokens = _normalize_query_tokens(query)
-        if not tokens:
+        query_text = str(query).strip()
+        if not query_text:
             return ""
+
+        tokens = _normalize_query_tokens(query_text)
+        blocks: list[str] = []
+        matches = self.scan_prompt_for_keywords(query_text)
+        blocks.extend(match["block"] for match in matches["rules"])
+        blocks.extend(match["block"] for match in matches["notebooks"])
 
         character_block = self._character_context(tokens)
         if character_block:
             blocks.append(character_block)
 
-        rulebook_block = self._rulebook_context(query)
-        if rulebook_block:
-            blocks.append(rulebook_block)
-
         campaign_block = self._campaign_context(tokens)
         if campaign_block:
             blocks.append(campaign_block)
 
-        notebook_block = self._notebook_context(tokens)
-        if notebook_block:
-            blocks.append(notebook_block)
-
         return "\n\n".join(blocks[:MAX_CONTEXT_BLOCKS])
+
+    def _match_rule_citations(self, normalized_query: str, tokens: list[str]) -> list[dict[str, str]]:
+        matches: list[dict[str, str]] = []
+        seen_titles: set[str] = set()
+        for record in self._iter_rule_records():
+            matched_alias = self._find_matching_alias(normalized_query, record["aliases"])
+            if matched_alias is None:
+                continue
+            title = record["title"]
+            if title.casefold() in seen_titles:
+                continue
+            seen_titles.add(title.casefold())
+            matches.append(
+                {
+                    "title": title,
+                    "matched_alias": matched_alias,
+                    "block": self._format_rule_citation_block(title, record["exact_text"]),
+                }
+            )
+            if len(matches) >= MAX_AUTOMATED_RULE_CITATIONS:
+                break
+        return matches
+
+    def _match_notebook_citations(self, normalized_query: str, tokens: list[str]) -> list[dict[str, str]]:
+        matches: list[dict[str, str]] = []
+        for record in self._iter_notebook_records():
+            matched_alias = self._find_matching_alias(normalized_query, record["aliases"])
+            if matched_alias is None and not any(token in record["content_normalized"] for token in tokens if len(token) > 3):
+                continue
+            exact_text = self._extract_notebook_exact_text(record["content"], tokens)
+            matches.append(
+                {
+                    "title": record["title"],
+                    "matched_alias": matched_alias or record["title"],
+                    "block": self._format_notebook_citation_block(record["title"], exact_text),
+                }
+            )
+            if len(matches) >= MAX_AUTOMATED_NOTEBOOK_CITATIONS:
+                break
+        return matches
+
+    def _iter_rule_records(self) -> list[dict[str, Any]]:
+        json_files = self.load_local_json_files()
+        rules_payload = json_files.get("rules.json")
+        if not isinstance(rules_payload, dict):
+            return []
+
+        records: list[dict[str, Any]] = []
+
+        mechanics = rules_payload.get("mechanics", {})
+        if isinstance(mechanics, dict):
+            for key, payload in mechanics.items():
+                if not isinstance(payload, dict):
+                    continue
+                title = str(payload.get("title", key)).strip() or str(key)
+                aliases = {str(key), title, str(key).replace("_", " ")}
+                records.append(
+                    self._make_rule_record(
+                        title=title,
+                        aliases=aliases,
+                        exact_payload=payload,
+                        priority=0,
+                    )
+                )
+
+        powers = rules_payload.get("powers", [])
+        if isinstance(powers, list):
+            for payload in powers:
+                if not isinstance(payload, dict):
+                    continue
+                title = str(payload.get("name", "")).strip()
+                if not title:
+                    continue
+                records.append(
+                    self._make_rule_record(
+                        title=title,
+                        aliases={title},
+                        exact_payload=payload,
+                        priority=2,
+                    )
+                )
+
+        power_sets = rules_payload.get("power_sets", [])
+        if isinstance(power_sets, list):
+            family_entries: dict[str, list[dict[str, Any]]] = {}
+            for power_set in power_sets:
+                if not isinstance(power_set, dict):
+                    continue
+                set_name = str(power_set.get("name", "")).strip()
+                if set_name:
+                    records.append(
+                        self._make_rule_record(
+                            title=set_name,
+                            aliases={set_name},
+                            exact_payload=power_set,
+                            priority=1,
+                        )
+                    )
+                for payload in power_set.get("powers", []):
+                    if not isinstance(payload, dict):
+                        continue
+                    power_name = str(payload.get("name", "")).strip()
+                    if not power_name:
+                        continue
+                    exact_payload = {"power_set": set_name, **payload} if set_name else dict(payload)
+                    aliases = {power_name}
+                    family_name = self._family_alias(power_name)
+                    if family_name:
+                        aliases.add(family_name)
+                        family_entries.setdefault(family_name.casefold(), []).append(exact_payload)
+                    records.append(
+                        self._make_rule_record(
+                            title=power_name,
+                            aliases=aliases,
+                            exact_payload=exact_payload,
+                            priority=2,
+                        )
+                    )
+            for family_name, entries in family_entries.items():
+                if len(entries) < 2:
+                    continue
+                title = entries[0]["name"].rsplit(" ", 1)[0]
+                records.append(
+                    self._make_rule_record(
+                        title=title,
+                        aliases={title},
+                        exact_payload=entries,
+                        priority=1,
+                    )
+                )
+
+        return sorted(
+            records,
+            key=lambda record: (
+                record["priority"],
+                -record["longest_alias_length"],
+                record["title"].casefold(),
+            ),
+        )
+
+    def _iter_notebook_records(self) -> list[dict[str, str]]:
+        records: list[dict[str, str]] = []
+        for name, content in self.load_notebook_sources().items():
+            title = Path(name).stem
+            aliases = {title, name}
+            aliases.update(self._markdown_headings(content))
+            records.append(
+                {
+                    "title": name,
+                    "content": content,
+                    "content_normalized": _normalize_phrase(content),
+                    "aliases": {alias for alias in aliases if str(alias).strip()},
+                }
+            )
+        return records
+
+    @staticmethod
+    def _make_rule_record(
+        *,
+        title: str,
+        aliases: set[str],
+        exact_payload: Any,
+        priority: int,
+    ) -> dict[str, Any]:
+        normalized_aliases = {_normalize_phrase(alias) for alias in aliases if _normalize_phrase(alias)}
+        return {
+            "title": title,
+            "aliases": normalized_aliases,
+            "longest_alias_length": max((len(alias) for alias in normalized_aliases), default=0),
+            "exact_text": json.dumps(exact_payload, ensure_ascii=False, indent=2),
+            "priority": priority,
+        }
+
+    @staticmethod
+    def _family_alias(power_name: str) -> str | None:
+        match = re.fullmatch(r"(.+?)\s+\d+", power_name.strip())
+        if match is None:
+            return None
+        return match.group(1).strip() or None
+
+    @staticmethod
+    def _markdown_headings(content: str) -> set[str]:
+        headings: set[str] = set()
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                headings.add(stripped.lstrip("#").strip())
+        return headings
+
+    @staticmethod
+    def _find_matching_alias(normalized_query: str, aliases: set[str]) -> str | None:
+        for alias in sorted(aliases, key=len, reverse=True):
+            if alias and alias in normalized_query:
+                return alias
+        return None
+
+    @staticmethod
+    def _format_rule_citation_block(title: str, exact_text: str) -> str:
+        return f"[System Context - Automated Rule Citation: {title}]\n{exact_text}"
+
+    @staticmethod
+    def _format_notebook_citation_block(title: str, exact_text: str) -> str:
+        return f"[System Context - Automated Notebook Citation: {title}]\n{exact_text}"
+
+    @staticmethod
+    def _extract_notebook_exact_text(content: str, tokens: list[str]) -> str:
+        stripped = content.strip()
+        if len(stripped) <= MAX_NOTEBOOK_EXCERPT:
+            return stripped
+
+        lowered = stripped.casefold()
+        first_index = min((lowered.find(token.casefold()) for token in tokens if lowered.find(token.casefold()) >= 0), default=-1)
+        if first_index < 0:
+            return stripped[:MAX_NOTEBOOK_EXCERPT].rstrip()
+
+        start = max(0, first_index - 150)
+        end = min(len(stripped), first_index + MAX_NOTEBOOK_EXCERPT - 150)
+        excerpt = stripped[start:end].strip()
+        if start > 0:
+            excerpt = "…" + excerpt
+        if end < len(stripped):
+            excerpt = excerpt + "…"
+        return excerpt
 
     def _character_context(self, tokens: list[str]) -> str:
         active_sheet = self.character_roster.get_active_sheet()
@@ -129,32 +368,6 @@ class UnifiedContextInjector:
                 )
             )
         return "\n".join(lines)
-
-    def _rulebook_context(self, query: str) -> str:
-        json_files = self.load_local_json_files()
-        rules_payload = json_files.get("rules.json")
-        if not isinstance(rules_payload, dict):
-            return ""
-        query_text = query.casefold()
-        matched_entries: list[str] = []
-        for section_name, section_payload in rules_payload.items():
-            if not isinstance(section_payload, dict):
-                continue
-            for entry_name, entry_payload in section_payload.items():
-                if len(matched_entries) >= 3:
-                    break
-                serialized_entry = json.dumps(entry_payload, ensure_ascii=False) if isinstance(entry_payload, dict) else str(entry_payload)
-                haystack = f"{entry_name} {serialized_entry}".casefold()
-                if query_text in haystack or any(token in haystack for token in _normalize_query_tokens(query)):
-                    description = ""
-                    if isinstance(entry_payload, dict):
-                        description = str(entry_payload.get("description") or entry_payload.get("summary") or "").strip()
-                    matched_entries.append(f"- {entry_name} ({section_name}): {description}".rstrip(": "))
-            if len(matched_entries) >= 3:
-                break
-        if not matched_entries:
-            return ""
-        return "\n".join(["Relevant Rules Data:", *matched_entries])
 
     def _campaign_context(self, tokens: list[str]) -> str:
         lines: list[str] = []
@@ -201,41 +414,8 @@ class UnifiedContextInjector:
             return ""
         return "\n".join(["Relevant Campaign Context:", *lines[:4]])
 
-    def _notebook_context(self, tokens: list[str]) -> str:
-        notebook_sources = self.load_notebook_sources()
-        matches: list[str] = []
-        for name, content in notebook_sources.items():
-            lowered = content.casefold()
-            if not any(token in lowered or token in name.casefold() for token in tokens):
-                continue
-            excerpt = self._excerpt_for_tokens(content, tokens)
-            matches.append(f"- {name}: {excerpt}")
-            if len(matches) >= 2:
-                break
-        if not matches:
-            return ""
-        return "\n".join(["Relevant Notebook Sources:", *matches])
-
     def _all_character_sheets(self) -> list[dict[str, Any]]:
         list_sheets = getattr(self.character_roster, "list_sheets", None)
         if callable(list_sheets):
             return list_sheets()
         return []
-
-    @staticmethod
-    def _excerpt_for_tokens(content: str, tokens: list[str]) -> str:
-        normalized = re.sub(r"\s+", " ", content).strip()
-        if not normalized:
-            return ""
-        lowered = normalized.casefold()
-        index = min((lowered.find(token) for token in tokens if lowered.find(token) >= 0), default=-1)
-        if index < 0:
-            return normalized[:MAX_NOTEBOOK_EXCERPT]
-        start = max(0, index - 120)
-        end = min(len(normalized), index + 380)
-        excerpt = normalized[start:end].strip()
-        if start > 0:
-            excerpt = "…" + excerpt
-        if end < len(normalized):
-            excerpt = excerpt + "…"
-        return excerpt

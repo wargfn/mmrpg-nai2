@@ -213,7 +213,7 @@ class GameSessionControllerTests(unittest.TestCase):
         data_dir.mkdir()
         notebook_dir.mkdir(parents=True)
         (data_dir / "rules.json").write_text(
-            '{"mechanics":{"edge":{"description":"Keep the best die."}}}',
+            '{"mechanics":{"edge":{"title":"Edges and Troubles","description":"Keep the best die."}}}',
             encoding="utf-8",
         )
         (notebook_dir / "medbay.md").write_text("Hydra medbay antidote protocol.", encoding="utf-8")
@@ -235,9 +235,9 @@ class GameSessionControllerTests(unittest.TestCase):
         payload = self.controller.build_context_injection("Should Spider-Man use edge at the Hydra medbay?")
 
         self.assertIn("Relevant Character Sheets:", payload)
-        self.assertIn("Relevant Rules Data:", payload)
+        self.assertIn("[System Context - Automated Rule Citation: Edges and Troubles]", payload)
         self.assertIn("Relevant Campaign Context:", payload)
-        self.assertIn("Relevant Notebook Sources:", payload)
+        self.assertIn("[System Context - Automated Notebook Citation: medbay.md]", payload)
 
     def test_session_history_manager_inserts_injected_context_before_recent_turns(self):
         self.controller.save_previous_campaign_events_summary("Hydra is regrouping.")

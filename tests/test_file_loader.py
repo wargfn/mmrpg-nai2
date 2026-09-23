@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -44,7 +45,7 @@ class UnifiedContextInjectorTests(unittest.TestCase):
 
     def test_build_context_block_includes_character_rules_campaign_and_notebook_matches(self):
         (self.data_dir / "rules.json").write_text(
-            '{"mechanics":{"edge":{"description":"Roll with Edge to keep the best die."}}}',
+            '{"mechanics":{"edge":{"title":"Edges and Troubles","description":"Roll with Edge to keep the best die."}}}',
             encoding="utf-8",
         )
         (self.notebook_dir / "paramedic.md").write_text(
@@ -88,12 +89,39 @@ class UnifiedContextInjectorTests(unittest.TestCase):
 
         self.assertIn("Relevant Character Sheets:", context)
         self.assertIn("Spider-Man", context)
-        self.assertIn("Relevant Rules Data:", context)
-        self.assertIn("edge", context.casefold())
+        self.assertIn("[System Context - Automated Rule Citation: Edges and Troubles]", context)
+        self.assertIn('"description": "Roll with Edge to keep the best die."', context)
         self.assertIn("Relevant Campaign Context:", context)
         self.assertIn("Previous events:", context)
-        self.assertIn("Relevant Notebook Sources:", context)
-        self.assertIn("paramedic.md", context)
+        self.assertIn("[System Context - Automated Notebook Citation: paramedic.md]", context)
+        self.assertIn("Paramedic readiness guidance", context)
+
+    def test_scan_prompt_for_keywords_matches_power_family_and_power_set_entries(self):
+        (self.data_dir / "rules.json").write_text(
+            json.dumps(
+                {
+                    "mechanics": {},
+                    "power_sets": [
+                        {
+                            "name": "Elemental Control",
+                            "powers": [
+                                {"name": "Mighty 1", "rank_required": 1, "prerequisites": []},
+                                {"name": "Mighty 2", "rank_required": 2, "prerequisites": ["Mighty 1"]},
+                            ],
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        matches = self.injector.scan_prompt_for_keywords("Can Elemental Control stack with Mighty during this scene?")
+
+        self.assertEqual(len(matches["rules"]), 2)
+        self.assertIn("Elemental Control", matches["rules"][0]["block"] + matches["rules"][1]["block"])
+        self.assertIn("[System Context - Automated Rule Citation: Mighty]", matches["rules"][0]["block"] + matches["rules"][1]["block"])
+        self.assertIn('"name": "Mighty 1"', matches["rules"][0]["block"] + matches["rules"][1]["block"])
 
 
 if __name__ == "__main__":
