@@ -838,11 +838,15 @@ class DiscordBotServiceTests(unittest.TestCase):
     @patch("marvel_mcp_narrator.interfaces.discord_bot.create_discord_bot")
     @patch("marvel_mcp_narrator.interfaces.discord_bot.load_discord_bot_config")
     def test_main_passes_cli_overrides_to_config_loader(self, mock_load_config, mock_create_bot):
+        import contextlib
+        import io
+
         mock_load_config.return_value = DiscordBotConfig(token="cli-token", campaign_channel_id=42)
         mock_bot = SimpleNamespace(run=lambda token: None)
         mock_create_bot.return_value = mock_bot
 
-        with patch.object(mock_bot, "run") as mock_run:
+        stdout = io.StringIO()
+        with patch.object(mock_bot, "run") as mock_run, contextlib.redirect_stdout(stdout):
             main([
                 "--token",
                 "cli-token",
@@ -872,3 +876,8 @@ class DiscordBotServiceTests(unittest.TestCase):
         )
         mock_create_bot.assert_called_once()
         mock_run.assert_called_once_with("cli-token")
+        startup_output = stdout.getvalue()
+        self.assertIn("Starting Marvel MCP Narrator Discord bot", startup_output)
+        self.assertIn("- model:", startup_output)
+        self.assertIn("- host:", startup_output)
+        self.assertIn("- timeout:", startup_output)

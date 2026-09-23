@@ -122,6 +122,19 @@ def _build_command_prefixes(primary_prefix: str) -> tuple[str, ...]:
     return tuple(prefixes)
 
 
+def _format_startup_summary(config: DiscordBotConfig) -> str:
+    lines = [
+        "Starting Marvel MCP Narrator Discord bot",
+        f"- model: {config.model}",
+        f"- host: {config.host}",
+        f"- base_url: {config.base_url or config.host}",
+        f"- timeout: {config.timeout}",
+    ]
+    if config.campaign_channel_id is not None:
+        lines.append(f"- campaign_channel_id: {config.campaign_channel_id}")
+    return "\n".join(lines)
+
+
 def _load_toml_config(config_path: str | None = None) -> dict[str, Any]:
     path: Path | None = None
     if config_path:
@@ -850,6 +863,7 @@ def main(argv: list[str] | None = None) -> None:
         api_key_override=args.api_key,
         timeout_override=args.timeout,
     )
+    print(_format_startup_summary(config))
     bot = create_discord_bot(config)
     bot.run(config.token)
 
