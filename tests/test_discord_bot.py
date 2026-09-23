@@ -24,6 +24,7 @@ from marvel_mcp_narrator.interfaces.discord_bot import (
     main,
     start_background_service,
 )
+from marvel_mcp_narrator.interfaces.cli import CLI_COMMANDS_HELP
 
 
 class _FakeTyping:
@@ -558,6 +559,60 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         bot.get_context.assert_awaited_once_with(command_message)
         bot.invoke.assert_awaited_once_with(ctx)
         self.assertEqual(command_message.channel.sent_messages, [])
+
+    async def test_on_message_routes_cli_style_roll_command_locally(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        bot.get_context = AsyncMock()
+        bot.invoke = AsyncMock()
+        cog = NarratorDiscordCog(bot)
+        message = SimpleNamespace(
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
+            channel=_FakeChannel(42),
+            content="/roll --edge",
+            create_thread=AsyncMock(),
+        )
+
+        await cog.on_message(message)
+
+        bot.get_context.assert_not_awaited()
+        bot.invoke.assert_not_awaited()
+        self.assertIn("Deterministic d616 Roll:", message.channel.sent_messages[0]["content"])
+
+    async def test_on_message_routes_cli_style_rules_command_locally(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        bot.get_context = AsyncMock()
+        bot.invoke = AsyncMock()
+        cog = NarratorDiscordCog(bot)
+        message = SimpleNamespace(
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
+            channel=_FakeChannel(42),
+            content="/rules teleport",
+            create_thread=AsyncMock(),
+        )
+
+        await cog.on_message(message)
+
+        bot.get_context.assert_not_awaited()
+        bot.invoke.assert_not_awaited()
+        self.assertEqual(message.channel.sent_messages[0]["embed"].title, "Rule Lookup: teleport")
+
+    async def test_on_message_routes_help_command_locally(self):
+        bot = create_discord_bot(self.config, controller=self.controller)
+        bot.get_context = AsyncMock()
+        bot.invoke = AsyncMock()
+        cog = NarratorDiscordCog(bot)
+        message = SimpleNamespace(
+            author=SimpleNamespace(id=42, bot=False, display_name="Storm"),
+            channel=_FakeChannel(42),
+            content="/help",
+            create_thread=AsyncMock(),
+        )
+
+        await cog.on_message(message)
+
+        bot.get_context.assert_not_awaited()
+        bot.invoke.assert_not_awaited()
+        self.assertEqual(message.channel.sent_messages[0]["content"], CLI_COMMANDS_HELP)
 
     async def test_on_message_reports_chat_backend_errors(self):
         bot = create_discord_bot(self.config, controller=self.controller)

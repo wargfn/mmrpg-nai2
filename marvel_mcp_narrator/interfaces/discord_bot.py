@@ -21,12 +21,14 @@ from marvel_mcp_narrator.core.memory.campaign_db import CAMPAIGN_DB_PATH, Campai
 from marvel_mcp_narrator.core.rules_database import RulesLookupError
 from marvel_mcp_narrator.core.session_controller import GameSessionController
 from marvel_mcp_narrator.interfaces.cli import (
+    CLI_COMMANDS_HELP,
     DEFAULT_MODEL,
     DEFAULT_OPEN_WEBUI_HOST,
     DEFAULT_REQUEST_TIMEOUT,
     SYSTEM_PROMPT,
     _format_combat_state_result,
     _format_router_roll_result,
+    _route_intent_command,
     get_active_character_context,
     get_rules_startup_context,
     get_startup_context,
@@ -555,6 +557,28 @@ class NarratorDiscordCog(commands.Cog):
         embed = _build_rule_embed(query, result)
         await destination.send(embed=embed)
 
+    async def _route_text_command(self, message: discord.Message) -> bool:
+        content = str(getattr(message, "content", "")).strip()
+        if not content.startswith("/"):
+            return False
+        if content.lower() == "/help":
+            await self.bot.send_response(message.channel, CLI_COMMANDS_HELP)
+            return True
+        try:
+            routed = _route_intent_command(content, session_controller=self._controller_for_actor(message.author))
+        except Exception as exc:
+            await message.channel.send(self._format_command_error(exc))
+            return True
+        if routed is None:
+            return False
+        tool_name, payload = routed
+        if tool_name == "lookup_rule":
+            query = content.split(maxsplit=1)[1] if " " in content else ""
+            await self._send_rule_result(message.channel, query, str(payload))
+            return True
+        await self.bot.send_response(message.channel, str(payload))
+        return True
+
     @staticmethod
     def _format_command_error(error: Exception) -> str:
         if isinstance(error, commands.MissingPermissions):
@@ -663,6 +687,8 @@ class NarratorDiscordCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
+            return
+        if await self._route_text_command(message):
             return
         ctx = await self.bot.get_context(message)
         if ctx.valid:
