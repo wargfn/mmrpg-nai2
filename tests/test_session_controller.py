@@ -207,6 +207,54 @@ class GameSessionControllerTests(unittest.TestCase):
             ["We dive for cover.", "Blaster fire scorches the walls."],
         )
 
+    def test_build_context_injection_returns_prompt_specific_reference_blocks(self):
+        data_dir = Path(self._tmpdir.name) / "data"
+        notebook_dir = data_dir / "notebooks"
+        data_dir.mkdir()
+        notebook_dir.mkdir(parents=True)
+        (data_dir / "rules.json").write_text(
+            '{"mechanics":{"edge":{"description":"Keep the best die."}}}',
+            encoding="utf-8",
+        )
+        (notebook_dir / "medbay.md").write_text("Hydra medbay antidote protocol.", encoding="utf-8")
+        self.controller.context_injector.data_directory = data_dir
+        self.controller.context_injector.notebook_directory = notebook_dir
+        self.controller.character_roster.create_or_load(
+            name="Spider-Man",
+            archetype="Striker",
+            rank=4,
+            melee=4,
+            agility=6,
+            resilience=3,
+            vigilance=4,
+            ego=3,
+            logic=4,
+        )
+        self.database.save_previous_campaign_events_summary("Spider-Man escaped the Hydra lab.")
+
+        payload = self.controller.build_context_injection("Should Spider-Man use edge at the Hydra medbay?")
+
+        self.assertIn("Relevant Character Sheets:", payload)
+        self.assertIn("Relevant Rules Data:", payload)
+        self.assertIn("Relevant Campaign Context:", payload)
+        self.assertIn("Relevant Notebook Sources:", payload)
+
+    def test_session_history_manager_inserts_injected_context_before_recent_turns(self):
+        self.controller.save_previous_campaign_events_summary("Hydra is regrouping.")
+        history_manager = SessionHistoryManager(
+            session_controller=self.controller,
+            system_prompt_builder=lambda: "system context",
+        )
+        history_manager.append_message("user", "Tell me about Hydra.")
+
+        with patch.object(self.controller, "build_context_injection", return_value="Relevant Campaign Context:\n- Hydra is regrouping."):
+            messages = history_manager.build_request_messages("Tell me about Hydra.")
+
+        self.assertEqual(messages[0], {"role": "system", "content": "system context"})
+        self.assertEqual(messages[1]["role"], "system")
+        self.assertIn("Hydra is regrouping", messages[1]["content"])
+        self.assertEqual(messages[2]["role"], "user")
+
 
 if __name__ == "__main__":
     unittest.main()

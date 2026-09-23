@@ -569,7 +569,7 @@ class DiscordNarratorBot(commands.Bot):
                 host=self.config.host,
                 base_url=self.config.base_url or self.config.host,
                 model=self.config.model,
-                messages=history_manager.build_request_messages(),
+                messages=history_manager.build_request_messages(content),
                 api_key=self.config.api_key,
                 timeout=self.config.timeout,
             )

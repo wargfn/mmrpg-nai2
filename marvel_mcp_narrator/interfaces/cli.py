@@ -1115,7 +1115,7 @@ def run_cli(
                 host=host,
                 base_url=base_url or host,
                 model=model,
-                messages=history_manager.build_request_messages(),
+                messages=history_manager.build_request_messages(user_input),
                 api_key=api_key,
                 timeout=timeout,
             )

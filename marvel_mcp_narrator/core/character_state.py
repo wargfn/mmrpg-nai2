@@ -433,6 +433,10 @@ class CharacterRoster:
                     raise KeyError(f"Character '{name}' was not found.") from error
             return sheets
 
+    def list_sheets(self) -> list[dict]:
+        with self._lock:
+            return [self._copy_character(character).to_dict() for character in self._characters.values()]
+
     def get_active_sheet(self) -> dict | None:
         with self._lock:
             if self._active_character_key is None:

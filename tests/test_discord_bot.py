@@ -359,6 +359,25 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(history[1]["content"], "Peter: We investigate the lab.")
         self.assertEqual(history[2]["content"], "Narrator reply")
 
+    async def test_generate_channel_reply_injects_prompt_specific_context(self):
+        channel = _FakeChannel(42)
+        captured: dict[str, object] = {}
+
+        def fake_chat_request(**kwargs):
+            captured.update(kwargs)
+            return "Narrator reply"
+
+        bot = create_discord_bot(self.config, controller=self.controller, chat_request=fake_chat_request)
+        session = bot.get_user_session(42)
+        session.controller.build_context_injection = lambda prompt: "Relevant Notebook Sources:\n- notes.md: Hydra field notes."
+
+        await bot.generate_channel_reply(channel, 42, "Peter", "Tell me about Hydra field notes.")
+
+        messages = captured["messages"]
+        self.assertEqual(messages[1]["role"], "system")
+        self.assertIn("Relevant Notebook Sources:", messages[1]["content"])
+        self.assertEqual(messages[2]["content"], "Peter: Tell me about Hydra field notes.")
+
     async def test_get_user_session_isolates_controllers_and_histories(self):
         bot = create_discord_bot(self.config, chat_request=lambda **_: "Narrator reply")
 

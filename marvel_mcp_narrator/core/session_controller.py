@@ -8,6 +8,7 @@ from typing import Any, Callable
 from marvel_mcp_narrator.core.character_state import CharacterRoster, character_roster
 from marvel_mcp_narrator.core.combat_tracker import CombatTracker
 from marvel_mcp_narrator.core.d616_engine import resolve_d616_roll
+from marvel_mcp_narrator.core.file_loader import UnifiedContextInjector
 from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase, get_campaign_database
 from marvel_mcp_narrator.core.rules_database import RulesDatabase
 
@@ -42,10 +43,14 @@ class SessionHistoryManager:
             *self._raw_messages[-self.max_history_turns :],
         ]
 
-    def build_request_messages(self) -> list[dict[str, str]]:
+    def build_request_messages(self, user_prompt: str | None = None) -> list[dict[str, str]]:
         """Return the active prompt window to send to the model."""
         self.refresh_history()
-        return list(self.history)
+        messages = list(self.history)
+        injected_context = self.session_controller.build_context_injection(user_prompt or "")
+        if injected_context:
+            messages.insert(1, {"role": "system", "content": injected_context})
+        return messages
 
     def raw_length(self) -> int:
         """Return the current count of raw non-system messages."""
@@ -116,12 +121,17 @@ class GameSessionController:
         combat_tracker: CombatTracker | None = None,
         campaign_database: CampaignDatabase | None = None,
         character_roster_store: CharacterRoster | None = None,
+        context_injector: UnifiedContextInjector | None = None,
     ) -> None:
         roster = character_roster_store or character_roster
         self.rules_database = rules_database or RulesDatabase()
         self.character_roster = roster
         self.combat_tracker = combat_tracker or CombatTracker(roster=roster)
         self.campaign_database = campaign_database or get_campaign_database()
+        self.context_injector = context_injector or UnifiedContextInjector(
+            campaign_database=self.campaign_database,
+            character_roster_store=roster,
+        )
 
     def roll_action(
         self,
@@ -293,6 +303,12 @@ class GameSessionController:
         """Persist the rolling summary of previous campaign events."""
         return self.campaign_database.save_previous_campaign_events_summary(summary)
 
+    def build_context_injection(self, query: str) -> str:
+        """Return relevant prompt-specific RAG context for the current session."""
+        if not str(query).strip():
+            return ""
+        return self.context_injector.build_context_block(query)
+
 
 def get_game_session_controller(
     *,
@@ -300,6 +316,7 @@ def get_game_session_controller(
     combat_tracker: CombatTracker | None = None,
     campaign_database: CampaignDatabase | None = None,
     character_roster_store: CharacterRoster | None = None,
+    context_injector: UnifiedContextInjector | None = None,
 ) -> GameSessionController:
     """Return a controller instance for an explicit session or request scope."""
     return GameSessionController(
@@ -307,4 +324,5 @@ def get_game_session_controller(
         combat_tracker=combat_tracker,
         campaign_database=campaign_database,
         character_roster_store=character_roster_store,
+        context_injector=context_injector,
     )

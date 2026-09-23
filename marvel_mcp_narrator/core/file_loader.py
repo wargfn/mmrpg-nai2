@@ -184,10 +184,18 @@ class UnifiedContextInjector:
                     )
                 )
 
-        query = " ".join(tokens).strip()
-        if query:
-            for entry in self.campaign_database.search_memory_records(query, limit=2):
-                lines.append(f"- Memory match ({entry['memory_type']}): {entry['summary']}")
+        seen_summaries: set[str] = set()
+        for token in tokens:
+            for entry in self.campaign_database.search_memory_records(token, limit=2):
+                summary = str(entry["summary"]).strip()
+                if not summary or summary in seen_summaries:
+                    continue
+                seen_summaries.add(summary)
+                lines.append(f"- Memory match ({entry['memory_type']}): {summary}")
+                if len(lines) >= 4:
+                    break
+            if len(lines) >= 4:
+                break
 
         if not lines:
             return ""
@@ -209,15 +217,10 @@ class UnifiedContextInjector:
         return "\n".join(["Relevant Notebook Sources:", *matches])
 
     def _all_character_sheets(self) -> list[dict[str, Any]]:
-        characters = getattr(self.character_roster, "_characters", {})
-        if not isinstance(characters, dict):
-            return []
-        sheets: list[dict[str, Any]] = []
-        for character in characters.values():
-            to_dict = getattr(character, "to_dict", None)
-            if callable(to_dict):
-                sheets.append(to_dict())
-        return sheets
+        list_sheets = getattr(self.character_roster, "list_sheets", None)
+        if callable(list_sheets):
+            return list_sheets()
+        return []
 
     @staticmethod
     def _excerpt_for_tokens(content: str, tokens: list[str]) -> str:

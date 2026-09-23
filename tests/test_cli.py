@@ -409,6 +409,19 @@ class CLIRunLoopTests(unittest.TestCase):
         call_messages = mock_request_chat.call_args.kwargs['messages']
         self.assertTrue(any(msg['role'] == 'user' and msg['content'] == 'hello narrator' for msg in call_messages))
 
+    @patch('marvel_mcp_narrator.interfaces.cli.GameSessionController.build_context_injection', return_value='Relevant Character Sheets:\n- Spider-Man (Striker, Rank 4)')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=['tell me about Spider-Man', 'exit'])
+    def test_prompt_specific_context_is_injected_ahead_of_recent_history(self, _mock_input, mock_request_chat, _mock_context):
+        mock_request_chat.return_value = 'hi'
+
+        run_cli(model='fake-model')
+
+        call_messages = mock_request_chat.call_args.kwargs['messages']
+        self.assertEqual(call_messages[1]['role'], 'system')
+        self.assertIn('Relevant Character Sheets:', call_messages[1]['content'])
+        self.assertEqual(call_messages[2]['content'], 'tell me about Spider-Man')
+
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['hello narrator', 'exit'])
     def test_chat_response_is_handled(self, _mock_input, mock_request_chat):
