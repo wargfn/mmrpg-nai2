@@ -210,15 +210,13 @@ class UnifiedContextInjector:
                     if not power_name:
                         continue
                     exact_payload = {"power_set": set_name, **payload} if set_name else dict(payload)
-                    aliases = {power_name}
                     family_name = self._family_alias(power_name)
                     if family_name:
-                        aliases.add(family_name)
                         family_entries.setdefault(family_name.casefold(), []).append(exact_payload)
                     records.append(
                         self._make_rule_record(
                             title=power_name,
-                            aliases=aliases,
+                            aliases={power_name},
                             exact_payload=exact_payload,
                             priority=2,
                         )
