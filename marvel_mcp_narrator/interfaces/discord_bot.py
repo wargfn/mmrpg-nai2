@@ -113,6 +113,13 @@ def _normalize_command_prefix(value: object, *, source_name: str, default: str |
     return prefix
 
 
+def _build_command_prefixes(primary_prefix: str) -> tuple[str, ...]:
+    prefixes = [primary_prefix]
+    if "/" not in prefixes:
+        prefixes.append("/")
+    return tuple(prefixes)
+
+
 def _load_toml_config(config_path: str | None = None) -> dict[str, Any]:
     path: Path | None = None
     if config_path:
@@ -340,7 +347,7 @@ class DiscordNarratorBot(commands.Bot):
     ) -> None:
         intents = discord.Intents.default()
         intents.message_content = True
-        super().__init__(command_prefix=config.command_prefix, intents=intents)
+        super().__init__(command_prefix=_build_command_prefixes(config.command_prefix), intents=intents)
         self.config = config
         self.controller = controller
         self.chat_request = chat_request
@@ -597,7 +604,7 @@ class NarratorDiscordCog(commands.Cog):
         )
         await ctx.send(_format_router_roll_result(payload))
 
-    @commands.hybrid_command(name="rule", description="Look up a rules reference or power.")
+    @commands.hybrid_command(name="rule", aliases=["rules"], description="Look up a rules reference or power.")
     async def rule(self, ctx: commands.Context, *, query: str) -> None:
         await self._maybe_defer(ctx)
         try:

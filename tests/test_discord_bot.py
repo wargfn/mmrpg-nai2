@@ -255,7 +255,11 @@ class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
         bot = create_discord_bot(self.config, controller=self.controller)
         self.assertIs(bot.controller, self.controller)
         self.assertTrue(bot.intents.message_content)
-        self.assertEqual(bot.command_prefix, DEFAULT_DISCORD_COMMAND_PREFIX)
+        self.assertIn(DEFAULT_DISCORD_COMMAND_PREFIX, bot.command_prefix)
+        self.assertIn("/", bot.command_prefix)
+
+    def test_rule_command_registers_rules_text_alias(self):
+        self.assertIn("rules", NarratorDiscordCog.rule.aliases)
 
     def test_seed_controller_is_not_reused_for_user_sessions(self):
         bot = create_discord_bot(self.config, controller=self.controller)
