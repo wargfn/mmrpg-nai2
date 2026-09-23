@@ -143,6 +143,10 @@ def load_discord_bot_config(
     *,
     token_override: str | None = None,
     campaign_channel_id_override: int | None = None,
+    model_override: str | None = None,
+    host_override: str | None = None,
+    base_url_override: str | None = None,
+    api_key_override: str | None = None,
     timeout_override: float | None = None,
 ) -> DiscordBotConfig:
     """Load Discord bot and shared Open WebUI settings."""
@@ -185,6 +189,16 @@ def load_discord_bot_config(
             campaign_channel_id_override,
             field_name="Discord campaign channel id",
         )
+    if model_override is not None:
+        shared_config["model"] = str(model_override)
+    if host_override is not None:
+        shared_config["host"] = str(host_override)
+        if base_url_override is None:
+            shared_config["base_url"] = str(host_override)
+    if base_url_override is not None:
+        shared_config["base_url"] = str(base_url_override)
+    if api_key_override is not None:
+        shared_config["api_key"] = str(api_key_override)
     if timeout_override is not None:
         shared_config["timeout"] = _coerce_positive_float(timeout_override, field_name="Discord/Open WebUI timeout")
 
@@ -292,6 +306,10 @@ def start_background_service(
     config_path: str | None = None,
     token: str | None = None,
     campaign_channel_id: int | None = None,
+    model: str | None = None,
+    host: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
     timeout: float | None = None,
     pid_file: str | None = None,
     log_file: str | None = None,
@@ -304,6 +322,14 @@ def start_background_service(
         command.extend(["--token", token])
     if campaign_channel_id is not None:
         command.extend(["--campaign-channel-id", str(campaign_channel_id)])
+    if model:
+        command.extend(["--model", model])
+    if host:
+        command.extend(["--host", host])
+    if base_url:
+        command.extend(["--base-url", base_url])
+    if api_key:
+        command.extend(["--api-key", api_key])
     if timeout is not None:
         command.extend(["--timeout", str(timeout)])
     if pid_file:
@@ -750,6 +776,26 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Discord channel id for freeform campaign narration; if omitted, natural-language narration is disabled.",
     )
     parser.add_argument(
+        "--model",
+        default=None,
+        help=f"Model to use (defaults to config/env or {DEFAULT_MODEL})",
+    )
+    parser.add_argument(
+        "--host",
+        default=None,
+        help=f"Open WebUI host URL (defaults to config/env or {DEFAULT_OPEN_WEBUI_HOST})",
+    )
+    parser.add_argument(
+        "--base-url",
+        default=None,
+        help="OpenAI/OpenWebUI-compatible base URL for chat completions",
+    )
+    parser.add_argument(
+        "--api-key",
+        default=None,
+        help="Optional API key sent in the Authorization header",
+    )
+    parser.add_argument(
         "--timeout",
         type=float,
         default=None,
@@ -782,6 +828,10 @@ def main(argv: list[str] | None = None) -> None:
             config_path=args.config,
             token=args.token,
             campaign_channel_id=args.campaign_channel_id,
+            model=args.model,
+            host=args.host,
+            base_url=args.base_url,
+            api_key=args.api_key,
             timeout=args.timeout,
             pid_file=args.pid_file,
             log_file=args.log_file,
@@ -794,6 +844,10 @@ def main(argv: list[str] | None = None) -> None:
         config_path=args.config,
         token_override=args.token,
         campaign_channel_id_override=args.campaign_channel_id,
+        model_override=args.model,
+        host_override=args.host,
+        base_url_override=args.base_url,
+        api_key_override=args.api_key,
         timeout_override=args.timeout,
     )
     bot = create_discord_bot(config)

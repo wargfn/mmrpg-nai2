@@ -121,6 +121,10 @@ class DiscordBotConfigTests(unittest.TestCase):
         help_output = stdout.getvalue()
         self.assertIn("--token", help_output)
         self.assertIn("--campaign-channel-id", help_output)
+        self.assertIn("--model", help_output)
+        self.assertIn("--host", help_output)
+        self.assertIn("--base-url", help_output)
+        self.assertIn("--api-key", help_output)
         self.assertIn("--timeout", help_output)
 
     def test_load_discord_bot_config_reads_file_and_shared_openwebui_settings(self):
@@ -232,6 +236,28 @@ class DiscordBotConfigTests(unittest.TestCase):
         config = load_discord_bot_config(timeout_override=9.5)
 
         self.assertEqual(config.timeout, 9.5)
+
+    @patch.dict(
+        "os.environ",
+        {
+            "DISCORD_BOT_TOKEN": "env-token",
+            "NARRATOR_MODEL": "env-model",
+            "NARRATOR_OPEN_WEBUI_HOST": "http://env-host:3000",
+        },
+        clear=True,
+    )
+    def test_load_discord_bot_config_prefers_cli_openwebui_overrides(self):
+        config = load_discord_bot_config(
+            model_override="cli-model",
+            host_override="http://cli-host:3000",
+            base_url_override="http://cli-host:3000/v1",
+            api_key_override="cli-key",
+        )
+
+        self.assertEqual(config.model, "cli-model")
+        self.assertEqual(config.host, "http://cli-host:3000")
+        self.assertEqual(config.base_url, "http://cli-host:3000/v1")
+        self.assertEqual(config.api_key, "cli-key")
 
 
 class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
@@ -717,6 +743,10 @@ class DiscordBotServiceTests(unittest.TestCase):
                     config_path="/tmp/narrator.toml",
                     token="cli-token",
                     campaign_channel_id=42,
+                    model="cli-model",
+                    host="http://cli-host:3000",
+                    base_url="http://cli-host:3000/v1",
+                    api_key="cli-key",
                     timeout=9.5,
                     pid_file=str(pid_path),
                     log_file=str(log_path),
@@ -730,6 +760,10 @@ class DiscordBotServiceTests(unittest.TestCase):
             self.assertIn("--config", command)
             self.assertIn("--token", command)
             self.assertIn("--campaign-channel-id", command)
+            self.assertIn("--model", command)
+            self.assertIn("--host", command)
+            self.assertIn("--base-url", command)
+            self.assertIn("--api-key", command)
             self.assertIn("--timeout", command)
             self.assertIn("--pid-file", command)
             self.assertIn("--log-file", command)
@@ -749,6 +783,10 @@ class DiscordBotServiceTests(unittest.TestCase):
                     config_path="/tmp/narrator.toml",
                     token="cli-token",
                     campaign_channel_id=42,
+                    model="cli-model",
+                    host="http://cli-host:3000",
+                    base_url="http://cli-host:3000/v1",
+                    api_key="cli-key",
                     timeout=9.5,
                     pid_file=str(pid_path),
                     log_file=str(log_path),
@@ -767,6 +805,14 @@ class DiscordBotServiceTests(unittest.TestCase):
             "cli-token",
             "--campaign-channel-id",
             "42",
+            "--model",
+            "cli-model",
+            "--host",
+            "http://cli-host:3000",
+            "--base-url",
+            "http://cli-host:3000/v1",
+            "--api-key",
+            "cli-key",
             "--timeout",
             "9.5",
             "--pid-file",
@@ -779,6 +825,10 @@ class DiscordBotServiceTests(unittest.TestCase):
             config_path="/tmp/narrator.toml",
             token="cli-token",
             campaign_channel_id=42,
+            model="cli-model",
+            host="http://cli-host:3000",
+            base_url="http://cli-host:3000/v1",
+            api_key="cli-key",
             timeout=9.5,
             pid_file="/tmp/discord.pid",
             log_file="/tmp/discord.log",
@@ -793,12 +843,31 @@ class DiscordBotServiceTests(unittest.TestCase):
         mock_create_bot.return_value = mock_bot
 
         with patch.object(mock_bot, "run") as mock_run:
-            main(["--token", "cli-token", "--campaign-channel-id", "42", "--timeout", "9.5"])
+            main([
+                "--token",
+                "cli-token",
+                "--campaign-channel-id",
+                "42",
+                "--model",
+                "cli-model",
+                "--host",
+                "http://cli-host:3000",
+                "--base-url",
+                "http://cli-host:3000/v1",
+                "--api-key",
+                "cli-key",
+                "--timeout",
+                "9.5",
+            ])
 
         mock_load_config.assert_called_once_with(
             config_path=None,
             token_override="cli-token",
             campaign_channel_id_override=42,
+            model_override="cli-model",
+            host_override="http://cli-host:3000",
+            base_url_override="http://cli-host:3000/v1",
+            api_key_override="cli-key",
             timeout_override=9.5,
         )
         mock_create_bot.assert_called_once()
