@@ -120,6 +120,7 @@ class DiscordBotConfigTests(unittest.TestCase):
         help_output = stdout.getvalue()
         self.assertIn("--token", help_output)
         self.assertIn("--campaign-channel-id", help_output)
+        self.assertIn("--timeout", help_output)
 
     def test_load_discord_bot_config_reads_file_and_shared_openwebui_settings(self):
         with TemporaryDirectory() as tmpdir:
@@ -224,6 +225,12 @@ class DiscordBotConfigTests(unittest.TestCase):
 
         self.assertEqual(config.token, "cli-token")
         self.assertEqual(config.campaign_channel_id, 999)
+
+    @patch.dict("os.environ", {"DISCORD_BOT_TOKEN": "env-token", "NARRATOR_TIMEOUT": "33"}, clear=True)
+    def test_load_discord_bot_config_prefers_cli_timeout_over_env(self):
+        config = load_discord_bot_config(timeout_override=9.5)
+
+        self.assertEqual(config.timeout, 9.5)
 
 
 class DiscordBotBehaviorTests(unittest.IsolatedAsyncioTestCase):
@@ -651,6 +658,7 @@ class DiscordBotServiceTests(unittest.TestCase):
                     config_path="/tmp/narrator.toml",
                     token="cli-token",
                     campaign_channel_id=42,
+                    timeout=9.5,
                     pid_file=str(pid_path),
                     log_file=str(log_path),
                 )
@@ -663,6 +671,7 @@ class DiscordBotServiceTests(unittest.TestCase):
             self.assertIn("--config", command)
             self.assertIn("--token", command)
             self.assertIn("--campaign-channel-id", command)
+            self.assertIn("--timeout", command)
             self.assertIn("--pid-file", command)
             self.assertIn("--log-file", command)
             self.assertEqual(mock_popen.call_args.kwargs["stdin"], subprocess.DEVNULL)
@@ -681,6 +690,7 @@ class DiscordBotServiceTests(unittest.TestCase):
                     config_path="/tmp/narrator.toml",
                     token="cli-token",
                     campaign_channel_id=42,
+                    timeout=9.5,
                     pid_file=str(pid_path),
                     log_file=str(log_path),
                 )
@@ -698,6 +708,8 @@ class DiscordBotServiceTests(unittest.TestCase):
             "cli-token",
             "--campaign-channel-id",
             "42",
+            "--timeout",
+            "9.5",
             "--pid-file",
             "/tmp/discord.pid",
             "--log-file",
@@ -708,6 +720,7 @@ class DiscordBotServiceTests(unittest.TestCase):
             config_path="/tmp/narrator.toml",
             token="cli-token",
             campaign_channel_id=42,
+            timeout=9.5,
             pid_file="/tmp/discord.pid",
             log_file="/tmp/discord.log",
         )
@@ -721,12 +734,13 @@ class DiscordBotServiceTests(unittest.TestCase):
         mock_create_bot.return_value = mock_bot
 
         with patch.object(mock_bot, "run") as mock_run:
-            main(["--token", "cli-token", "--campaign-channel-id", "42"])
+            main(["--token", "cli-token", "--campaign-channel-id", "42", "--timeout", "9.5"])
 
         mock_load_config.assert_called_once_with(
             config_path=None,
             token_override="cli-token",
             campaign_channel_id_override=42,
+            timeout_override=9.5,
         )
         mock_create_bot.assert_called_once()
         mock_run.assert_called_once_with("cli-token")

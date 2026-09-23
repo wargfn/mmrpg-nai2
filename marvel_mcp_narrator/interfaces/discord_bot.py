@@ -134,6 +134,7 @@ def load_discord_bot_config(
     *,
     token_override: str | None = None,
     campaign_channel_id_override: int | None = None,
+    timeout_override: float | None = None,
 ) -> DiscordBotConfig:
     """Load Discord bot and shared Open WebUI settings."""
     shared_config = load_cli_config(config_path=config_path)
@@ -175,6 +176,8 @@ def load_discord_bot_config(
             campaign_channel_id_override,
             field_name="Discord campaign channel id",
         )
+    if timeout_override is not None:
+        shared_config["timeout"] = _coerce_positive_float(timeout_override, field_name="Discord/Open WebUI timeout")
 
     if token is None:
         raise ValueError(
@@ -280,6 +283,7 @@ def start_background_service(
     config_path: str | None = None,
     token: str | None = None,
     campaign_channel_id: int | None = None,
+    timeout: float | None = None,
     pid_file: str | None = None,
     log_file: str | None = None,
 ) -> int:
@@ -291,6 +295,8 @@ def start_background_service(
         command.extend(["--token", token])
     if campaign_channel_id is not None:
         command.extend(["--campaign-channel-id", str(campaign_channel_id)])
+    if timeout is not None:
+        command.extend(["--timeout", str(timeout)])
     if pid_file:
         command.extend(["--pid-file", pid_file])
     if log_file:
@@ -711,6 +717,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Discord channel id for freeform campaign narration; if omitted, natural-language narration is disabled.",
     )
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="HTTP timeout in seconds for Discord bot Open WebUI requests.",
+    )
+    parser.add_argument(
         "--background",
         action="store_true",
         help="Launch the Discord bot as a detached background service.",
@@ -737,6 +749,7 @@ def main(argv: list[str] | None = None) -> None:
             config_path=args.config,
             token=args.token,
             campaign_channel_id=args.campaign_channel_id,
+            timeout=args.timeout,
             pid_file=args.pid_file,
             log_file=args.log_file,
         )
@@ -748,6 +761,7 @@ def main(argv: list[str] | None = None) -> None:
         config_path=args.config,
         token_override=args.token,
         campaign_channel_id_override=args.campaign_channel_id,
+        timeout_override=args.timeout,
     )
     bot = create_discord_bot(config)
     bot.run(config.token)
