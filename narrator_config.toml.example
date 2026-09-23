@@ -16,6 +16,12 @@ api_key = ""
 # Optional LLM timeout in milliseconds for CLI and Discord requests
 # llm_timeout_ms = 220
 
+[session]
+# Maximum number of recent non-system turns kept in the live prompt window
+max_history_turns = 8
+# Trigger chat-history summarization every N prompt/response cycles
+summarization_interval = 5
+
 [discord]
 # Preferred command prefix for text commands
 command_prefix = "!"

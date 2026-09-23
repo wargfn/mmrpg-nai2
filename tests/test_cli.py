@@ -13,6 +13,8 @@ from marvel_mcp_narrator.core.session_controller import GameSessionController
 from marvel_mcp_narrator.interfaces.cli import (
     _ACTIVE_SESSION_CONTROLLER,
     CLI_COMMANDS_HELP,
+    DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+    DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
     DEFAULT_MODEL,
     DEFAULT_LLM_TIMEOUT_MS,
     STARTUP_MEMORY_LIMIT,
@@ -28,6 +30,7 @@ from marvel_mcp_narrator.interfaces.cli import (
     get_rules_startup_context,
     build_startup_system_prompt,
     build_open_webui_chat_endpoint,
+    get_previous_campaign_events_context,
     get_startup_context,
     list_campaign_memories,
     load_cli_config,
@@ -548,6 +551,8 @@ class CLIMainTests(unittest.TestCase):
             base_url='http://127.0.0.1:3000',
             api_key=None,
             timeout=DEFAULT_REQUEST_TIMEOUT,
+            max_history_turns=DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+            summarization_interval=DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -561,6 +566,8 @@ class CLIMainTests(unittest.TestCase):
             base_url='http://127.0.0.1:3000',
             api_key=None,
             timeout=DEFAULT_REQUEST_TIMEOUT,
+            max_history_turns=DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+            summarization_interval=DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -574,6 +581,8 @@ class CLIMainTests(unittest.TestCase):
             base_url='http://remote:11434',
             api_key='abc123',
             timeout=DEFAULT_REQUEST_TIMEOUT,
+            max_history_turns=DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+            summarization_interval=DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -587,6 +596,8 @@ class CLIMainTests(unittest.TestCase):
             base_url='http://localhost:11434/v1',
             api_key=None,
             timeout=DEFAULT_REQUEST_TIMEOUT,
+            max_history_turns=DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+            summarization_interval=DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -600,6 +611,8 @@ class CLIMainTests(unittest.TestCase):
             base_url='http://127.0.0.1:3000',
             api_key=None,
             timeout=30.0,
+            max_history_turns=DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+            summarization_interval=DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -714,6 +727,8 @@ class CLIConfigTests(unittest.TestCase):
         self.assertEqual(config['base_url'], 'http://remote:11434/v1')
         self.assertEqual(config['api_key'], 'key-from-file')
         self.assertEqual(config['timeout'], DEFAULT_REQUEST_TIMEOUT)
+        self.assertEqual(config['max_history_turns'], DEFAULT_MAX_HISTORY_CONFIG_TURNS)
+        self.assertEqual(config['summarization_interval'], DEFAULT_SUMMARIZATION_CONFIG_INTERVAL)
 
     def test_load_cli_config_reads_timeout_from_file(self):
         with TemporaryDirectory() as tmpdir:
@@ -726,6 +741,20 @@ class CLIConfigTests(unittest.TestCase):
             config = load_cli_config(str(config_path))
 
         self.assertEqual(config['timeout'], 45.5)
+
+    def test_load_cli_config_reads_session_history_settings(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[session]\n'
+                'max_history_turns = 6\n'
+                'summarization_interval = 10\n',
+                encoding='utf-8',
+            )
+            config = load_cli_config(str(config_path))
+
+        self.assertEqual(config['max_history_turns'], 6)
+        self.assertEqual(config['summarization_interval'], 10)
 
     def test_load_cli_config_reads_llm_timeout_ms_from_file(self):
         with TemporaryDirectory() as tmpdir:
@@ -861,6 +890,17 @@ class CLIConfigTests(unittest.TestCase):
                 encoding='utf-8',
             )
             with self.assertRaisesRegex(ValueError, 'llm_timeout_ms must be a positive number'):
+                load_cli_config(str(config_path))
+
+    def test_load_cli_config_rejects_invalid_max_history_turns(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[session]\n'
+                'max_history_turns = 0\n',
+                encoding='utf-8',
+            )
+            with self.assertRaisesRegex(ValueError, 'max_history_turns must be a positive integer'):
                 load_cli_config(str(config_path))
 
     @patch.dict('os.environ', {'NARRATOR_TIMEOUT': 'oops'}, clear=True)
@@ -1084,16 +1124,31 @@ class CLIStartupContextTests(unittest.TestCase):
 
         self.assertLessEqual(len(context), 5)
 
+    def test_get_previous_campaign_events_context_uses_saved_summary(self):
+        class SummaryDatabase:
+            def get_previous_campaign_events_summary(self):
+                return "The Avengers cornered Loki in Stark Tower."
+
+        context = get_previous_campaign_events_context(SummaryDatabase())
+
+        self.assertIn("Previous Campaign Events:", context)
+        self.assertIn("The Avengers cornered Loki", context)
+
     def test_build_startup_system_prompt_prepends_memory_context(self):
         class MemoryDatabase:
             def list_memories(self):
                 return [{"key": "session-1", "content": "Hydra infiltrated the Helicarrier.", "updated_at": ""}]
+
+            def get_previous_campaign_events_summary(self):
+                return "Nick Fury briefed the team on the Hydra threat."
 
         prompt = build_startup_system_prompt(MemoryDatabase())
 
         self.assertTrue(prompt.startswith("You are a Marvel Multiverse RPG narrator copilot."))
         self.assertIn("Core d616 Rules Context:", prompt)
         self.assertIn("Active Character Context:", prompt)
+        self.assertIn("Previous Campaign Events:", prompt)
+        self.assertIn("Nick Fury briefed the team", prompt)
         self.assertIn("Campaign Memory Context:", prompt)
         self.assertIn("Hydra infiltrated the Helicarrier.", prompt)
         self.assertIn("Marvel Multiverse RPG narrator copilot", prompt)

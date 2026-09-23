@@ -19,7 +19,12 @@ from discord.ext import commands
 from marvel_mcp_narrator.core.character_state import CharacterRoster
 from marvel_mcp_narrator.core.memory.campaign_db import CAMPAIGN_DB_PATH, CampaignDatabase
 from marvel_mcp_narrator.core.rules_database import RulesLookupError
-from marvel_mcp_narrator.core.session_controller import GameSessionController
+from marvel_mcp_narrator.core.session_controller import (
+    DEFAULT_MAX_HISTORY_TURNS,
+    DEFAULT_SUMMARIZATION_INTERVAL,
+    GameSessionController,
+    SessionHistoryManager,
+)
 from marvel_mcp_narrator.interfaces.cli import (
     CLI_COMMANDS_HELP,
     DEFAULT_MODEL,
@@ -30,10 +35,12 @@ from marvel_mcp_narrator.interfaces.cli import (
     _format_router_roll_result,
     _route_intent_command,
     get_active_character_context,
+    get_previous_campaign_events_context,
     get_rules_startup_context,
     get_startup_context,
     load_cli_config,
     request_open_webui_chat,
+    summarize_pruned_history,
 )
 
 DEFAULT_DISCORD_COMMAND_PREFIX = "!"
@@ -55,6 +62,8 @@ class DiscordBotConfig:
     api_key: str | None = None
     timeout: float = DEFAULT_REQUEST_TIMEOUT
     history_limit: int = DEFAULT_DISCORD_HISTORY_LIMIT
+    max_history_turns: int = DEFAULT_MAX_HISTORY_TURNS
+    summarization_interval: int = DEFAULT_SUMMARIZATION_INTERVAL
 
 
 @dataclass(slots=True)
@@ -62,6 +71,7 @@ class DiscordUserSession:
     user_id: int
     controller: GameSessionController
     history: list[dict[str, str]] = field(default_factory=list)
+    history_manager: SessionHistoryManager | None = None
     thread_id: int | None = None
 
 
@@ -233,6 +243,8 @@ def load_discord_bot_config(
         api_key=str(shared_config["api_key"]) if shared_config["api_key"] is not None else None,
         timeout=timeout,
         history_limit=history_limit,
+        max_history_turns=int(shared_config["max_history_turns"]),
+        summarization_interval=int(shared_config["summarization_interval"]),
     )
 
 
@@ -280,6 +292,7 @@ def _build_channel_system_prompt(controller: GameSessionController) -> str:
             get_rules_startup_context(),
             get_active_character_context(controller.character_roster),
             _format_combat_state_result(controller.get_combat_state()),
+            get_previous_campaign_events_context(controller.campaign_database),
             get_startup_context(controller.campaign_database),
         ]
     )
@@ -426,15 +439,23 @@ class DiscordNarratorBot(commands.Bot):
         session = self._user_sessions.get(user_id)
         if session is None:
             controller = self._build_controller_for_user(user_id)
+            history_manager = SessionHistoryManager(
+                session_controller=controller,
+                system_prompt_builder=lambda controller=controller: _build_channel_system_prompt(controller),
+                max_history_turns=self.config.max_history_turns,
+                summarization_interval=self.config.summarization_interval,
+            )
             session = DiscordUserSession(
                 user_id=user_id,
                 controller=controller,
-                history=[{"role": "system", "content": _build_channel_system_prompt(controller)}],
+                history=history_manager.history,
+                history_manager=history_manager,
             )
             self._user_sessions[user_id] = session
             self.channel_histories[user_id] = session.history
         else:
-            session.history[0]["content"] = _build_channel_system_prompt(session.controller)
+            if session.history_manager is not None:
+                session.history_manager.refresh_history()
         return session
 
     def get_user_controller(self, user_id: int) -> GameSessionController:
@@ -524,15 +545,9 @@ class DiscordNarratorBot(commands.Bot):
         parent_channel_id = getattr(parent, "id", None)
         return parent_id == self.campaign_channel_id or parent_channel_id == self.campaign_channel_id
 
-    def _trim_history(self, history: list[dict[str, str]]) -> None:
-        if len(history) <= self.config.history_limit + 1:
-            return
-        preserved_system = history[0]
-        trimmed_tail = history[-self.config.history_limit :]
-        history[:] = [preserved_system, *trimmed_tail]
-
     def reset_session_history(self, session: DiscordUserSession) -> None:
-        session.history[:] = [{"role": "system", "content": _build_channel_system_prompt(session.controller)}]
+        if session.history_manager is not None:
+            session.history_manager.reset()
         self.channel_histories[session.user_id] = session.history
 
     async def generate_channel_reply(
@@ -543,24 +558,37 @@ class DiscordNarratorBot(commands.Bot):
         content: str,
     ) -> str:
         session = self.get_user_session(user_id)
-        history = session.history
-        history.append({"role": "user", "content": f"{user_name}: {content}"})
-        self._trim_history(history)
+        history_manager = session.history_manager
+        if history_manager is None:
+            raise RuntimeError("Discord session history manager is not available.")
+        raw_turn_start_index = history_manager.raw_length()
+        history_manager.append_message("user", f"{user_name}: {content}")
         try:
             response = await asyncio.to_thread(
                 self.chat_request,
                 host=self.config.host,
                 base_url=self.config.base_url or self.config.host,
                 model=self.config.model,
-                messages=list(history),
+                messages=history_manager.build_request_messages(),
                 api_key=self.config.api_key,
                 timeout=self.config.timeout,
             )
         except Exception:
-            history.pop()
+            history_manager.rollback_to(raw_turn_start_index)
             raise
-        history.append({"role": "assistant", "content": response})
-        self._trim_history(history)
+        history_manager.append_message("assistant", response)
+        await asyncio.to_thread(
+            history_manager.complete_turn,
+            lambda existing_summary, pruned_messages: summarize_pruned_history(
+                model=self.config.model,
+                host=self.config.host,
+                base_url=self.config.base_url or self.config.host,
+                api_key=self.config.api_key,
+                timeout=self.config.timeout,
+                existing_summary=existing_summary,
+                pruned_messages=pruned_messages,
+            ),
+        )
         return response
 
     async def send_response(self, destination: Any, content: str) -> None:

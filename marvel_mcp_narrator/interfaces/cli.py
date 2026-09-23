@@ -24,7 +24,12 @@ from marvel_mcp_narrator.core.memory.campaign_db import (
     get_campaign_database,
 )
 from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database
-from marvel_mcp_narrator.core.session_controller import GameSessionController
+from marvel_mcp_narrator.core.session_controller import (
+    DEFAULT_MAX_HISTORY_TURNS,
+    DEFAULT_SUMMARIZATION_INTERVAL,
+    GameSessionController,
+    SessionHistoryManager,
+)
 
 _ACTIVE_SESSION_CONTROLLER: ContextVar[GameSessionController | None] = ContextVar(
     "cli_session_controller", default=None
@@ -139,6 +144,8 @@ DEFAULT_MODEL = "qwen2.5:14b-instruct"
 DEFAULT_OPEN_WEBUI_HOST = "http://127.0.0.1:3000"
 DEFAULT_REQUEST_TIMEOUT = 120.0
 DEFAULT_LLM_TIMEOUT_MS = 220
+DEFAULT_MAX_HISTORY_CONFIG_TURNS = DEFAULT_MAX_HISTORY_TURNS
+DEFAULT_SUMMARIZATION_CONFIG_INTERVAL = DEFAULT_SUMMARIZATION_INTERVAL
 STARTUP_MEMORY_LIMIT = 12
 STARTUP_CONTEXT_CHAR_BUDGET = 6000
 RULES_CONTEXT_KEYS = (
@@ -278,14 +285,16 @@ def _request_open_webui_chat_with_fallback(
         raise RuntimeError(str(exc)) from exc
 
 
-def load_cli_config(config_path: str | None = None) -> dict[str, str | float | None]:
+def load_cli_config(config_path: str | None = None) -> dict[str, str | float | int | None]:
     """Load CLI config from file and environment variables."""
-    config: dict[str, str | float | None] = {
+    config: dict[str, str | float | int | None] = {
         "model": DEFAULT_MODEL,
         "host": DEFAULT_OPEN_WEBUI_HOST,
         "base_url": None,
         "api_key": None,
         "timeout": DEFAULT_REQUEST_TIMEOUT,
+        "max_history_turns": DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+        "summarization_interval": DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
     }
     has_explicit_base_url = False
 
@@ -339,6 +348,26 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | float | N
                 if parsed_timeout <= 0:
                     raise ValueError("Timeout must be a positive number.")
                 config["timeout"] = parsed_timeout
+        session_block = data.get("session", {})
+        if isinstance(session_block, dict):
+            max_history_turns = session_block.get("max_history_turns")
+            summarization_interval = session_block.get("summarization_interval")
+            if max_history_turns is not None:
+                try:
+                    parsed_max_history_turns = int(max_history_turns)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("max_history_turns must be a positive integer.") from exc
+                if parsed_max_history_turns <= 0:
+                    raise ValueError("max_history_turns must be a positive integer.")
+                config["max_history_turns"] = parsed_max_history_turns
+            if summarization_interval is not None:
+                try:
+                    parsed_interval = int(summarization_interval)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("summarization_interval must be a positive integer.") from exc
+                if parsed_interval <= 0:
+                    raise ValueError("summarization_interval must be a positive integer.")
+                config["summarization_interval"] = parsed_interval
 
     model_override = os.getenv("NARRATOR_MODEL")
     base_url_override = os.getenv("NARRATOR_BASE_URL") or os.getenv("NARRATOR_OPENAI_BASE_URL")
@@ -430,6 +459,18 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
     return _truncate_context("\n".join(lines))
 
 
+def get_previous_campaign_events_context(database: CampaignDatabase | None = None) -> str:
+    """Return the persisted rolling summary block for prior campaign events."""
+    db = database or get_campaign_database()
+    try:
+        summary = db.get_previous_campaign_events_summary()
+    except (OSError, ValueError, AttributeError):
+        summary = None
+    if not summary:
+        return "Previous Campaign Events:\n- No summarized campaign events yet."
+    return "Previous Campaign Events:\n- " + str(summary).strip()
+
+
 def get_rules_startup_context() -> str:
     """Return a concise core-rules block for startup prompt injection."""
     try:
@@ -513,11 +554,17 @@ def build_startup_system_prompt(
     *,
     rules_context: str | None = None,
     campaign_memory_context: str | None = None,
+    previous_campaign_events_context: str | None = None,
 ) -> str:
     """Build the initial system prompt with injected persistent campaign memory."""
     resolved_rules_context = rules_context if rules_context is not None else get_rules_startup_context()
     resolved_memory_context = (
         campaign_memory_context if campaign_memory_context is not None else get_startup_context(database)
+    )
+    resolved_previous_events_context = (
+        previous_campaign_events_context
+        if previous_campaign_events_context is not None
+        else get_previous_campaign_events_context(database)
     )
     return "\n\n".join(
         [
@@ -525,6 +572,7 @@ def build_startup_system_prompt(
             resolved_rules_context,
             get_active_character_context(),
             get_active_combat_context(),
+            resolved_previous_events_context,
             resolved_memory_context,
         ]
     )
@@ -544,6 +592,50 @@ def _format_router_roll_result(result: dict[str, Any]) -> str:
         lines.append(f"- Target Number: {target_number}")
         lines.append(f"- Success: {result.get('success')}")
     return "\n".join(lines)
+
+
+def summarize_pruned_history(
+    *,
+    model: str,
+    host: str,
+    base_url: str | None,
+    api_key: str | None,
+    timeout: float,
+    existing_summary: str,
+    pruned_messages: list[dict[str, str]],
+) -> str:
+    """Use a secondary LLM call to compress older pruned history into one paragraph."""
+    transcript = "\n".join(
+        f"{message['role'].capitalize()}: {message['content']}"
+        for message in pruned_messages
+        if str(message.get("content", "")).strip()
+    )
+    if not transcript:
+        return existing_summary or "No summarized campaign events yet."
+    return _request_open_webui_chat_with_fallback(
+        host=host,
+        base_url=base_url or host,
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Summarize Marvel RPG session history into one concise narrative paragraph. "
+                    "Preserve major plot beats, named characters, locations, unresolved threats, "
+                    "and important player actions. Return the updated paragraph only."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Existing summary:\n{existing_summary or 'None yet.'}\n\n"
+                    f"Newly pruned transcript:\n{transcript}"
+                ),
+            },
+        ],
+        api_key=api_key,
+        timeout=timeout,
+    ).strip()
 
 
 def _format_manual_report_result(result: dict[str, Any]) -> str:
@@ -946,6 +1038,8 @@ def run_cli(
     api_key: str | None = None,
     timeout: float = DEFAULT_REQUEST_TIMEOUT,
     database: CampaignDatabase | None = None,
+    max_history_turns: int = DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+    summarization_interval: int = DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
 ) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
     session_controller = GameSessionController(
@@ -956,18 +1050,17 @@ def run_cli(
     print("Type '/help' for commands and 'exit' to quit.\n")
 
     rules_context = get_rules_startup_context()
-    campaign_memory_context = get_startup_context(session_database)
-    messages: list[dict[str, str]] = [
-        {
-            "role": "system",
-            "content": build_startup_system_prompt(
-                session_database,
-                rules_context=rules_context,
-                campaign_memory_context=campaign_memory_context,
-            ),
-        }
-    ]
-    prompt_context_dirty = False
+    history_manager = SessionHistoryManager(
+        session_controller=session_controller,
+        system_prompt_builder=lambda: build_startup_system_prompt(
+            session_database,
+            rules_context=rules_context,
+            campaign_memory_context=get_startup_context(session_database),
+            previous_campaign_events_context=get_previous_campaign_events_context(session_database),
+        ),
+        max_history_turns=max_history_turns,
+        summarization_interval=summarization_interval,
+    )
 
     while True:
         try:
@@ -987,7 +1080,7 @@ def run_cli(
             print("Goodbye.")
             return
 
-        turn_start_index = len(messages)
+        raw_turn_start_index = history_manager.raw_length()
         try:
             route_token = _ACTIVE_SESSION_CONTROLLER.set(session_controller)
             try:
@@ -997,14 +1090,10 @@ def run_cli(
             if routed is not None:
                 tool_name, formatted_output = routed
                 print(f"{tool_name}> {formatted_output}")
-                messages.append({"role": "user", "content": user_input})
-                messages.append(
-                    {
-                        "role": "tool",
-                        "content": f"Deterministic router output ({tool_name}): {formatted_output}",
-                    }
+                history_manager.append_message("user", user_input)
+                history_manager.append_message(
+                    "tool", f"Deterministic router output ({tool_name}): {formatted_output}"
                 )
-                prompt_context_dirty = True
                 continue
             tool_token = _ACTIVE_SESSION_CONTROLLER.set(session_controller)
             try:
@@ -1014,41 +1103,38 @@ def run_cli(
             if tool_name and tool_output is not None:
                 payload = tool_output if isinstance(tool_output, str) else json.dumps(tool_output, ensure_ascii=False)
                 print(f"tool[{tool_name}]> {payload}")
-                messages.append(
-                    {
-                        "role": "tool",
-                        "content": f"Tool output ({tool_name}): {payload}",
-                    }
-                )
-                prompt_context_dirty = True
+                history_manager.append_message("tool", f"Tool output ({tool_name}): {payload}")
             else:
-                messages.append({"role": "user", "content": user_input})
+                history_manager.append_message("user", user_input)
         except (ValueError, D616ConfigurationError, RulesLookupError, OSError) as exc:
             print(f"tool_error> {exc}")
             continue
 
         try:
-            if prompt_context_dirty:
-                campaign_memory_context = get_startup_context(session_database)
-                messages[0]["content"] = build_startup_system_prompt(
-                    session_database,
-                    rules_context=rules_context,
-                    campaign_memory_context=campaign_memory_context,
-                )
-                prompt_context_dirty = False
             final_content = _request_open_webui_chat_with_fallback(
                 host=host,
                 base_url=base_url or host,
                 model=model,
-                messages=list(messages),
+                messages=history_manager.build_request_messages(),
                 api_key=api_key,
                 timeout=timeout,
             )
             print(f"assistant> {final_content}")
             if final_content:
-                messages.append({"role": "assistant", "content": final_content})
+                history_manager.append_message("assistant", final_content)
+                history_manager.complete_turn(
+                    lambda existing_summary, pruned_messages: summarize_pruned_history(
+                        model=model,
+                        host=host,
+                        base_url=base_url or host,
+                        api_key=api_key,
+                        timeout=timeout,
+                        existing_summary=existing_summary,
+                        pruned_messages=pruned_messages,
+                    )
+                )
         except (httpx.HTTPError, ValueError, TypeError, RuntimeError) as exc:
-            del messages[turn_start_index:]
+            history_manager.rollback_to(raw_turn_start_index)
             message = str(exc)
             if "connection refused" in message.lower():
                 print("chat_error> Connection refused. Is Open WebUI running?")
@@ -1057,7 +1143,7 @@ def run_cli(
             else:
                 print(f"chat_error> {exc}")
         except Exception as exc:  # pragma: no cover - defensive CLI loop fallback
-            del messages[turn_start_index:]
+            history_manager.rollback_to(raw_turn_start_index)
             print(f"chat_error> {exc}")
 
 
@@ -1118,7 +1204,15 @@ def main() -> None:
         timeout = config["timeout"] if config["timeout"] is not None else DEFAULT_REQUEST_TIMEOUT
     if timeout <= 0:
         parser.error("Timeout must be a positive number.")
-    run_cli(model=model, host=host, base_url=base_url, api_key=api_key, timeout=timeout)
+    run_cli(
+        model=model,
+        host=host,
+        base_url=base_url,
+        api_key=api_key,
+        timeout=timeout,
+        max_history_turns=int(config["max_history_turns"] or DEFAULT_MAX_HISTORY_CONFIG_TURNS),
+        summarization_interval=int(config["summarization_interval"] or DEFAULT_SUMMARIZATION_CONFIG_INTERVAL),
+    )
 
 
 if __name__ == "__main__":

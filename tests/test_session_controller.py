@@ -5,7 +5,11 @@ from unittest.mock import patch
 
 from marvel_mcp_narrator.core.character_state import CharacterRoster, character_roster
 from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase
-from marvel_mcp_narrator.core.session_controller import RECENT_MEMORY_LIMIT, GameSessionController
+from marvel_mcp_narrator.core.session_controller import (
+    RECENT_MEMORY_LIMIT,
+    GameSessionController,
+    SessionHistoryManager,
+)
 
 
 class GameSessionControllerTests(unittest.TestCase):
@@ -148,6 +152,13 @@ class GameSessionControllerTests(unittest.TestCase):
         self.assertEqual(payload["campaign_context"]["active_session_number"], 1)
         self.assertEqual(payload["campaign_context"]["session"]["title"], "The Helicarrier Falls")
 
+    def test_get_session_status_includes_previous_campaign_events_summary(self):
+        self.controller.save_previous_campaign_events_summary("Spider-Man stopped the reactor meltdown.")
+
+        payload = self.controller.get_session_status()
+
+        self.assertEqual(payload["previous_campaign_events_summary"], "Spider-Man stopped the reactor meltdown.")
+
     def test_list_campaign_memories_rejects_negative_limit(self):
         with self.assertRaisesRegex(ValueError, "Memory limit must be a non-negative integer"):
             self.controller.list_campaign_memories(limit=-1)
@@ -174,6 +185,27 @@ class GameSessionControllerTests(unittest.TestCase):
 
         with self.assertRaisesRegex(KeyError, "Character 'Storm' was not found"):
             second_controller.character_roster.get_sheet("Storm")
+
+    def test_session_history_manager_summarizes_pruned_messages_every_interval(self):
+        history_manager = SessionHistoryManager(
+            session_controller=self.controller,
+            system_prompt_builder=lambda: "system context",
+            max_history_turns=2,
+            summarization_interval=2,
+        )
+        history_manager.append_message("user", "We entered the base.")
+        history_manager.append_message("assistant", "The guards spotted you.")
+        history_manager.complete_turn()
+        history_manager.append_message("user", "We dive for cover.")
+        history_manager.append_message("assistant", "Blaster fire scorches the walls.")
+
+        history_manager.complete_turn(lambda existing, pruned: f"{existing} Summary: {pruned[0]['content']}".strip())
+
+        self.assertEqual(self.controller.get_previous_campaign_events_summary(), "Summary: We entered the base.")
+        self.assertEqual(
+            [message["content"] for message in history_manager.history[1:]],
+            ["We dive for cover.", "Blaster fire scorches the walls."],
+        )
 
 
 if __name__ == "__main__":

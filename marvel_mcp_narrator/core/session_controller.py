@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Callable
 
 from marvel_mcp_narrator.core.character_state import CharacterRoster, character_roster
 from marvel_mcp_narrator.core.combat_tracker import CombatTracker
@@ -11,6 +12,98 @@ from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase, get_ca
 from marvel_mcp_narrator.core.rules_database import RulesDatabase
 
 RECENT_MEMORY_LIMIT = 5
+DEFAULT_MAX_HISTORY_TURNS = 8
+DEFAULT_SUMMARIZATION_INTERVAL = 5
+
+
+@dataclass(slots=True)
+class SessionHistoryManager:
+    """Manage active chat history, pruning, and periodic summarization."""
+
+    session_controller: "GameSessionController"
+    system_prompt_builder: Callable[[], str]
+    max_history_turns: int = DEFAULT_MAX_HISTORY_TURNS
+    summarization_interval: int = DEFAULT_SUMMARIZATION_INTERVAL
+    history: list[dict[str, str]] = field(default_factory=list)
+    _raw_messages: list[dict[str, str]] = field(default_factory=list)
+    completed_turns: int = 0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.max_history_turns, int) or self.max_history_turns < 1:
+            raise ValueError("max_history_turns must be a positive integer.")
+        if not isinstance(self.summarization_interval, int) or self.summarization_interval < 1:
+            raise ValueError("summarization_interval must be a positive integer.")
+        self.refresh_history()
+
+    def refresh_history(self) -> None:
+        """Rebuild the exposed prompt history with the latest system context."""
+        self.history[:] = [
+            {"role": "system", "content": str(self.system_prompt_builder())},
+            *self._raw_messages[-self.max_history_turns :],
+        ]
+
+    def build_request_messages(self) -> list[dict[str, str]]:
+        """Return the active prompt window to send to the model."""
+        self.refresh_history()
+        return list(self.history)
+
+    def raw_length(self) -> int:
+        """Return the current count of raw non-system messages."""
+        return len(self._raw_messages)
+
+    def append_message(self, role: str, content: str) -> None:
+        """Append a raw history message and refresh the active window."""
+        self._raw_messages.append({"role": role, "content": content})
+        self.refresh_history()
+
+    def rollback_to(self, raw_length: int) -> None:
+        """Rollback pending messages after a failed model request."""
+        del self._raw_messages[raw_length:]
+        self.refresh_history()
+
+    def reset(self) -> None:
+        """Clear active raw history for the current session."""
+        self._raw_messages.clear()
+        self.completed_turns = 0
+        self.refresh_history()
+
+    def complete_turn(self, summarizer: Callable[[str, list[dict[str, str]]], str] | None = None) -> bool:
+        """Record a completed prompt-response cycle and summarize older turns when due."""
+        self.completed_turns += 1
+        if self.completed_turns % self.summarization_interval != 0:
+            self.refresh_history()
+            return False
+        if len(self._raw_messages) <= self.max_history_turns:
+            self.refresh_history()
+            return False
+
+        pruned_messages = list(self._raw_messages[:-self.max_history_turns])
+        existing_summary = self.session_controller.get_previous_campaign_events_summary() or ""
+        summary = ""
+        if summarizer is not None:
+            try:
+                summary = str(summarizer(existing_summary, pruned_messages)).strip()
+            except Exception:
+                summary = ""
+        if not summary:
+            summary = self._fallback_summary(existing_summary, pruned_messages)
+        self.session_controller.save_previous_campaign_events_summary(summary)
+        self._raw_messages[:] = self._raw_messages[-self.max_history_turns :]
+        self.refresh_history()
+        return True
+
+    @staticmethod
+    def _fallback_summary(existing_summary: str, messages: list[dict[str, str]]) -> str:
+        rendered_messages = [
+            f"{message['role'].capitalize()}: {message['content'].strip()}"
+            for message in messages
+            if str(message.get("content", "")).strip()
+        ]
+        compressed_excerpt = " ".join(rendered_messages[:6]).strip()
+        compressed_excerpt = compressed_excerpt[:800].rstrip()
+        if existing_summary and compressed_excerpt:
+            return f"{existing_summary} {compressed_excerpt}".strip()
+        return existing_summary or compressed_excerpt or "No summarized campaign events yet."
 
 
 class GameSessionController:
@@ -109,6 +202,7 @@ class GameSessionController:
                 for combatant in combatants
             },
             "recent_campaign_memories": recent_memories,
+            "previous_campaign_events_summary": self.get_previous_campaign_events_summary(),
             "campaign_context": self.campaign_database.get_current_session_context(),
         }
 
@@ -190,6 +284,14 @@ class GameSessionController:
         if limit is None:
             return memories
         return memories[:limit]
+
+    def get_previous_campaign_events_summary(self) -> str | None:
+        """Return the persisted rolling summary of previous campaign events."""
+        return self.campaign_database.get_previous_campaign_events_summary()
+
+    def save_previous_campaign_events_summary(self, summary: str) -> str:
+        """Persist the rolling summary of previous campaign events."""
+        return self.campaign_database.save_previous_campaign_events_summary(summary)
 
 
 def get_game_session_controller(

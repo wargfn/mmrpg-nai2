@@ -12,6 +12,9 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
   - `api_key`
   - `timeout`
   - `llm_timeout_ms`
+- Edit `[session]` values:
+  - `max_history_turns`
+  - `summarization_interval`
 
 ### Config precedence
 
@@ -26,6 +29,7 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
 - You can set `host` to a base URL like `http://localhost:3000` or to a custom base path.
 - Use `--timeout`, `NARRATOR_TIMEOUT`, `[open_webui].timeout`, or `[open_webui].llm_timeout_ms` to control HTTP request timeouts.
 - On startup, the CLI injects persisted SQLite campaign memories from `data/campaign.db` into the initial system prompt so the model begins with prior session continuity.
+- Live chat prompts keep the system context at the head, send only the most recent configured active turns, and periodically summarize older dialogue into a persistent `Previous Campaign Events` block stored in SQLite.
 
 ## Discord bot
 
