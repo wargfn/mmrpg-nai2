@@ -31,6 +31,7 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
 - On startup, the CLI injects persisted SQLite campaign memories from `data/campaign.db` into the initial system prompt so the model begins with prior session continuity.
 - Live chat prompts keep the system context at the head, send only the most recent configured active turns, and periodically summarize older dialogue into a persistent `Previous Campaign Events` block stored in SQLite.
 - Before each freeform prompt is sent to the model, the session controller now prepends relevant local context blocks from active character sheets, `data/*.json`, campaign plans/memories, and optional notebook exports stored under `marvel_mcp_narrator/data/notebooks/`.
+- Exact rule and notebook keyword hits are injected as automated citation blocks immediately above the active chat history so smaller local models can quote mechanics without tool-calling.
 
 ## Discord bot
 
