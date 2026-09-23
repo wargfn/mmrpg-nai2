@@ -30,6 +30,7 @@ The narrator CLI supports Open WebUI and can load settings from a TOML file, env
 - Use `--timeout`, `NARRATOR_TIMEOUT`, `[open_webui].timeout`, or `[open_webui].llm_timeout_ms` to control HTTP request timeouts.
 - On startup, the CLI injects persisted SQLite campaign memories from `data/campaign.db` into the initial system prompt so the model begins with prior session continuity.
 - Live chat prompts keep the system context at the head, send only the most recent configured active turns, and periodically summarize older dialogue into a persistent `Previous Campaign Events` block stored in SQLite.
+- Before each freeform prompt is sent to the model, the session controller now prepends relevant local context blocks from active character sheets, `data/*.json`, campaign plans/memories, and optional notebook exports stored under `marvel_mcp_narrator/data/notebooks/`.
 
 ## Discord bot
 
@@ -56,6 +57,7 @@ The repository also includes a Discord interface that mirrors the shared `GameSe
 - Natural messages are only forwarded when `campaign_channel_id` is configured; otherwise slash/text commands still work, but freeform narration is disabled.
 - Each Discord user gets an isolated game session, character roster, combat tracker, and conversation history.
 - A freeform prompt in the configured campaign channel is automatically routed into that user's dedicated Discord thread.
+- Discord freeform narration uses the same prompt-specific context injector as the CLI, so notebook notes, campaign summaries, and relevant rules/character data are prepended automatically before the sliding chat window.
 
 ## FastMCP narrator server
 
