@@ -12,6 +12,7 @@ from typing import Any
 
 
 SEARCH_RESULT_LIMIT = 10
+PREVIOUS_CAMPAIGN_EVENTS_STATE_KEY = "previous_campaign_events_summary"
 
 
 def _default_database_path() -> Path:
@@ -641,6 +642,27 @@ class CampaignDatabase:
                 )
                 connection.commit()
         return f"Logged campaign event for session {session}."
+
+    def get_previous_campaign_events_summary(self) -> str | None:
+        """Return the persisted rolling summary of prior campaign events, if any."""
+        with self._connect() as connection:
+            value = self._get_state(connection, PREVIOUS_CAMPAIGN_EVENTS_STATE_KEY)
+        if value is None:
+            return None
+        cleaned_value = value.strip()
+        return cleaned_value or None
+
+    def save_previous_campaign_events_summary(self, summary: str) -> str:
+        """Persist the rolling summary of prior campaign events."""
+        cleaned_summary = summary.strip()
+        if not cleaned_summary:
+            raise ValueError("Previous campaign events summary is required.")
+
+        with self._write_lock:
+            with self._connect() as connection:
+                self._set_state(connection, PREVIOUS_CAMPAIGN_EVENTS_STATE_KEY, cleaned_summary)
+                connection.commit()
+        return "Saved previous campaign events summary."
 
     def create_campaign_plan(
         self,

@@ -8,21 +8,31 @@ from unittest.mock import patch
 
 from marvel_mcp_narrator.core.character_state import character_roster
 from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError
+from marvel_mcp_narrator.core.memory.campaign_db import CampaignDatabase
+from marvel_mcp_narrator.core.session_controller import GameSessionController
 from marvel_mcp_narrator.interfaces.cli import (
+    _ACTIVE_SESSION_CONTROLLER,
     CLI_COMMANDS_HELP,
+    DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+    DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
     DEFAULT_MODEL,
+    DEFAULT_LLM_TIMEOUT_MS,
     STARTUP_MEMORY_LIMIT,
     STARTUP_CONTEXT_EMPTY_NOTE,
     STARTUP_CONTEXT_UNAVAILABLE_NOTE,
+    DEFAULT_REQUEST_TIMEOUT,
     _parse_manual_roll_text,
     _route_intent_command,
     _tool_injection,
+    get_combat_state,
     get_active_character_context,
     get_active_combat_context,
     get_rules_startup_context,
     build_startup_system_prompt,
     build_open_webui_chat_endpoint,
+    get_previous_campaign_events_context,
     get_startup_context,
+    list_campaign_memories,
     load_cli_config,
     main,
     normalize_open_webui_host,
@@ -64,7 +74,7 @@ class CLIToolInjectionTests(unittest.TestCase):
         }) as mock_roll:
             name, payload = _route_intent_command('/roll 2 1')
         self.assertEqual(name, 'resolve_d616_roll')
-        mock_roll.assert_called_once_with(edges=2, troubles=1)
+        mock_roll.assert_called_once_with(ability_modifier=0, edges=2, troubles=1)
         self.assertIn('Deterministic d616 Roll:', payload)
         self.assertIn('Total Score: 10', payload)
 
@@ -225,6 +235,42 @@ class CLIToolInjectionTests(unittest.TestCase):
         self.assertIn('Hydra', context)
         self.assertIn('30/50', context)
 
+    def test_context_local_session_controller_isolates_cli_wrappers(self):
+        with TemporaryDirectory() as temp_dir:
+            db1 = CampaignDatabase(Path(temp_dir) / "campaign-1.db")
+            db2 = CampaignDatabase(Path(temp_dir) / "campaign-2.db")
+            controller1 = GameSessionController(campaign_database=db1)
+            controller2 = GameSessionController(campaign_database=db2)
+
+            character_roster.create_or_load(
+                name="Hydra",
+                archetype="Striker",
+                rank=2,
+                melee=4,
+                agility=2,
+                resilience=3,
+                vigilance=2,
+                ego=1,
+                logic=1,
+            )
+            controller1.combat_tracker.track_combatant("Hydra", side="enemy")
+            db1.save_memory("session-1", "Hydra attacked.")
+            db2.save_memory("session-2", "Avengers regrouped.")
+
+            token1 = _ACTIVE_SESSION_CONTROLLER.set(controller1)
+            try:
+                self.assertEqual(get_combat_state()["combatants"][0]["name"], "Hydra")
+                self.assertEqual(list_campaign_memories()[0]["key"], "session-1")
+            finally:
+                _ACTIVE_SESSION_CONTROLLER.reset(token1)
+
+            token2 = _ACTIVE_SESSION_CONTROLLER.set(controller2)
+            try:
+                self.assertEqual(get_combat_state()["combatants"], [])
+                self.assertEqual(list_campaign_memories()[0]["key"], "session-2")
+            finally:
+                _ACTIVE_SESSION_CONTROLLER.reset(token2)
+
     def test_roll_command_returns_tool_payload(self):
         name, payload = _tool_injection('/roll --tn 10')
         self.assertEqual(name, 'roll_d616')
@@ -243,7 +289,7 @@ class CLIToolInjectionTests(unittest.TestCase):
     def test_roll_command_supports_counted_edge_and_trouble_flags(self, mock_roll):
         name, payload = _tool_injection('/roll --edges 2 --troubles 1 --tn 12')
         self.assertEqual(name, 'resolve_d616_roll')
-        mock_roll.assert_called_once_with(edges=2, troubles=1, target_number=12)
+        mock_roll.assert_called_once_with(ability_modifier=0, edges=2, troubles=1, target_number=12)
         self.assertEqual(payload['target_number'], 12)
 
     def test_rule_command_returns_search_results(self):
@@ -363,6 +409,19 @@ class CLIRunLoopTests(unittest.TestCase):
         call_messages = mock_request_chat.call_args.kwargs['messages']
         self.assertTrue(any(msg['role'] == 'user' and msg['content'] == 'hello narrator' for msg in call_messages))
 
+    @patch('marvel_mcp_narrator.interfaces.cli.GameSessionController.build_context_injection', return_value='Relevant Character Sheets:\n- Spider-Man (Striker, Rank 4)')
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=['tell me about Spider-Man', 'exit'])
+    def test_prompt_specific_context_is_injected_ahead_of_recent_history(self, _mock_input, mock_request_chat, _mock_context):
+        mock_request_chat.return_value = 'hi'
+
+        run_cli(model='fake-model')
+
+        call_messages = mock_request_chat.call_args.kwargs['messages']
+        self.assertEqual(call_messages[1]['role'], 'system')
+        self.assertIn('Relevant Character Sheets:', call_messages[1]['content'])
+        self.assertEqual(call_messages[2]['content'], 'tell me about Spider-Man')
+
     @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
     @patch('builtins.input', side_effect=['hello narrator', 'exit'])
     def test_chat_response_is_handled(self, _mock_input, mock_request_chat):
@@ -480,6 +539,17 @@ class CLIRunLoopTests(unittest.TestCase):
         kwargs = mock_request_chat.call_args.kwargs
         self.assertEqual(kwargs['host'], 'http://remote:3000')
         self.assertEqual(kwargs['api_key'], 'secret-token')
+        self.assertEqual(kwargs['timeout'], DEFAULT_REQUEST_TIMEOUT)
+
+    @patch('marvel_mcp_narrator.interfaces.cli.request_open_webui_chat')
+    @patch('builtins.input', side_effect=['hello narrator', 'exit'])
+    def test_client_uses_configured_timeout(self, _mock_input, mock_request_chat):
+        mock_request_chat.return_value = 'hi'
+
+        run_cli(model='fake-model', timeout=45.5)
+
+        kwargs = mock_request_chat.call_args.kwargs
+        self.assertEqual(kwargs['timeout'], 45.5)
 
 
 class CLIMainTests(unittest.TestCase):
@@ -493,6 +563,9 @@ class CLIMainTests(unittest.TestCase):
             host='http://127.0.0.1:3000',
             base_url='http://127.0.0.1:3000',
             api_key=None,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
+            max_history_turns=DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+            summarization_interval=DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -505,6 +578,9 @@ class CLIMainTests(unittest.TestCase):
             host='http://127.0.0.1:3000',
             base_url='http://127.0.0.1:3000',
             api_key=None,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
+            max_history_turns=DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+            summarization_interval=DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -517,6 +593,9 @@ class CLIMainTests(unittest.TestCase):
             host='http://remote:11434',
             base_url='http://remote:11434',
             api_key='abc123',
+            timeout=DEFAULT_REQUEST_TIMEOUT,
+            max_history_turns=DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+            summarization_interval=DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -529,6 +608,24 @@ class CLIMainTests(unittest.TestCase):
             host='http://127.0.0.1:3000',
             base_url='http://localhost:11434/v1',
             api_key=None,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
+            max_history_turns=DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+            summarization_interval=DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
+        )
+
+    @patch.dict('os.environ', {}, clear=True)
+    @patch('marvel_mcp_narrator.interfaces.cli.run_cli')
+    @patch('sys.argv', ['cli', '--timeout', '30'])
+    def test_main_passes_custom_timeout(self, mock_run_cli):
+        main()
+        mock_run_cli.assert_called_once_with(
+            model=DEFAULT_MODEL,
+            host='http://127.0.0.1:3000',
+            base_url='http://127.0.0.1:3000',
+            api_key=None,
+            timeout=30.0,
+            max_history_turns=DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+            summarization_interval=DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
         )
 
     @patch.dict('os.environ', {}, clear=True)
@@ -642,6 +739,60 @@ class CLIConfigTests(unittest.TestCase):
         self.assertEqual(config['host'], 'http://remote:11434')
         self.assertEqual(config['base_url'], 'http://remote:11434/v1')
         self.assertEqual(config['api_key'], 'key-from-file')
+        self.assertEqual(config['timeout'], DEFAULT_REQUEST_TIMEOUT)
+        self.assertEqual(config['max_history_turns'], DEFAULT_MAX_HISTORY_CONFIG_TURNS)
+        self.assertEqual(config['summarization_interval'], DEFAULT_SUMMARIZATION_CONFIG_INTERVAL)
+
+    def test_load_cli_config_reads_timeout_from_file(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                'timeout = 45.5\n',
+                encoding='utf-8',
+            )
+            config = load_cli_config(str(config_path))
+
+        self.assertEqual(config['timeout'], 45.5)
+
+    def test_load_cli_config_reads_session_history_settings(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[session]\n'
+                'max_history_turns = 6\n'
+                'summarization_interval = 10\n',
+                encoding='utf-8',
+            )
+            config = load_cli_config(str(config_path))
+
+        self.assertEqual(config['max_history_turns'], 6)
+        self.assertEqual(config['summarization_interval'], 10)
+
+    def test_load_cli_config_reads_llm_timeout_ms_from_file(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                f'llm_timeout_ms = {DEFAULT_LLM_TIMEOUT_MS}\n',
+                encoding='utf-8',
+            )
+            config = load_cli_config(str(config_path))
+
+        self.assertEqual(config['timeout'], DEFAULT_LLM_TIMEOUT_MS / 1000.0)
+
+    def test_load_cli_config_prefers_llm_timeout_ms_over_legacy_timeout(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                'llm_timeout_ms = 220\n'
+                'timeout = 45.5\n',
+                encoding='utf-8',
+            )
+            config = load_cli_config(str(config_path))
+
+        self.assertEqual(config['timeout'], 0.22)
 
     def test_load_cli_config_accepts_legacy_ollama_file_block(self):
         with TemporaryDirectory() as tmpdir:
@@ -665,6 +816,7 @@ class CLIConfigTests(unittest.TestCase):
             'NARRATOR_MODEL': 'env-model',
             'NARRATOR_OPEN_WEBUI_HOST': 'http://env-host:11434',
             'NARRATOR_API_KEY': 'env-key',
+            'NARRATOR_TIMEOUT': '33',
         },
         clear=True,
     )
@@ -684,6 +836,7 @@ class CLIConfigTests(unittest.TestCase):
         self.assertEqual(config['host'], 'http://env-host:11434')
         self.assertEqual(config['base_url'], 'http://env-host:11434')
         self.assertEqual(config['api_key'], 'env-key')
+        self.assertEqual(config['timeout'], 33.0)
 
     @patch.dict(
         'os.environ',
@@ -730,6 +883,49 @@ class CLIConfigTests(unittest.TestCase):
         config = load_cli_config()
         self.assertEqual(config['base_url'], 'http://openai-host:11434/v1')
 
+    def test_load_cli_config_rejects_invalid_timeout_in_file(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                'timeout = 0\n',
+                encoding='utf-8',
+            )
+            with self.assertRaisesRegex(ValueError, 'Timeout must be a positive number'):
+                load_cli_config(str(config_path))
+
+    def test_load_cli_config_rejects_invalid_llm_timeout_ms_in_file(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[open_webui]\n'
+                'llm_timeout_ms = 0\n',
+                encoding='utf-8',
+            )
+            with self.assertRaisesRegex(ValueError, 'llm_timeout_ms must be a positive number'):
+                load_cli_config(str(config_path))
+
+    def test_load_cli_config_rejects_invalid_max_history_turns(self):
+        with TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / 'narrator_config.toml'
+            config_path.write_text(
+                '[session]\n'
+                'max_history_turns = 0\n',
+                encoding='utf-8',
+            )
+            with self.assertRaisesRegex(ValueError, 'max_history_turns must be a positive integer'):
+                load_cli_config(str(config_path))
+
+    @patch.dict('os.environ', {'NARRATOR_TIMEOUT': 'oops'}, clear=True)
+    def test_load_cli_config_rejects_invalid_timeout_env_var(self):
+        with self.assertRaisesRegex(ValueError, 'Timeout must be a positive number'):
+            load_cli_config()
+
+    @patch.dict('os.environ', {'NARRATOR_TIMEOUT': '0'}, clear=True)
+    def test_load_cli_config_rejects_zero_timeout_env_var(self):
+        with self.assertRaisesRegex(ValueError, 'Timeout must be a positive number'):
+            load_cli_config()
+
 
 class OpenWebUIRequestTests(unittest.TestCase):
     @patch('marvel_mcp_narrator.interfaces.cli.httpx.post')
@@ -751,6 +947,20 @@ class OpenWebUIRequestTests(unittest.TestCase):
             mock_post.call_args.args[0],
             'http://localhost:3000/api/chat/completions',
         )
+        self.assertEqual(kwargs['timeout'], DEFAULT_REQUEST_TIMEOUT)
+
+    @patch('marvel_mcp_narrator.interfaces.cli.httpx.post')
+    def test_request_open_webui_chat_accepts_custom_timeout(self, mock_post):
+        mock_post.return_value.json.return_value = {
+            'choices': [{'message': {'content': 'hello'}}],
+        }
+        request_open_webui_chat(
+            host='http://localhost:3000',
+            model=DEFAULT_MODEL,
+            messages=[{'role': 'user', 'content': 'hi'}],
+            timeout=22.25,
+        )
+        self.assertEqual(mock_post.call_args.kwargs['timeout'], 22.25)
 
     @patch('marvel_mcp_narrator.interfaces.cli.httpx.post')
     def test_request_open_webui_chat_supports_openai_compatible_base_url(self, mock_post):
@@ -927,16 +1137,31 @@ class CLIStartupContextTests(unittest.TestCase):
 
         self.assertLessEqual(len(context), 5)
 
+    def test_get_previous_campaign_events_context_uses_saved_summary(self):
+        class SummaryDatabase:
+            def get_previous_campaign_events_summary(self):
+                return "The Avengers cornered Loki in Stark Tower."
+
+        context = get_previous_campaign_events_context(SummaryDatabase())
+
+        self.assertIn("Previous Campaign Events:", context)
+        self.assertIn("The Avengers cornered Loki", context)
+
     def test_build_startup_system_prompt_prepends_memory_context(self):
         class MemoryDatabase:
             def list_memories(self):
                 return [{"key": "session-1", "content": "Hydra infiltrated the Helicarrier.", "updated_at": ""}]
+
+            def get_previous_campaign_events_summary(self):
+                return "Nick Fury briefed the team on the Hydra threat."
 
         prompt = build_startup_system_prompt(MemoryDatabase())
 
         self.assertTrue(prompt.startswith("You are a Marvel Multiverse RPG narrator copilot."))
         self.assertIn("Core d616 Rules Context:", prompt)
         self.assertIn("Active Character Context:", prompt)
+        self.assertIn("Previous Campaign Events:", prompt)
+        self.assertIn("Nick Fury briefed the team", prompt)
         self.assertIn("Campaign Memory Context:", prompt)
         self.assertIn("Hydra infiltrated the Helicarrier.", prompt)
         self.assertIn("Marvel Multiverse RPG narrator copilot", prompt)

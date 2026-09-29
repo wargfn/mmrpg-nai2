@@ -104,6 +104,33 @@ class CombatTracker:
             )
         return {"combatants": combatants}
 
+    def apply_damage(
+        self,
+        target_name: str,
+        *,
+        health_damage: int = 0,
+        focus_damage: int = 0,
+    ) -> dict[str, Any]:
+        current_state = self.get_combat_state()
+        tracked_target = next(
+            (
+                combatant
+                for combatant in current_state["combatants"]
+                if str(combatant["name"]).strip().casefold() == str(target_name).strip().casefold()
+            ),
+            None,
+        )
+        if tracked_target is None:
+            raise KeyError(f"Combatant '{target_name}' is not currently tracked.")
+        tracked_side = str(tracked_target["side"])
+        applied = self._roster.apply_damage(target_name, health_damage=health_damage, focus_damage=focus_damage)
+        updated_target = self._build_combatant_snapshot(target_name, side=tracked_side)
+        return {
+            "target": updated_target,
+            "applied": applied,
+            "combat_state": self.get_combat_state(),
+        }
+
     def resolve_manual_roll(
         self,
         *,

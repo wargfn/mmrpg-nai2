@@ -8,28 +8,133 @@ import os
 import re
 import sqlite3
 import tomllib
+from contextvars import ContextVar
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 import httpx
 
 from marvel_mcp_narrator.core.character_creation import ABILITY_FIELDS
-from marvel_mcp_narrator.core.character_state import character_roster
-from marvel_mcp_narrator.core.combat_tracker import combat_tracker
-from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, resolve_d616_roll, roll_d616
+from marvel_mcp_narrator.core.character_state import CharacterRoster, character_roster
+from marvel_mcp_narrator.core.d616_engine import D616ConfigurationError, roll_d616
 from marvel_mcp_narrator.core.memory.campaign_db import (
     CampaignDatabase,
     get_campaign_database,
-    list_memories as list_campaign_memories,
 )
-from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database, query_rulebook_database
+from marvel_mcp_narrator.core.rules_database import RulesLookupError, load_rules_database
+from marvel_mcp_narrator.core.session_controller import (
+    DEFAULT_MAX_HISTORY_TURNS,
+    DEFAULT_SUMMARIZATION_INTERVAL,
+    GameSessionController,
+    SessionHistoryManager,
+)
 
-clear_combat_state = combat_tracker.clear
-get_combat_state = combat_tracker.get_combat_state
-resolve_manual_d616_roll = combat_tracker.resolve_manual_roll
-resolve_player_attack = combat_tracker.resolve_player_attack
-resolve_npc_action = combat_tracker.resolve_npc_action
+_ACTIVE_SESSION_CONTROLLER: ContextVar[GameSessionController | None] = ContextVar(
+    "cli_session_controller", default=None
+)
+_DEFAULT_SESSION_CONTROLLER: GameSessionController | None = None
+_DEFAULT_SESSION_CONTROLLER_LOCK = Lock()
+
+
+def _get_session_controller() -> GameSessionController:
+    controller = _ACTIVE_SESSION_CONTROLLER.get()
+    if controller is not None:
+        return controller
+    global _DEFAULT_SESSION_CONTROLLER
+    if _DEFAULT_SESSION_CONTROLLER is None:
+        with _DEFAULT_SESSION_CONTROLLER_LOCK:
+            if _DEFAULT_SESSION_CONTROLLER is None:
+                _DEFAULT_SESSION_CONTROLLER = GameSessionController()
+    return _DEFAULT_SESSION_CONTROLLER
+
+
+def resolve_d616_roll(
+    ability_modifier: int,
+    target_number: int | None = None,
+    edges: int = 0,
+    troubles: int = 0,
+) -> dict[str, Any]:
+    return _get_session_controller().roll_action(
+        ability_modifier=ability_modifier,
+        target_number=target_number,
+        edges=edges,
+        troubles=troubles,
+    )
+
+
+def query_rulebook_database(query: str) -> str:
+    return _get_session_controller().look_up_rule(query)
+
+
+def clear_combat_state() -> None:
+    _get_session_controller().clear_combat_state()
+
+
+def get_combat_state() -> dict[str, Any]:
+    return _get_session_controller().get_combat_state()
+
+
+def list_campaign_memories(limit: int | None = None) -> list[dict[str, Any]]:
+    return _get_session_controller().list_campaign_memories(limit=limit)
+
+
+def resolve_manual_d616_roll(
+    *,
+    dice_values: list[int],
+    marvel_index: int = 1,
+    ability_modifier: int = 0,
+    target_number: int | None = None,
+) -> dict[str, Any]:
+    return _get_session_controller().resolve_manual_roll(
+        dice_values=dice_values,
+        marvel_index=marvel_index,
+        ability_modifier=ability_modifier,
+        target_number=target_number,
+    )
+
+
+def resolve_player_attack(
+    *,
+    attacker_name: str,
+    target_name: str,
+    ability: str,
+    dice_values: list[int] | None = None,
+    marvel_index: int = 1,
+    target_resource: str = "health",
+    edges: int = 0,
+    troubles: int = 0,
+) -> dict[str, Any]:
+    return _get_session_controller().resolve_player_attack(
+        attacker_name=attacker_name,
+        target_name=target_name,
+        ability=ability,
+        dice_values=dice_values,
+        marvel_index=marvel_index,
+        target_resource=target_resource,
+        edges=edges,
+        troubles=troubles,
+    )
+
+
+def resolve_npc_action(
+    *,
+    attacker_name: str,
+    target_name: str,
+    ability: str,
+    target_resource: str = "health",
+    edges: int = 0,
+    troubles: int = 0,
+) -> dict[str, Any]:
+    return _get_session_controller().resolve_npc_action(
+        attacker_name=attacker_name,
+        target_name=target_name,
+        ability=ability,
+        target_resource=target_resource,
+        edges=edges,
+        troubles=troubles,
+    )
 
 SYSTEM_PROMPT = (
     "You are a Marvel Multiverse RPG narrator copilot. "
@@ -37,6 +142,10 @@ SYSTEM_PROMPT = (
 )
 DEFAULT_MODEL = "qwen2.5:14b-instruct"
 DEFAULT_OPEN_WEBUI_HOST = "http://127.0.0.1:3000"
+DEFAULT_REQUEST_TIMEOUT = 120.0
+DEFAULT_LLM_TIMEOUT_MS = 220
+DEFAULT_MAX_HISTORY_CONFIG_TURNS = DEFAULT_MAX_HISTORY_TURNS
+DEFAULT_SUMMARIZATION_CONFIG_INTERVAL = DEFAULT_SUMMARIZATION_INTERVAL
 STARTUP_MEMORY_LIMIT = 12
 STARTUP_CONTEXT_CHAR_BUDGET = 6000
 RULES_CONTEXT_KEYS = (
@@ -125,6 +234,7 @@ def request_open_webui_chat(
     model: str,
     messages: list[dict[str, str]],
     api_key: str | None = None,
+    timeout: float = DEFAULT_REQUEST_TIMEOUT,
 ) -> str:
     """Send a chat request to Open WebUI and return assistant content."""
     endpoint = build_open_webui_chat_endpoint(base_url or host or DEFAULT_OPEN_WEBUI_HOST)
@@ -136,7 +246,7 @@ def request_open_webui_chat(
         endpoint,
         headers=headers,
         json={"model": model, "messages": messages, "stream": False},
-        timeout=120,
+        timeout=timeout,
     )
     response.raise_for_status()
     payload = response.json()
@@ -150,13 +260,41 @@ def request_open_webui_chat(
     raise ValueError("No assistant content returned from Open WebUI.")
 
 
-def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
+def _request_open_webui_chat_with_fallback(
+    *,
+    host: str | None = None,
+    base_url: str | None = None,
+    model: str,
+    messages: list[dict[str, str]],
+    api_key: str | None = None,
+    timeout: float = DEFAULT_REQUEST_TIMEOUT,
+) -> str:
+    """Preserve CLI chat-loop semantics for unexpected request failures."""
+    try:
+        return request_open_webui_chat(
+            host=host,
+            base_url=base_url,
+            model=model,
+            messages=messages,
+            api_key=api_key,
+            timeout=timeout,
+        )
+    except (httpx.HTTPError, ValueError, TypeError, RuntimeError):
+        raise
+    except Exception as exc:  # pragma: no cover - defensive fallback for interactive use
+        raise RuntimeError(str(exc)) from exc
+
+
+def load_cli_config(config_path: str | None = None) -> dict[str, str | float | int | None]:
     """Load CLI config from file and environment variables."""
-    config: dict[str, str | None] = {
+    config: dict[str, str | float | int | None] = {
         "model": DEFAULT_MODEL,
         "host": DEFAULT_OPEN_WEBUI_HOST,
         "base_url": None,
         "api_key": None,
+        "timeout": DEFAULT_REQUEST_TIMEOUT,
+        "max_history_turns": DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+        "summarization_interval": DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
     }
     has_explicit_base_url = False
 
@@ -181,6 +319,8 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
             host = open_webui_block.get("host")
             base_url = open_webui_block.get("base_url")
             api_key = open_webui_block.get("api_key")
+            llm_timeout_ms = open_webui_block.get("llm_timeout_ms")
+            timeout = open_webui_block.get("timeout")
             if model:
                 config["model"] = str(model)
             if base_url:
@@ -192,11 +332,48 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
                     config["base_url"] = str(host)
             if api_key:
                 config["api_key"] = str(api_key)
+            if llm_timeout_ms is not None:
+                try:
+                    parsed_timeout_ms = float(llm_timeout_ms)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("llm_timeout_ms must be a positive number.") from exc
+                if parsed_timeout_ms <= 0:
+                    raise ValueError("llm_timeout_ms must be a positive number.")
+                config["timeout"] = parsed_timeout_ms / 1000.0
+            elif timeout is not None:
+                try:
+                    parsed_timeout = float(timeout)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Timeout must be a positive number.") from exc
+                if parsed_timeout <= 0:
+                    raise ValueError("Timeout must be a positive number.")
+                config["timeout"] = parsed_timeout
+        session_block = data.get("session", {})
+        if isinstance(session_block, dict):
+            max_history_turns = session_block.get("max_history_turns")
+            summarization_interval = session_block.get("summarization_interval")
+            if max_history_turns is not None:
+                try:
+                    parsed_max_history_turns = int(max_history_turns)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("max_history_turns must be a positive integer.") from exc
+                if parsed_max_history_turns <= 0:
+                    raise ValueError("max_history_turns must be a positive integer.")
+                config["max_history_turns"] = parsed_max_history_turns
+            if summarization_interval is not None:
+                try:
+                    parsed_interval = int(summarization_interval)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("summarization_interval must be a positive integer.") from exc
+                if parsed_interval <= 0:
+                    raise ValueError("summarization_interval must be a positive integer.")
+                config["summarization_interval"] = parsed_interval
 
     model_override = os.getenv("NARRATOR_MODEL")
     base_url_override = os.getenv("NARRATOR_BASE_URL") or os.getenv("NARRATOR_OPENAI_BASE_URL")
     host_override = os.getenv("NARRATOR_OPEN_WEBUI_HOST") or os.getenv("NARRATOR_OLLAMA_HOST")
     api_key_override = os.getenv("NARRATOR_API_KEY")
+    timeout_override = os.getenv("NARRATOR_TIMEOUT")
     if model_override:
         config["model"] = model_override
     if base_url_override:
@@ -208,6 +385,14 @@ def load_cli_config(config_path: str | None = None) -> dict[str, str | None]:
             config["base_url"] = host_override
     if api_key_override:
         config["api_key"] = api_key_override
+    if timeout_override is not None:
+        try:
+            parsed_timeout = float(timeout_override)
+        except ValueError as exc:
+            raise ValueError("Timeout must be a positive number.") from exc
+        if parsed_timeout <= 0:
+            raise ValueError("Timeout must be a positive number.")
+        config["timeout"] = parsed_timeout
     return config
 
 
@@ -274,6 +459,18 @@ def get_startup_context(database: CampaignDatabase | None = None) -> str:
     return _truncate_context("\n".join(lines))
 
 
+def get_previous_campaign_events_context(database: CampaignDatabase | None = None) -> str:
+    """Return the persisted rolling summary block for prior campaign events."""
+    db = database or get_campaign_database()
+    try:
+        summary = db.get_previous_campaign_events_summary()
+    except (OSError, ValueError, AttributeError):
+        summary = None
+    if not summary:
+        return "Previous Campaign Events:\n- No summarized campaign events yet."
+    return "Previous Campaign Events:\n- " + str(summary).strip()
+
+
 def get_rules_startup_context() -> str:
     """Return a concise core-rules block for startup prompt injection."""
     try:
@@ -301,9 +498,9 @@ def get_rules_startup_context() -> str:
     return "\n".join(lines)
 
 
-def get_active_character_context() -> str:
+def get_active_character_context(roster: CharacterRoster | None = None) -> str:
     """Return derived-stat context for the currently active tracked character."""
-    active_sheet = character_roster.get_active_sheet()
+    active_sheet = (roster or character_roster).get_active_sheet()
     if active_sheet is None:
         return "Active Character Context:\n- No active character is currently loaded."
 
@@ -357,11 +554,17 @@ def build_startup_system_prompt(
     *,
     rules_context: str | None = None,
     campaign_memory_context: str | None = None,
+    previous_campaign_events_context: str | None = None,
 ) -> str:
     """Build the initial system prompt with injected persistent campaign memory."""
     resolved_rules_context = rules_context if rules_context is not None else get_rules_startup_context()
     resolved_memory_context = (
         campaign_memory_context if campaign_memory_context is not None else get_startup_context(database)
+    )
+    resolved_previous_events_context = (
+        previous_campaign_events_context
+        if previous_campaign_events_context is not None
+        else get_previous_campaign_events_context(database)
     )
     return "\n\n".join(
         [
@@ -369,6 +572,7 @@ def build_startup_system_prompt(
             resolved_rules_context,
             get_active_character_context(),
             get_active_combat_context(),
+            resolved_previous_events_context,
             resolved_memory_context,
         ]
     )
@@ -388,6 +592,50 @@ def _format_router_roll_result(result: dict[str, Any]) -> str:
         lines.append(f"- Target Number: {target_number}")
         lines.append(f"- Success: {result.get('success')}")
     return "\n".join(lines)
+
+
+def summarize_pruned_history(
+    *,
+    model: str,
+    host: str,
+    base_url: str | None,
+    api_key: str | None,
+    timeout: float,
+    existing_summary: str,
+    pruned_messages: list[dict[str, str]],
+) -> str:
+    """Use a secondary LLM call to compress older pruned history into one paragraph."""
+    transcript = "\n".join(
+        f"{message['role'].capitalize()}: {message['content']}"
+        for message in pruned_messages
+        if str(message.get("content", "")).strip()
+    )
+    if not transcript:
+        return existing_summary or "No summarized campaign events yet."
+    return _request_open_webui_chat_with_fallback(
+        host=host,
+        base_url=base_url or host,
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Summarize Marvel RPG session history into one concise narrative paragraph. "
+                    "Preserve major plot beats, named characters, locations, unresolved threats, "
+                    "and important player actions. Return the updated paragraph only."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Existing summary:\n{existing_summary or 'None yet.'}\n\n"
+                    f"Newly pruned transcript:\n{transcript}"
+                ),
+            },
+        ],
+        api_key=api_key,
+        timeout=timeout,
+    ).strip()
 
 
 def _format_manual_report_result(result: dict[str, Any]) -> str:
@@ -624,8 +872,11 @@ def _parse_attack_command(
     return attacker_name.strip(), ability.strip(), target_name.strip(), manual_roll, options
 
 
-def _route_intent_command(user_input: str) -> tuple[str, str] | None:
+def _route_intent_command(
+    user_input: str, *, session_controller: GameSessionController | None = None
+) -> tuple[str, str] | None:
     """Route deterministic CLI commands without invoking the chat model."""
+    controller = session_controller or _get_session_controller()
     stripped = user_input.strip()
     if not stripped:
         return None
@@ -637,7 +888,11 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
             return None
         dice_values, marvel_index = manual_roll
         return "manual_d616_report", _format_manual_report_result(
-            resolve_manual_d616_roll(dice_values=dice_values, marvel_index=marvel_index)
+            (
+                controller.resolve_manual_roll(dice_values=dice_values, marvel_index=marvel_index)
+                if session_controller is not None
+                else resolve_manual_d616_roll(dice_values=dice_values, marvel_index=marvel_index)
+            )
         )
 
     parts = stripped.split()
@@ -648,31 +903,38 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         query = " ".join(arguments).strip()
         if not query:
             raise ValueError("Usage: /rules <keyword>")
-        return "lookup_rule", query_rulebook_database(query)
+        return "lookup_rule", controller.look_up_rule(query) if session_controller is not None else query_rulebook_database(query)
 
     if command == "/memories":
         if arguments:
             raise ValueError("Usage: /memories")
-        return "list_memories", _format_router_memories_result(list_campaign_memories())
+        memories = controller.list_campaign_memories() if session_controller is not None else list_campaign_memories()
+        return "list_memories", _format_router_memories_result(memories)
 
     if command == "/combat":
         if arguments:
             raise ValueError("Usage: /combat")
-        return "combat_state", _format_combat_state_result(get_combat_state())
+        combat_state = controller.get_combat_state() if session_controller is not None else get_combat_state()
+        return "combat_state", _format_combat_state_result(combat_state)
 
     if command == "/attack":
         attacker_name, ability, target_name, manual_roll, options = _parse_attack_command(
             stripped, command_name="/attack"
         )
-        payload = resolve_player_attack(
-            attacker_name=attacker_name,
-            target_name=target_name,
-            ability=ability,
-            dice_values=manual_roll[0] if manual_roll is not None else None,
-            marvel_index=manual_roll[1] if manual_roll is not None else 1,
-            target_resource=str(options["target_resource"]),
-            edges=int(options["edges"]),
-            troubles=int(options["troubles"]),
+        attack_kwargs = {
+            "attacker_name": attacker_name,
+            "target_name": target_name,
+            "ability": ability,
+            "dice_values": manual_roll[0] if manual_roll is not None else None,
+            "marvel_index": manual_roll[1] if manual_roll is not None else 1,
+            "target_resource": str(options["target_resource"]),
+            "edges": int(options["edges"]),
+            "troubles": int(options["troubles"]),
+        }
+        payload = (
+            controller.resolve_player_attack(**attack_kwargs)
+            if session_controller is not None
+            else resolve_player_attack(**attack_kwargs)
         )
         return "resolve_player_attack", _format_attack_result(payload)
 
@@ -682,22 +944,33 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         )
         if manual_roll is not None:
             raise ValueError("NPC attacks are always automated; omit manual dice values.")
-        return "resolve_npc_action", _format_attack_result(
-            resolve_npc_action(
-                attacker_name=attacker_name,
-                target_name=target_name,
-                ability=ability,
-                target_resource=str(options["target_resource"]),
-                edges=int(options["edges"]),
-                troubles=int(options["troubles"]),
-            )
-        )
+        action_kwargs = {
+            "attacker_name": attacker_name,
+            "target_name": target_name,
+            "ability": ability,
+            "target_resource": str(options["target_resource"]),
+            "edges": int(options["edges"]),
+            "troubles": int(options["troubles"]),
+        }
+        payload = controller.resolve_npc_action(**action_kwargs) if session_controller is not None else resolve_npc_action(**action_kwargs)
+        return "resolve_npc_action", _format_attack_result(payload)
 
     if command == "/roll":
         if any(token.startswith("--") for token in arguments):
             edges, troubles, target_number = _parse_roll_command(parts)
             return "resolve_d616_roll", _format_router_roll_result(
-                resolve_d616_roll(edges=edges, troubles=troubles, target_number=target_number)
+                (
+                    controller.roll_action(
+                        ability_modifier=0,
+                        edges=edges,
+                        troubles=troubles,
+                        target_number=target_number,
+                    )
+                    if session_controller is not None
+                    else resolve_d616_roll(
+                        ability_modifier=0, edges=edges, troubles=troubles, target_number=target_number
+                    )
+                )
             )
 
         if len(arguments) > 2:
@@ -710,14 +983,21 @@ def _route_intent_command(user_input: str) -> tuple[str, str] | None:
         if edges < 0 or troubles < 0:
             raise ValueError("Edges and troubles must be non-negative integers.")
         return "resolve_d616_roll", _format_router_roll_result(
-            resolve_d616_roll(edges=edges, troubles=troubles)
+            (
+                controller.roll_action(ability_modifier=0, edges=edges, troubles=troubles)
+                if session_controller is not None
+                else resolve_d616_roll(ability_modifier=0, edges=edges, troubles=troubles)
+            )
         )
 
     return None
 
 
-def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str | None]:
+def _tool_injection(
+    user_input: str, *, session_controller: GameSessionController | None = None
+) -> tuple[str | None, dict[str, Any] | str | None]:
     """Parse slash commands and return (tool_name, tool_output)."""
+    controller = session_controller or _get_session_controller()
     stripped = user_input.strip()
     parts = stripped.split()
     if not parts:
@@ -728,14 +1008,20 @@ def _tool_injection(user_input: str) -> tuple[str | None, dict[str, Any] | str |
     if command == "/roll":
         edges, troubles, tn = _parse_roll_command(parts)
         if "--edges" in parts or "--troubles" in parts or edges > 1 or troubles > 1:
-            return "resolve_d616_roll", resolve_d616_roll(edges=edges, troubles=troubles, target_number=tn)
+            if session_controller is not None:
+                return "resolve_d616_roll", controller.roll_action(
+                    ability_modifier=0, edges=edges, troubles=troubles, target_number=tn
+                )
+            return "resolve_d616_roll", resolve_d616_roll(
+                ability_modifier=0, edges=edges, troubles=troubles, target_number=tn
+            )
         return "roll_d616", roll_d616(edge=bool(edges), trouble=bool(troubles), target_number=tn)
 
     if command == "/rule":
         key = " ".join(parts[1:]).strip()
         if not key:
             raise ValueError("Usage: /rule <keyword>")
-        return "lookup_rule", query_rulebook_database(key)
+        return "lookup_rule", controller.look_up_rule(key) if session_controller is not None else query_rulebook_database(key)
 
     return None, None
 
@@ -750,26 +1036,31 @@ def run_cli(
     host: str = DEFAULT_OPEN_WEBUI_HOST,
     base_url: str | None = None,
     api_key: str | None = None,
+    timeout: float = DEFAULT_REQUEST_TIMEOUT,
     database: CampaignDatabase | None = None,
+    max_history_turns: int = DEFAULT_MAX_HISTORY_CONFIG_TURNS,
+    summarization_interval: int = DEFAULT_SUMMARIZATION_CONFIG_INTERVAL,
 ) -> None:
     """Start an interactive Open WebUI-backed narrator loop."""
-    clear_combat_state()
+    session_controller = GameSessionController(
+        campaign_database=database if database is not None else get_campaign_database()
+    )
+    session_database = session_controller.campaign_database
     print("Marvel MCP Narrator CLI")
     print("Type '/help' for commands and 'exit' to quit.\n")
 
     rules_context = get_rules_startup_context()
-    campaign_memory_context = get_startup_context(database)
-    messages: list[dict[str, str]] = [
-        {
-            "role": "system",
-            "content": build_startup_system_prompt(
-                database,
-                rules_context=rules_context,
-                campaign_memory_context=campaign_memory_context,
-            ),
-        }
-    ]
-    prompt_context_dirty = False
+    history_manager = SessionHistoryManager(
+        session_controller=session_controller,
+        system_prompt_builder=lambda: build_startup_system_prompt(
+            session_database,
+            rules_context=rules_context,
+            campaign_memory_context=get_startup_context(session_database),
+            previous_campaign_events_context=get_previous_campaign_events_context(session_database),
+        ),
+        max_history_turns=max_history_turns,
+        summarization_interval=summarization_interval,
+    )
 
     while True:
         try:
@@ -789,59 +1080,61 @@ def run_cli(
             print("Goodbye.")
             return
 
-        turn_start_index = len(messages)
+        raw_turn_start_index = history_manager.raw_length()
         try:
-            routed = _route_intent_command(user_input)
+            route_token = _ACTIVE_SESSION_CONTROLLER.set(session_controller)
+            try:
+                routed = _route_intent_command(user_input)
+            finally:
+                _ACTIVE_SESSION_CONTROLLER.reset(route_token)
             if routed is not None:
                 tool_name, formatted_output = routed
                 print(f"{tool_name}> {formatted_output}")
-                messages.append({"role": "user", "content": user_input})
-                messages.append(
-                    {
-                        "role": "tool",
-                        "content": f"Deterministic router output ({tool_name}): {formatted_output}",
-                    }
+                history_manager.append_message("user", user_input)
+                history_manager.append_message(
+                    "tool", f"Deterministic router output ({tool_name}): {formatted_output}"
                 )
-                prompt_context_dirty = True
                 continue
-            tool_name, tool_output = _tool_injection(user_input)
+            tool_token = _ACTIVE_SESSION_CONTROLLER.set(session_controller)
+            try:
+                tool_name, tool_output = _tool_injection(user_input)
+            finally:
+                _ACTIVE_SESSION_CONTROLLER.reset(tool_token)
             if tool_name and tool_output is not None:
                 payload = tool_output if isinstance(tool_output, str) else json.dumps(tool_output, ensure_ascii=False)
                 print(f"tool[{tool_name}]> {payload}")
-                messages.append(
-                    {
-                        "role": "tool",
-                        "content": f"Tool output ({tool_name}): {payload}",
-                    }
-                )
-                prompt_context_dirty = True
+                history_manager.append_message("tool", f"Tool output ({tool_name}): {payload}")
             else:
-                messages.append({"role": "user", "content": user_input})
+                history_manager.append_message("user", user_input)
         except (ValueError, D616ConfigurationError, RulesLookupError, OSError) as exc:
             print(f"tool_error> {exc}")
             continue
 
         try:
-            if prompt_context_dirty:
-                campaign_memory_context = get_startup_context(database)
-                messages[0]["content"] = build_startup_system_prompt(
-                    database,
-                    rules_context=rules_context,
-                    campaign_memory_context=campaign_memory_context,
-                )
-                prompt_context_dirty = False
-            final_content = request_open_webui_chat(
+            final_content = _request_open_webui_chat_with_fallback(
                 host=host,
                 base_url=base_url or host,
                 model=model,
-                messages=list(messages),
+                messages=history_manager.build_request_messages(user_input),
                 api_key=api_key,
+                timeout=timeout,
             )
             print(f"assistant> {final_content}")
             if final_content:
-                messages.append({"role": "assistant", "content": final_content})
-        except (httpx.HTTPError, ValueError, TypeError, Exception) as exc:
-            del messages[turn_start_index:]
+                history_manager.append_message("assistant", final_content)
+                history_manager.complete_turn(
+                    lambda existing_summary, pruned_messages: summarize_pruned_history(
+                        model=model,
+                        host=host,
+                        base_url=base_url or host,
+                        api_key=api_key,
+                        timeout=timeout,
+                        existing_summary=existing_summary,
+                        pruned_messages=pruned_messages,
+                    )
+                )
+        except (httpx.HTTPError, ValueError, TypeError, RuntimeError) as exc:
+            history_manager.rollback_to(raw_turn_start_index)
             message = str(exc)
             if "connection refused" in message.lower():
                 print("chat_error> Connection refused. Is Open WebUI running?")
@@ -849,6 +1142,9 @@ def run_cli(
                 print("chat_error> Method not allowed. Verify your Open WebUI host endpoint.")
             else:
                 print(f"chat_error> {exc}")
+        except Exception as exc:  # pragma: no cover - defensive CLI loop fallback
+            history_manager.rollback_to(raw_turn_start_index)
+            print(f"chat_error> {exc}")
 
 
 def main() -> None:
@@ -878,6 +1174,12 @@ def main() -> None:
         help="Optional API key sent in the Authorization header",
     )
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help=f"HTTP timeout in seconds (defaults to config/env or {DEFAULT_REQUEST_TIMEOUT})",
+    )
+    parser.add_argument(
         "--config",
         default=None,
         help="Optional path to TOML config file (default: ./narrator_config.toml if present)",
@@ -896,7 +1198,21 @@ def main() -> None:
     else:
         base_url = host
     api_key = args.api_key if args.api_key is not None else config["api_key"]
-    run_cli(model=model, host=host, base_url=base_url, api_key=api_key)
+    if args.timeout is not None:
+        timeout = args.timeout
+    else:
+        timeout = config["timeout"] if config["timeout"] is not None else DEFAULT_REQUEST_TIMEOUT
+    if timeout <= 0:
+        parser.error("Timeout must be a positive number.")
+    run_cli(
+        model=model,
+        host=host,
+        base_url=base_url,
+        api_key=api_key,
+        timeout=timeout,
+        max_history_turns=int(config["max_history_turns"] or DEFAULT_MAX_HISTORY_CONFIG_TURNS),
+        summarization_interval=int(config["summarization_interval"] or DEFAULT_SUMMARIZATION_CONFIG_INTERVAL),
+    )
 
 
 if __name__ == "__main__":

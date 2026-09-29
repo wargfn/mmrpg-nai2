@@ -30,6 +30,8 @@ from .rules_database import (
     lookup_rule_reference,
     query_rulebook_database,
 )
+from .file_loader import UnifiedContextInjector
+from .session_controller import GameSessionController, get_game_session_controller
 
 __all__ = [
     "roll_d616",
@@ -61,4 +63,7 @@ __all__ = [
     "RulesDatabase",
     "D616ConfigurationError",
     "RulesLookupError",
+    "UnifiedContextInjector",
+    "GameSessionController",
+    "get_game_session_controller",
 ]

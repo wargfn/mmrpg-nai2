@@ -1,4 +1,10 @@
+import contextlib
+import io
+import subprocess
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from marvel_mcp_narrator.core.character_state import character_roster
@@ -124,6 +130,75 @@ class NarratorToolsTests(unittest.TestCase):
         self.assertTrue(callable(narrator_tools.list_available_tags))
         self.assertTrue(callable(narrator_tools.export_character))
         self.assertTrue(callable(narrator_tools.validate_character_powers))
+
+    def test_main_help_includes_fastmcp_startup_guidance(self):
+        stdout = io.StringIO()
+        with self.assertRaises(SystemExit), contextlib.redirect_stdout(stdout):
+            narrator_tools.main(["--help"])
+        help_output = stdout.getvalue()
+        self.assertIn("Start the Marvel MCP Narrator FastMCP server.", help_output)
+        self.assertIn("--list-tools", help_output)
+        self.assertIn("--background", help_output)
+        self.assertIn("python -m marvel_mcp_narrator.mcp_servers.narrator_tools", help_output)
+
+    def test_list_tools_command_prints_available_tools(self):
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            narrator_tools.main(["--list-tools"])
+        output = stdout.getvalue()
+        self.assertIn("Available FastMCP narrator tools:", output)
+        self.assertIn("roll_d616", output)
+        self.assertIn("create_campaign_plan", output)
+
+    @patch("marvel_mcp_narrator.mcp_servers.narrator_tools.mcp.run")
+    def test_main_without_flags_starts_fastmcp_server(self, mock_run):
+        narrator_tools.main([])
+        mock_run.assert_called_once_with()
+
+    def test_start_background_service_spawns_detached_process_and_writes_pid(self):
+        with TemporaryDirectory() as tmpdir:
+            pid_path = Path(tmpdir) / "narrator-tools.pid"
+            log_path = Path(tmpdir) / "narrator-tools.log"
+            fake_process = SimpleNamespace(pid=2468)
+
+            with patch("marvel_mcp_narrator.mcp_servers.narrator_tools.subprocess.Popen", return_value=fake_process) as mock_popen:
+                pid = narrator_tools.start_background_service(pid_file=str(pid_path), log_file=str(log_path))
+
+            self.assertEqual(pid, 2468)
+            self.assertEqual(pid_path.read_text(encoding="utf-8"), "2468")
+            command = mock_popen.call_args.args[0]
+            self.assertTrue(command[0])
+            self.assertEqual(command[1:3], ["-m", "marvel_mcp_narrator.mcp_servers.narrator_tools"])
+            self.assertIn("--pid-file", command)
+            self.assertIn("--log-file", command)
+            self.assertEqual(mock_popen.call_args.kwargs["stdin"], subprocess.DEVNULL)
+            self.assertEqual(mock_popen.call_args.kwargs["stderr"], subprocess.STDOUT)
+            self.assertTrue(mock_popen.call_args.kwargs["start_new_session"])
+            self.assertEqual(
+                mock_popen.call_args.kwargs["env"][narrator_tools.BACKGROUND_SERVICE_ENV],
+                "1",
+            )
+
+    def test_start_background_service_creates_missing_log_directory(self):
+        with TemporaryDirectory() as tmpdir:
+            pid_path = Path(tmpdir) / "narrator-tools.pid"
+            log_path = Path(tmpdir) / "logs" / "nested" / "narrator-tools.log"
+            fake_process = SimpleNamespace(pid=2468)
+
+            with patch("marvel_mcp_narrator.mcp_servers.narrator_tools.subprocess.Popen", return_value=fake_process):
+                narrator_tools.start_background_service(pid_file=str(pid_path), log_file=str(log_path))
+
+            self.assertTrue(log_path.parent.exists())
+
+    @patch("marvel_mcp_narrator.mcp_servers.narrator_tools.start_background_service", return_value=2468)
+    @patch("marvel_mcp_narrator.mcp_servers.narrator_tools.mcp.run")
+    def test_main_background_mode_launches_service_without_running_server(self, mock_run, mock_start_background):
+        narrator_tools.main(["--background", "--pid-file", "/tmp/narrator-tools.pid", "--log-file", "/tmp/narrator-tools.log"])
+        mock_start_background.assert_called_once_with(
+            pid_file="/tmp/narrator-tools.pid",
+            log_file="/tmp/narrator-tools.log",
+        )
+        mock_run.assert_not_called()
 
     def test_create_character_rejects_conflicting_definition(self):
         narrator_tools.create_character(
