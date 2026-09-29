@@ -1,0 +1,10 @@
+[open_webui]
+# Host for Open WebUI API
+host = "http://192.168.29.129:3000"
+
+# Default model used by the CLI if --model is not passed
+# model = "mmrpg2"
+model = "gemma4:12b"
+
+# Optional API key used as Authorization header when set
+api_key = "sk-a37d901f7a5646bdbf53ff1a1da4c38e"
